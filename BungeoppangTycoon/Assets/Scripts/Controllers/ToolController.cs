@@ -30,20 +30,20 @@ public class ToolController : MonoBehaviour
 
     void OnMouseDown()
     {
-        //¼±ÅÃµÈ ÀÌÀü ¹°°ÇÀÌ ÀÖ¾úÀ¸¸é
+        //ì„ íƒëœ ì´ì „ ë¬¼ê±´ì´ ìˆì—ˆìœ¼ë©´
         if (selectedTool != null)
-            pickDown(); //ÀÌÀü pickup ¹°°Ç ³»·Á ³õ±â
+            pickDown(); //ì´ì „ pickup ë¬¼ê±´ ë‚´ë ¤ ë†“ê¸°
 
         pickUp();
 
     }
 
-    //°´Ã¼ Áı¾î ¿Ã¸®´Â ¸Ş¼­µå
+    //ê°ì²´ ì§‘ì–´ ì˜¬ë¦¬ëŠ” ë©”ì„œë“œ
     void pickUp()
     {
-        transform.position += moveDir; //À§·Î ¿Ã¸®±â
+        transform.position += moveDir; //ìœ„ë¡œ ì˜¬ë¦¬ê¸°
         transform.localScale = Vector3.one;
-        transform.rotation = Quaternion.Euler(0, 0, originZRotation+zRotation); // ºñ½ºµëÈ÷ È¸Àü
+        transform.rotation = Quaternion.Euler(0, 0, originZRotation+zRotation); // ë¹„ìŠ¤ë“¬íˆ íšŒì „
         transform.localScale = originScale;
 
         GetComponent<SpriteRenderer>().sortingOrder = maxSortingOrder;
@@ -51,7 +51,7 @@ public class ToolController : MonoBehaviour
 
     }
 
-    //°´Ã¼ ³»·Á³õ´Â ¸Ş¼­µå
+    //ê°ì²´ ë‚´ë ¤ë†“ëŠ” ë©”ì„œë“œ
     void pickDown()
     {
         selectedTool.transform.position -= moveDir;

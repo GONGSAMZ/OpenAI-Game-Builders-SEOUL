@@ -4,7 +4,7 @@ using TMPro;
 
 public class UI_Settings : UI_Base
 {
-    #region È­¸é¿ä¼Ò
+    #region í™”ë©´ìš”ì†Œ
     enum Buttons
     {
         QuitBtn,

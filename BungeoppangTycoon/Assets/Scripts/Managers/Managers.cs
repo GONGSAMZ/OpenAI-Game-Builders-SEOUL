@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class Managers : MonoBehaviour
 {
-    //½Ì±ÛÅæ
+    //ì‹±ê¸€í†¤
     static Managers _instance;
     static GameManagerEx gameManager = new GameManagerEx();
     static ResourceManager resourceManager = new ResourceManager();
@@ -15,10 +15,10 @@ public class Managers : MonoBehaviour
     static public UIManager UI { get { return uiManager; } }
 
 
-    #region Á¶ÀÛ
-    public float _gameSpeed = 1.8f; //°ÔÀÓ ¼Óµµ
-    public int reactionDelayTime = 1; //¹İÀÀÇÏ´Â ¼Óµµ
-    public int money = 5000; //µ·
+    #region ì¡°ì‘
+    public float _gameSpeed = 1.8f; //ê²Œì„ ì†ë„
+    public int reactionDelayTime = 1; //ë°˜ì‘í•˜ëŠ” ì†ë„
+    public int money = 5000; //ëˆ
     public int day = 3; 
 
 

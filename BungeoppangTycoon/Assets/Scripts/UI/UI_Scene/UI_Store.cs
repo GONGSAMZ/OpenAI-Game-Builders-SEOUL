@@ -3,7 +3,7 @@ using TMPro;
 
 public class UI_Store : UI_Base
 {
-    #region È­¸é ¿ä¼Ò
+    #region í™”ë©´ ìš”ì†Œ
     enum Btns
     {
         FillingButton,
@@ -35,9 +35,9 @@ public class UI_Store : UI_Base
             GetTMP(i).text = Define.UI_StoreText[i];
 
 
-        MoneyText.text = "µ·";
-        TitleText.text = "»óÁ¡";
-        MoneyNum.text = Managers.Game.Money.ToString("N0")+" ¿ø";
+        MoneyText.text = "ëˆ";
+        TitleText.text = "ìƒì ";
+        MoneyNum.text = Managers.Game.Money.ToString("N0")+" ì›";
 
         AddEvent(NextDayButton.gameObject, Managers.Game.StartNextDay);
 

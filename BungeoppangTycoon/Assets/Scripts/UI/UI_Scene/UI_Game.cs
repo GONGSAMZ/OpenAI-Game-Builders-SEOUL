@@ -5,7 +5,7 @@ using UnityEngine;
 
 public class UI_Game : UI_Base
 {
-    #region °ÔÀÓ ¿ä¼Ò
+    #region ê²Œì„ ìš”ì†Œ
     enum TMP {
         dayText,
         timeText,
@@ -23,7 +23,7 @@ public class UI_Game : UI_Base
 
     int minute
     {
-        //½Ã°£Àº 10ºĞ´ÜÀ§·Î Ç¥½Ã
+        //ì‹œê°„ì€ 10ë¶„ë‹¨ìœ„ë¡œ í‘œì‹œ
         get { return Managers.Game.minute / 10; }
     }
 
@@ -31,17 +31,17 @@ public class UI_Game : UI_Base
 
     protected override void Init()
     {
-        //¹ÙÀÎµù
+        //ë°”ì¸ë”©
         Bind<TextMeshProUGUI>(typeof(TMP));
         Bind<Button>(typeof(Btns));
 
-        //µ¥ÀÌÅÍ
+        //ë°ì´í„°
         GetTMP((int)TMP.dayText).text = $"Day {Managers.Game.Day}";
-        GetTMP((int)TMP.moneyText).text = $"{Managers.Game.Money.ToString("N0")} ¿ø";
+        GetTMP((int)TMP.moneyText).text = $"{Managers.Game.Money.ToString("N0")} ì›";
         GetButton((int)Btns.toggleViewButton).gameObject.AddEvent(CameraController.toggleCameraAction);
         GetButton((int)Btns.settingsButton).gameObject.AddEvent(settingsBtnFunc);
 
-        //ÀÌº¥Æ® ±¸µ¶
+        //ì´ë²¤íŠ¸ êµ¬ë…
 
         orderUpdateAction -= orderUpdate;
         orderUpdateAction += orderUpdate;
@@ -53,9 +53,9 @@ public class UI_Game : UI_Base
 
     void Update()
     {
-        //ºĞÀº 10ÀÇ ´ÜÀ§·Î¸¸ ¹Ù²Ş
+        //ë¶„ì€ 10ì˜ ë‹¨ìœ„ë¡œë§Œ ë°”ê¿ˆ
         GetTMP((int)TMP.timeText).text = ($"{Managers.Game.hour} : {minute}0");
-        GetTMP((int)TMP.moneyText).text = ($"{Managers.Game.Money.ToString("N0")} ¿ø ");
+        GetTMP((int)TMP.moneyText).text = ($"{Managers.Game.Money.ToString("N0")} ì› ");
 
 
     }
@@ -70,9 +70,9 @@ public class UI_Game : UI_Base
     static void orderUpdate()
     {
         int numOfPanel = 0;
-        GameObject panel; //ordersPanel»êÇÏÀÇ panel
+        GameObject panel; //ordersPanelì‚°í•˜ì˜ panel
 
-        //ÁÖ¹® Á¾·ù&°³¼öUI Ç¥½Ã
+        //ì£¼ë¬¸ ì¢…ë¥˜&ê°œìˆ˜UI í‘œì‹œ
         foreach (var order in Managers.Game.Order)
         {
             panel = ordersPanel.transform.GetChild(numOfPanel).gameObject;
@@ -87,7 +87,7 @@ public class UI_Game : UI_Base
 
         }
 
-        //³ª¸ÓÁö ºñÈ°¼ºÈ­
+        //ë‚˜ë¨¸ì§€ ë¹„í™œì„±í™”
         Util.checkNull(ordersPanel);
         for(int j = numOfPanel;  j < ordersPanel.transform.childCount; ++j)
         {

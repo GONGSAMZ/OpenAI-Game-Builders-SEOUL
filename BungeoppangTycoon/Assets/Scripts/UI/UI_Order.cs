@@ -9,16 +9,16 @@ public class UI_Order : UI_Base
 
     protected override void Init()
     {
-        // 1. Äµ¹ö½º ½ºÆäÀÌ½º ·»´õ¸µ ¸ğµå·Î ÃÊ±âÈ­
+        // 1. ìº”ë²„ìŠ¤ ìŠ¤í˜ì´ìŠ¤ ë Œë”ë§ ëª¨ë“œë¡œ ì´ˆê¸°í™”
         SetWorldUI();
 
-        // 2. º¯¼ö ¸ÊÇÎ
+        // 2. ë³€ìˆ˜ ë§µí•‘
         orderText = Util.Find<TextMeshProUGUI>(gameObject, "orderText");
         slider = Util.Find<Slider>(gameObject, "slider");
 
         //slider.gameObject.AddEvent(SetOrder);
 
-        // 3. ¼Õ´Ô ºĞ³ë °ÔÀÌÁö ÃÊ±âÈ­
+        // 3. ì†ë‹˜ ë¶„ë…¸ ê²Œì´ì§€ ì´ˆê¸°í™”
         slider.value = 0f; 
 
     }
@@ -27,11 +27,11 @@ public class UI_Order : UI_Base
 
     public void SetOrderText(Dictionary<FillingType, int> orders)
     {
-        //±âÁ¸ ÅØ½ºÆ® ¾ø¾Ö±â
+        //ê¸°ì¡´ í…ìŠ¤íŠ¸ ì—†ì• ê¸°
         orderText.text = null;
 
         foreach (var order in orders)
-            orderText.text += $"{Define.FillingText[(int)order.Key]} * {order.Value}°³ \n";
+            orderText.text += $"{Define.FillingText[(int)order.Key]} * {order.Value}ê°œ \n";
 
     }
 

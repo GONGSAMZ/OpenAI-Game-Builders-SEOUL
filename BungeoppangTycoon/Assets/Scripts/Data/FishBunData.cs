@@ -6,9 +6,9 @@ using UnityEngine;
 [Serializable]
 public class FishBunData 
 {
-    FillingType filling; //¼Ò
-    public float bakingTime; //±Á±â ÀûÁ¤ ½Ã°£ ¹üÀ§
-    public int price; //°¡°İ
+    FillingType filling; //ì†Œ
+    public float bakingTime; //êµ½ê¸° ì ì • ì‹œê°„ ë²”ìœ„
+    public int price; //ê°€ê²©
 
 }
 
