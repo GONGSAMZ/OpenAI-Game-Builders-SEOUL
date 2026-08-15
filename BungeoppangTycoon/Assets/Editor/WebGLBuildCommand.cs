@@ -42,7 +42,27 @@ public static class WebGLBuildCommand
         if (report.summary.result != BuildResult.Succeeded)
             throw new InvalidOperationException($"WebGL 빌드에 실패했습니다: {report.summary.result}");
 
+        InjectPlatformBridge(options.locationPathName);
+
         Console.WriteLine($"WEBGL_BUILD_SUCCEEDED size={report.summary.totalSize} path={options.locationPathName}");
+    }
+
+    private static void InjectPlatformBridge(string buildDirectory)
+    {
+        string indexPath = Path.Combine(buildDirectory, "index.html");
+        const string bridgeTag = "<script src=\"/game-bridge.js\"></script>";
+
+        if (!File.Exists(indexPath))
+            throw new FileNotFoundException("WebGL index.html을 찾을 수 없습니다.", indexPath);
+
+        string html = File.ReadAllText(indexPath);
+        if (html.Contains(bridgeTag))
+            return;
+
+        if (!html.Contains("</head>"))
+            throw new InvalidOperationException("WebGL index.html의 </head> 태그를 찾을 수 없습니다.");
+
+        File.WriteAllText(indexPath, html.Replace("</head>", $"  {bridgeTag}{Environment.NewLine}  </head>"));
     }
 
     private static void EnsureUrpCompatibilityMode()

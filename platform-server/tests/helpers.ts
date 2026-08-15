@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { AppConfig } from "../src/config.js";
 
 export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
@@ -6,11 +7,16 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     port: 3000,
     publicBaseUrl: "http://localhost:3000",
     gameOrigin: "http://localhost:3000",
+    gameBuildDirectory: path.resolve(process.cwd(), "game-dist"),
     sessionTtlSeconds: 3600,
     hive: {
       mode: "mock",
       country: "KR",
       language: "ko"
+    },
+    store: {
+      mode: "mock",
+      dataStore: "memory"
     },
     openai: {
       mode: "mock",
@@ -22,6 +28,7 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     ...base,
     ...overrides,
     hive: { ...base.hive, ...overrides.hive },
+    store: { ...base.store, ...overrides.store },
     openai: { ...base.openai, ...overrides.openai }
   };
 }

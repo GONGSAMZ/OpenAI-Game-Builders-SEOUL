@@ -42,6 +42,10 @@
       return this.request("/api/v1/health");
     }
 
+    getPublicConfig() {
+      return this.request("/api/v1/config/public");
+    }
+
     getSession() {
       return this.request("/api/v1/auth/session");
     }
@@ -96,10 +100,28 @@
     }
 
     async logout() {
-      if (this.sessionToken) {
-        await this.request("/api/v1/auth/session", { method: "DELETE" });
+      try {
+        if (this.sessionToken) {
+          await this.request("/api/v1/auth/session", { method: "DELETE" });
+        }
+      } finally {
+        this.sessionToken = null;
       }
-      this.sessionToken = null;
+    }
+
+    getStoreCatalog() {
+      return this.request("/api/v1/store/catalog");
+    }
+
+    getInventory() {
+      return this.request("/api/v1/store/me");
+    }
+
+    createMockPurchase(productId, idempotencyKey = global.crypto.randomUUID()) {
+      return this.request("/api/v1/store/mock-purchases", {
+        method: "POST",
+        body: JSON.stringify({ productId, idempotencyKey })
+      });
     }
 
     createNpcReaction(input) {

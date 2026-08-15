@@ -84,6 +84,10 @@ export class HiveWebLoginClient {
       throw new Error(`Hive 토큰 검증에 실패했습니다. code=${result.code}`);
     }
 
+    if (result.appid !== requireValue(this.config.appId, "HIVE_APP_ID")) {
+      throw new Error("Hive 검증 결과의 AppID가 서버 설정과 일치하지 않습니다.");
+    }
+
     if (result.user_info?.is_blocked) {
       throw new Error("이용이 정지된 Hive 사용자입니다.");
     }

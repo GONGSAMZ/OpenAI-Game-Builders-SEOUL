@@ -24,6 +24,14 @@ public sealed class GamePlatformClient : MonoBehaviour
 
     public bool IsLoggedIn => !string.IsNullOrWhiteSpace(sessionToken);
 
+    private void Awake()
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (Uri.TryCreate(Application.absoluteURL, UriKind.Absolute, out Uri gameUri))
+            apiBaseUrl = gameUri.GetLeftPart(UriPartial.Authority);
+#endif
+    }
+
     public void Configure(string baseUrl)
     {
         apiBaseUrl = baseUrl.TrimEnd('/');
@@ -64,6 +72,26 @@ public sealed class GamePlatformClient : MonoBehaviour
             locale = "ko"
         });
         yield return SendJson("POST", "/api/v1/ai/npc-reaction", payload, onSuccess);
+    }
+
+    public IEnumerator GetStoreCatalog(Action<string> onSuccess)
+    {
+        yield return SendJson("GET", "/api/v1/store/catalog", null, onSuccess);
+    }
+
+    public IEnumerator GetInventory(Action<string> onSuccess)
+    {
+        yield return SendJson("GET", "/api/v1/store/me", null, onSuccess);
+    }
+
+    public IEnumerator CreateMockPurchase(string productId, Action<string> onSuccess)
+    {
+        var payload = JsonUtility.ToJson(new MockPurchaseRequest
+        {
+            productId = productId,
+            idempotencyKey = Guid.NewGuid().ToString()
+        });
+        yield return SendJson("POST", "/api/v1/store/mock-purchases", payload, onSuccess);
     }
 
     public void OnHiveLoginSuccess(string token)
@@ -116,5 +144,12 @@ public sealed class GamePlatformClient : MonoBehaviour
         public string situation;
         public string playerAction;
         public string locale;
+    }
+
+    [Serializable]
+    private sealed class MockPurchaseRequest
+    {
+        public string productId;
+        public string idempotencyKey;
     }
 }

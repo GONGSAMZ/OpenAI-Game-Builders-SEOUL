@@ -60,6 +60,28 @@ Hive 로그인 후 호출할 수 있습니다.
 
 현재 엔드포인트는 연동 검증용 예시입니다. 게임 기획이 확정되면 입력과 출력 스키마를 게임 기능에 맞춰 별도 버전으로 추가합니다.
 
+## 장인 상점
+
+### `GET /api/v1/store/catalog`
+
+공개 상품 목록과 현재 `mock`/`hive-web-shop` 모드를 반환합니다.
+
+### `GET /api/v1/store/me`
+
+로그인한 사용자의 서버 보유 아이템을 반환합니다.
+
+### `POST /api/v1/store/mock-purchases`
+
+`STORE_MODE=mock` 전용 데모 지급 API입니다. 같은 UUID `idempotencyKey`는 한 번만 지급됩니다.
+
+```json
+{ "productId": "red-bean-100", "idempotencyKey": "12e68262-ff70-42b7-ae95-18e89b7bbbd8" }
+```
+
+### `POST /api/v1/hive/web-shop/in-game-info`
+
+HIVE 관리형 웹 상점이 구매 수령 서버·캐릭터를 조회하는 서버 간 API입니다. HIVE Console의 인게임 정보 URL에 등록합니다.
+
 ## 오류 형식
 
 ```json

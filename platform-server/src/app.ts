@@ -11,6 +11,8 @@ import { AiService } from "./integrations/openai/service.js";
 import { HiveWebLoginClient } from "./integrations/hive/client.js";
 import { decodeHivePayload } from "./integrations/hive/codec.js";
 import { InMemorySessionStore, OneTimeAttemptStore } from "./session-store.js";
+import { findProduct, storeCatalog } from "./store/catalog.js";
+import { createMarketStore, type MarketStore } from "./store/store.js";
 
 const publicDirectory = path.resolve(process.cwd(), "public");
 const loginCookieName = "hive_login_attempt";
@@ -21,12 +23,35 @@ const npcReactionSchema = z.object({
   locale: z.enum(["ko", "en"]).default("ko")
 });
 
+const mockPurchaseSchema = z.object({
+  productId: z.string().trim().min(1).max(100),
+  idempotencyKey: z.string().uuid()
+});
+
+const hiveWebShopProfileSchema = z.object({
+  cs_code: z.coerce.number().int().positive().safe()
+});
+
 interface AppDependencies {
   config: AppConfig;
   sessions?: InMemorySessionStore;
   loginAttempts?: OneTimeAttemptStore;
   hiveClient?: HiveWebLoginClient;
   aiService?: AiService;
+  marketStore?: MarketStore;
+}
+
+function setUnityAssetHeaders(response: Response, filePath: string): void {
+  if (!filePath.endsWith(".unityweb")) return;
+
+  response.setHeader("Content-Encoding", "gzip");
+  if (filePath.endsWith(".wasm.unityweb")) {
+    response.setHeader("Content-Type", "application/wasm");
+  } else if (filePath.endsWith(".js.unityweb")) {
+    response.setHeader("Content-Type", "text/javascript; charset=utf-8");
+  } else {
+    response.setHeader("Content-Type", "application/octet-stream");
+  }
 }
 
 function sessionResponse(session: ReturnType<InMemorySessionStore["create"]>) {
@@ -44,10 +69,24 @@ export function createApp(dependencies: AppDependencies) {
   const loginAttempts = dependencies.loginAttempts ?? new OneTimeAttemptStore();
   const hiveClient = dependencies.hiveClient ?? new HiveWebLoginClient(config.hive);
   const aiService = dependencies.aiService ?? new AiService(config.openai);
+  const marketStore = dependencies.marketStore ?? createMarketStore(config);
   const app = express();
 
   app.disable("x-powered-by");
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+      contentSecurityPolicy: {
+        directives: {
+          "script-src": ["'self'", "'wasm-unsafe-eval'"],
+          "worker-src": ["'self'", "blob:"],
+          "img-src": ["'self'", "data:", "blob:"],
+          "connect-src": ["'self'"],
+          "frame-src": ["'self'"]
+        }
+      }
+    })
+  );
   app.use(
     cors({
       origin(origin, callback) {
@@ -70,6 +109,8 @@ export function createApp(dependencies: AppDependencies) {
   app.get("/api/v1/config/public", (_request, response) => {
     response.json({
       hiveMode: config.hive.mode,
+      storeMode: config.store.mode,
+      hiveWebShopUrl: config.hive.webShopUrl ?? null,
       openaiMode: config.openai.mode,
       openaiModel: config.openai.mode === "live" ? config.openai.model : "mock"
     });
@@ -183,6 +224,78 @@ export function createApp(dependencies: AppDependencies) {
     }
   );
 
+  app.get("/api/v1/store/catalog", (_request, response) => {
+    response.json({ mode: config.store.mode, products: storeCatalog });
+  });
+
+  app.get(
+    "/api/v1/store/me",
+    requireSession(sessions),
+    async (_request: Request, response: Response) => {
+      const { session } = response.locals as AuthenticatedLocals;
+      response.json({ inventory: await marketStore.getInventory(session.subject) });
+    }
+  );
+
+  const purchaseLimiter = rateLimit({
+    windowMs: 60_000,
+    limit: 10,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: { code: "RATE_LIMITED", message: "구매 요청이 너무 많습니다." } }
+  });
+
+  app.post(
+    "/api/v1/store/mock-purchases",
+    purchaseLimiter,
+    requireSession(sessions),
+    async (request: Request, response: Response) => {
+      if (config.store.mode !== "mock") {
+        throw new HttpError(403, "실제 HIVE 웹 상점 모드에서는 mock 구매를 사용할 수 없습니다.");
+      }
+
+      const input = mockPurchaseSchema.parse(request.body);
+      const product = findProduct(input.productId);
+      if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
+
+      const { session } = response.locals as AuthenticatedLocals;
+      const result = await marketStore.grantMockPurchase(
+        session.subject,
+        product,
+        input.idempotencyKey
+      );
+      response.status(result.duplicate ? 200 : 201).json(result);
+    }
+  );
+
+  app.post("/api/v1/hive/web-shop/in-game-info", (request, response) => {
+    const { cs_code: csCode } = hiveWebShopProfileSchema.parse(request.body);
+    response.json({
+      result_code: 200,
+      result_message: "success",
+      cs_code: csCode,
+      data: [
+        {
+          server_id: "global",
+          server_name: "붕어빵 마을",
+          channels: [
+            {
+              channel_id: "0",
+              channel_name: "-",
+              characters: [
+                {
+                  character_id: String(csCode),
+                  character_name: `붕어빵 장인 ${csCode}`,
+                  character_level: "1"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+  });
+
   const aiLimiter = rateLimit({
     windowMs: 60_000,
     limit: 20,
@@ -202,7 +315,21 @@ export function createApp(dependencies: AppDependencies) {
     }
   );
 
-  app.use(express.static(publicDirectory, { extensions: ["html"], maxAge: config.nodeEnv === "production" ? "1h" : 0 }));
+  app.use(
+    "/game",
+    express.static(config.gameBuildDirectory, {
+      index: "index.html",
+      maxAge: config.nodeEnv === "production" ? "1h" : 0,
+      setHeaders: setUnityAssetHeaders
+    })
+  );
+
+  app.use(
+    express.static(publicDirectory, {
+      extensions: ["html"],
+      maxAge: config.nodeEnv === "production" ? "1h" : 0
+    })
+  );
 
   app.use((_request, response) => {
     response.status(404).json({ error: { code: "NOT_FOUND", message: "요청한 경로가 없습니다." } });

@@ -1,4 +1,5 @@
 import request from "supertest";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import { createTestConfig } from "./helpers.js";
@@ -28,9 +29,15 @@ describe("integration API", () => {
     expect(health.body).toEqual(expect.objectContaining({ status: "ok" }));
     await request(app)
       .get("/api/v1/config/public")
-      .expect(200, { hiveMode: "mock", openaiMode: "mock", openaiModel: "mock" });
+      .expect(200, {
+        hiveMode: "mock",
+        storeMode: "mock",
+        hiveWebShopUrl: null,
+        openaiMode: "mock",
+        openaiModel: "mock"
+      });
     const page = await request(app).get("/").expect(200);
-    expect(page.text).toContain("게임 연동 베이스캠프");
+    expect(page.text).toContain("붕어빵 타이쿤");
   });
 
   it("mock Hive 로그인 후 게임 세션을 조회한다", async () => {
@@ -66,5 +73,51 @@ describe("integration API", () => {
       .post("/api/v1/ai/npc-reaction")
       .send({ situation: "test", playerAction: "test", locale: "ko" })
       .expect(401);
+  });
+
+  it("mock 상품을 한 번만 지급하고 보유 아이템을 반환한다", async () => {
+    const app = createApp({ config: createTestConfig() });
+    const token = await login(app);
+    const idempotencyKey = "12e68262-ff70-42b7-ae95-18e89b7bbbd8";
+
+    const first = await request(app)
+      .post("/api/v1/store/mock-purchases")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ productId: "red-bean-100", idempotencyKey })
+      .expect(201);
+    expect(first.body).toEqual(expect.objectContaining({ duplicate: false }));
+    expect(first.body.inventory).toContainEqual({ itemId: "red-bean-coin", quantity: 100 });
+
+    const duplicate = await request(app)
+      .post("/api/v1/store/mock-purchases")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ productId: "red-bean-100", idempotencyKey })
+      .expect(200);
+    expect(duplicate.body).toEqual(expect.objectContaining({ duplicate: true }));
+    expect(duplicate.body.inventory).toContainEqual({ itemId: "red-bean-coin", quantity: 100 });
+  });
+
+  it("HIVE 웹 상점용 게임 사용자 정보를 반환한다", async () => {
+    const app = createApp({ config: createTestConfig() });
+    const response = await request(app)
+      .post("/api/v1/hive/web-shop/in-game-info")
+      .send({ cs_code: 100001234 })
+      .expect(200);
+    expect(response.body).toEqual(
+      expect.objectContaining({ result_code: 200, cs_code: 100001234 })
+    );
+  });
+
+  it("Unity 압축 파일에 올바른 전송 헤더를 설정한다", async () => {
+    const app = createApp({
+      config: createTestConfig({
+        gameBuildDirectory: path.resolve(process.cwd(), "tests/fixtures/game")
+      })
+    });
+    const response = await request(app).head("/game/assets/sample.wasm.unityweb").expect(200);
+    expect(response.headers["content-encoding"]).toBe("gzip");
+    expect(response.headers["content-type"]).toContain("application/wasm");
+    const page = await request(app).get("/game/").expect(200);
+    expect(page.text).toContain("Unity test fixture");
   });
 });

@@ -21,6 +21,10 @@
 _codex-backups/
 BungeoppangTycoon/webgl-*.log
 
+# Deployment staging area. CI copies the generated Unity WebGL build here.
+platform-server/game-dist/*
+!platform-server/game-dist/README.md
+
 # Keep Codex worklogs even though Unity's generic Logs rule is above.
 !docs/codex/logs/
 !docs/codex/logs/*.md

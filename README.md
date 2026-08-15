@@ -65,14 +65,15 @@
 
 ## 🌐 웹 플랫폼 연동
 
-Unity 게임과 독립된 `platform-server`에서 Hive Web Login과 OpenAI API를 처리합니다. 외부 비밀키는 Unity나 브라우저에 포함하지 않고 서버 환경변수로만 관리합니다.
+Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점, OpenAI API를 처리합니다. 서버가 같은 도메인의 `/game/`에서 WebGL 빌드를 제공하므로 접속 즉시 웹 포털과 게임을 함께 볼 수 있습니다. 외부 비밀키는 Unity나 브라우저에 포함하지 않고 서버 환경변수로만 관리합니다.
 
 | 구성 | 위치 | 역할 |
 | --- | --- | --- |
-| 플랫폼 서버 | `platform-server/` | Hive 로그인, 게임 세션, OpenAI 프록시 |
+| 플랫폼 서버 | `platform-server/` | HIVE 로그인, 게임 세션, 마켓, OpenAI 프록시 |
 | 브라우저 브리지 | `platform-server/public/game-bridge.js` | 로그인 팝업과 WebGL 통신 |
 | Unity WebGL 플러그인 | `BungeoppangTycoon/Assets/Plugins/WebGL/` | JavaScript와 Unity `SendMessage` 연결 |
 | Unity API 클라이언트 | `BungeoppangTycoon/Assets/Scripts/Platform/` | 게임 세션과 서버 API 호출 |
+| AWS 자동 배포 | `infra/aws/`, `.github/workflows/deploy-dev-to-aws.yml` | DEV → WebGL 빌드 → ECS/CloudFront 배포 |
 
 서버는 기본적으로 Hive와 OpenAI를 `mock` 모드로 실행하므로 외부 키 없이 전체 연결 흐름을 확인할 수 있습니다.
 
@@ -83,7 +84,7 @@ pnpm install
 pnpm dev
 ```
 
-브라우저에서 `http://localhost:3000`을 열어 서버 연결 → Hive mock 로그인 → AI mock 응답을 차례대로 확인합니다. 상세 설정은 [`platform-server/README.md`](platform-server/README.md)를 참고하세요.
+브라우저에서 `http://localhost:3000`을 열어 WebGL 게임 → HIVE mock 가입·로그인 → 상점 mock 구매 → AI mock 응답을 확인합니다. 상세 설정은 [`platform-server/README.md`](platform-server/README.md), AWS 구성은 [`docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md`](docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md)를 참고하세요.
 
 ## 📁 프로젝트 구조
 

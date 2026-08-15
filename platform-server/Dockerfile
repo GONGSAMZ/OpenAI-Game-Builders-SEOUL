@@ -1,18 +1,19 @@
 FROM node:24-alpine AS build
 WORKDIR /app
 RUN corepack enable
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json tsconfig.build.json ./
+COPY platform-server/package.json platform-server/pnpm-lock.yaml platform-server/pnpm-workspace.yaml platform-server/tsconfig.json platform-server/tsconfig.build.json ./
 RUN pnpm install --frozen-lockfile
-COPY src ./src
+COPY platform-server/src ./src
 RUN pnpm build
 
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 RUN corepack enable
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY platform-server/package.json platform-server/pnpm-lock.yaml platform-server/pnpm-workspace.yaml ./
 RUN pnpm install --prod --frozen-lockfile
 COPY --from=build /app/dist ./dist
-COPY public ./public
+COPY platform-server/public ./public
+COPY platform-server/game-dist ./game-dist
 EXPOSE 3000
 CMD ["node", "dist/src/server.js"]
