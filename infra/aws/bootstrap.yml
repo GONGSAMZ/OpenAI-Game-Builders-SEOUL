@@ -186,6 +186,7 @@ Resources:
                   - ec2:DeleteVpc
                   - ec2:DetachInternetGateway
                   - ec2:DisassociateRouteTable
+                  - ec2:GetSecurityGroupsForVpc
                   - ec2:ModifySubnetAttribute
                   - ec2:ModifyVpcAttribute
                   - ec2:RevokeSecurityGroupIngress
