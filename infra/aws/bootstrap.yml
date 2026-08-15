@@ -5,9 +5,15 @@ Parameters:
   GitHubOrganization:
     Type: String
     Default: GONGSAMZ
+  GitHubOrganizationId:
+    Type: String
+    Default: "316588943"
   GitHubRepository:
     Type: String
     Default: OpenAI-Game-Builders-SEOUL
+  GitHubRepositoryId:
+    Type: String
+    Default: "1333135984"
   DeployBranch:
     Type: String
     Default: DEV
@@ -126,7 +132,7 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubOrganization}/${GitHubRepository}:ref:refs/heads/${DeployBranch}
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubOrganization}@${GitHubOrganizationId}/${GitHubRepository}@${GitHubRepositoryId}:ref:refs/heads/${DeployBranch}
       Policies:
         - PolicyName: DeployGameService
           PolicyDocument:
@@ -171,6 +177,7 @@ Resources:
                   - ec2:CreateTags
                   - ec2:CreateVpc
                   - ec2:Describe*
+                  - ec2:AttachInternetGateway
                   - ec2:DeleteInternetGateway
                   - ec2:DeleteRoute
                   - ec2:DeleteRouteTable
