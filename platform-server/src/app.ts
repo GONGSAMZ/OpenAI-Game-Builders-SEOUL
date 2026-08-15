@@ -81,7 +81,7 @@ export function createApp(dependencies: AppDependencies) {
           // Unity's generated WebGL template bootstraps the loader with an
           // inline script. The auth callback page still supplies its own
           // stricter nonce-based policy in auth-page.ts.
-          "script-src": ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"],
+          "script-src": ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'", "blob:"],
           "worker-src": ["'self'", "blob:"],
           "img-src": ["'self'", "data:", "blob:"],
           "connect-src": ["'self'"],
