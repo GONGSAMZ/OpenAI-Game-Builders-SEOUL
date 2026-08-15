@@ -122,6 +122,20 @@ jobs:
           pnpm check
           pnpm build
 
+      - name: Inspect GitHub OIDC deployment identity
+        shell: bash
+        run: |
+          token=$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" | jq --raw-output .value)
+          payload=$(cut --delimiter=. --fields=2 <<< "$token")
+          case $((${#payload} % 4)) in
+            2) payload="${payload}==" ;;
+            3) payload="${payload}=" ;;
+          esac
+          printf '%s' "$payload" | tr '_-' '/+' | base64 --decode | \
+            jq --compact-output '{sub, aud, repository, repository_owner, ref, workflow_ref}'
+
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
