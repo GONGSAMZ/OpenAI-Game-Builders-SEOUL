@@ -10,6 +10,7 @@
 .idea/
 *.csproj
 *.sln
+*.slnx
 *.user
 *.tmp
 *.utmp

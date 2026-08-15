@@ -6,7 +6,7 @@
   <br />
   <b>손님 주문을 놓치지 않고, 따뜻한 붕어빵 가게를 5일간 운영하는 Unity 2D 경영 게임</b>
   <br />
-  <sub>Bungeoppang Tycoon · Solo Project · Unity 6000.0.39f1 · C#</sub>
+  <sub>Bungeoppang Tycoon · Solo Project · Unity 6.3 LTS (6000.3.22f1) · C#</sub>
 </div>
 
 <br />
@@ -58,7 +58,7 @@
 
 ## 🛠️ 기술 스택
 
-- **Engine:** Unity 6000.0.39f1
+- **Engine:** Unity 6.3 LTS (6000.3.22f1)
 - **Language:** C#
 - **Rendering:** Universal Render Pipeline (URP) 2D
 - **UI:** UGUI, TextMeshPro
@@ -109,7 +109,7 @@ platform-server/
 ## ▶️ 실행 방법
 
 1. Unity Hub에서 이 저장소의 `BungeoppangTycoon` 폴더를 프로젝트로 추가합니다.
-2. **Unity 6000.0.39f1** 버전으로 프로젝트를 엽니다.
+2. **Unity 6.3 LTS (6000.3.22f1)** 버전으로 프로젝트를 엽니다.
 3. `Assets/Scenes/IntroScene.unity`를 열고 Play 버튼을 누릅니다.
 
 ---
