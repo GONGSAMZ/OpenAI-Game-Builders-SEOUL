@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>게임 연동 베이스캠프</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/game-bridge.js" defer></script>
+    <script src="/demo.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">OPENAI GAME BUILDERS</p>
+      <h1>게임 연동 베이스캠프</h1>
+      <p class="lead">실제 붕어빵 게임이 오기 전 Hive 로그인, 서버 통신, AI 호출을 검증하는 모의 클라이언트입니다.</p>
+
+      <section>
+        <h2>1. 서버 연결</h2>
+        <button id="health-button" type="button">Health 확인</button>
+      </section>
+
+      <section>
+        <h2>2. Hive 로그인</h2>
+        <div class="actions">
+          <button id="login-button" type="button">Hive 로그인</button>
+          <button id="session-button" type="button">세션 확인</button>
+          <button id="logout-button" class="secondary" type="button">로그아웃</button>
+        </div>
+        <p class="hint">기본 설정은 mock이므로 Hive 계정 없이 전체 흐름을 테스트할 수 있습니다.</p>
+      </section>
+
+      <section>
+        <h2>3. OpenAI 서버 프록시</h2>
+        <form id="ai-form">
+          <label>현재 상황 <input id="situation" value="손님이 갓 구운 붕어빵을 기다리고 있다" maxlength="500" /></label>
+          <label>플레이어 행동 <input id="player-action" value="팥을 듬뿍 넣었다" maxlength="500" /></label>
+          <button type="submit">NPC 반응 생성</button>
+        </form>
+      </section>
+
+      <section class="console-section">
+        <div class="console-title">
+          <h2>결과</h2>
+          <button id="clear-button" class="secondary" type="button">비우기</button>
+        </div>
+        <pre id="output" aria-live="polite">준비되었습니다.</pre>
+      </section>
+    </main>
+  </body>
+</html>

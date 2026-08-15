@@ -63,6 +63,28 @@
 - **Rendering:** Universal Render Pipeline (URP) 2D
 - **UI:** UGUI, TextMeshPro
 
+## 🌐 웹 플랫폼 연동
+
+Unity 게임과 독립된 `platform-server`에서 Hive Web Login과 OpenAI API를 처리합니다. 외부 비밀키는 Unity나 브라우저에 포함하지 않고 서버 환경변수로만 관리합니다.
+
+| 구성 | 위치 | 역할 |
+| --- | --- | --- |
+| 플랫폼 서버 | `platform-server/` | Hive 로그인, 게임 세션, OpenAI 프록시 |
+| 브라우저 브리지 | `platform-server/public/game-bridge.js` | 로그인 팝업과 WebGL 통신 |
+| Unity WebGL 플러그인 | `BungeoppangTycoon/Assets/Plugins/WebGL/` | JavaScript와 Unity `SendMessage` 연결 |
+| Unity API 클라이언트 | `BungeoppangTycoon/Assets/Scripts/Platform/` | 게임 세션과 서버 API 호출 |
+
+서버는 기본적으로 Hive와 OpenAI를 `mock` 모드로 실행하므로 외부 키 없이 전체 연결 흐름을 확인할 수 있습니다.
+
+```powershell
+Set-Location platform-server
+Copy-Item .env.example .env
+pnpm install
+pnpm dev
+```
+
+브라우저에서 `http://localhost:3000`을 열어 서버 연결 → Hive mock 로그인 → AI mock 응답을 차례대로 확인합니다. 상세 설정은 [`platform-server/README.md`](platform-server/README.md)를 참고하세요.
+
 ## 📁 프로젝트 구조
 
 ```text
@@ -76,6 +98,12 @@ BungeoppangTycoon/
 │  └─ Resources/       # 스프라이트, 사운드, 프리팹, 데이터
 ├─ Packages/
 └─ ProjectSettings/
+
+platform-server/
+├─ src/                 # Hive/OpenAI 서버 코드
+├─ public/              # 연동 검증 화면과 브라우저 브리지
+├─ tests/               # 서버 통합 테스트
+└─ docs/                # API와 Console 설정 문서
 ```
 
 ## ▶️ 실행 방법
