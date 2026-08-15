@@ -1,0 +1,84 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - kettle
+  - filling
+  - displayPlate
+  - bin
+  - customer
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - DropZone
+  - Water
+  - UI
+  - FishBun
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0
+  - name: background
+    uniqueID: 3889868047
+    locked: 0
+  - name: prebackground
+    uniqueID: 3165113163
+    locked: 0
+  - name: customer
+    uniqueID: 1527653885
+    locked: 0
+  - name: desk
+    uniqueID: 4272548855
+    locked: 0
+  - name: DialogueBallon
+    uniqueID: 3114717863
+    locked: 0
+  - name: Ingredient
+    uniqueID: 9303145
+    locked: 0
+  - name: mold
+    uniqueID: 4039193171
+    locked: 0
+  - name: Batter
+    uniqueID: 280576007
+    locked: 0
+  - name: Filling
+    uniqueID: 1628218771
+    locked: 0
+  - name: FishBun
+    uniqueID: 1986304207
+    locked: 0
+  - name: UI
+    uniqueID: 3373809397
+    locked: 0
+  - name: Effect
+    uniqueID: 3223606329
+    locked: 0
