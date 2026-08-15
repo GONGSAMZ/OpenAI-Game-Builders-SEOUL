@@ -11,8 +11,9 @@ Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, �
 - OpenAI Responses API 서버 프록시와 mock 응답
 - mock 마켓, 중복 구매 방지, 메모리/DynamoDB 아이템 저장소
 - HIVE 웹 상점 연결과 인게임 정보 조회 API
-- `/game/` Unity WebGL 제공 및 포털 iframe 임베드
-- 브라우저용 `game-bridge.js` 및 통합 포털
+- `/game/` Unity WebGL 제공 및 루트 화면 iframe 임베드
+- 상단 헤더와 게임만 표시하는 최소 웹 셸
+- 브라우저용 `game-bridge.js`와 Unity 통합 API
 - Unity 프로젝트에 적용된 WebGL `.jslib`/C# 어댑터
 - Docker 및 GitHub Actions 기본 설정
 
@@ -33,12 +34,7 @@ Copy-Item .env.example .env
 pnpm dev
 ```
 
-`.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다.
-
-1. 포털 안에서 Unity 게임 실행
-2. HIVE mock 가입·로그인
-3. 장인 상점에서 데모 구매 후 보유 아이템 확인
-4. NPC 반응 생성
+`.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다. 루트 화면에는 상단 헤더와 Unity 게임만 표시됩니다. HIVE mock 가입·로그인, mock 구매, NPC 반응 생성 기능은 서버 API와 Unity 브리지에 유지되며 실제 게임 UI에서 호출합니다.
 
 ## 실제 서비스 전환
 
@@ -48,7 +44,7 @@ pnpm dev
 
 ### HIVE 웹 상점
 
-WebGL에는 모바일 HIVE SDK IAP를 억지로 넣지 않습니다. HIVE 관리형 웹 상점을 생성한 뒤 `STORE_MODE=hive-web-shop`, `HIVE_WEB_SHOP_URL=https://shop.withhive.com/...`를 설정합니다. 포털은 실제 구매를 HIVE 웹 상점으로 보내고 `/api/v1/hive/web-shop/in-game-info`가 수령 계정을 연결합니다. 상품·PG·아이템 지급 설정은 HIVE Console에서 별도로 완료해야 합니다.
+WebGL에는 모바일 HIVE SDK IAP를 억지로 넣지 않습니다. HIVE 관리형 웹 상점을 생성한 뒤 `STORE_MODE=hive-web-shop`, `HIVE_WEB_SHOP_URL=https://shop.withhive.com/...`를 설정합니다. 헤더 또는 게임 UI는 실제 구매를 HIVE 웹 상점으로 보내고 `/api/v1/hive/web-shop/in-game-info`가 수령 계정을 연결합니다. 상품·PG·아이템 지급 설정은 HIVE Console에서 별도로 완료해야 합니다.
 
 ### OpenAI API
 

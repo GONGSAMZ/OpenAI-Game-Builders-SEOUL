@@ -38,6 +38,10 @@ describe("integration API", () => {
       });
     const page = await request(app).get("/").expect(200);
     expect(page.text).toContain("붕어빵 타이쿤");
+    expect(page.text).toContain('src="/game/index.html"');
+    expect(page.text).not.toContain("장인 상점");
+    expect(page.text).not.toContain("OPENAI LAB");
+    expect(page.text).not.toContain("개발 진단 로그");
   });
 
   it("mock Hive 로그인 후 게임 세션을 조회한다", async () => {

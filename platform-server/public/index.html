@@ -3,111 +3,46 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="붕어빵 타이쿤 웹게임과 HIVE 계정·상점을 한곳에서 만나보세요." />
+    <meta name="description" content="붕어빵 타이쿤 웹게임" />
     <title>붕어빵 타이쿤</title>
     <link rel="stylesheet" href="/styles.css" />
     <script src="/game-bridge.js" defer></script>
-    <script src="/demo.js" defer></script>
+    <script src="/header.js" defer></script>
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="#top" aria-label="붕어빵 타이쿤 홈">
+      <a class="brand" href="/" aria-label="붕어빵 타이쿤 홈">
         <span class="brand-mark" aria-hidden="true">魚</span>
-        <span>붕어빵 타이쿤</span>
+        <span class="brand-name">붕어빵 타이쿤</span>
       </a>
-      <nav aria-label="주요 메뉴">
-        <a href="#game">게임</a>
-        <a href="#market">상점</a>
-        <button id="login-button" class="nav-cta" type="button">HIVE 시작하기</button>
+
+      <nav class="primary-navigation" aria-label="주요 메뉴">
+        <a class="navigation-item active" href="/" aria-current="page">
+          <span aria-hidden="true">▷</span>
+          <span>게임</span>
+        </a>
       </nav>
+
+      <div class="header-actions">
+        <a id="shop-link" class="shop-link" href="#" target="_blank" rel="noopener" hidden>
+          <span aria-hidden="true">▣</span>
+          <span>상점</span>
+        </a>
+        <button id="login-button" class="account-button" type="button" aria-live="polite">
+          <span id="account-avatar" class="account-avatar" aria-hidden="true">H</span>
+          <span id="login-label">HIVE 로그인</span>
+        </button>
+      </div>
     </header>
 
-    <main id="top">
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">OPENAI GAME BUILDERS · SEOUL</p>
-          <h1>오늘도 따끈하게,<br /><span>붕어빵 장사 시작!</span></h1>
-          <p class="lead">반죽을 붓고, 속을 채우고, 손님 취향을 맞추는 웹 타이쿤 게임입니다.</p>
-          <div class="hero-actions">
-            <a class="button primary" href="#game">바로 플레이</a>
-            <a class="button secondary" href="#market">아이템 보기</a>
-          </div>
-          <div class="status-row" aria-label="서비스 상태">
-            <span id="server-status" class="status pending">서버 확인 중</span>
-            <span id="integration-mode" class="status">연동 확인 중</span>
-          </div>
-        </div>
-        <aside class="account-card" aria-labelledby="account-title">
-          <p class="card-kicker">MY BUNGEOPPANG SHOP</p>
-          <h2 id="account-title">장인 계정</h2>
-          <p id="account-message">HIVE 계정으로 가입하거나 로그인하면 재화와 구매 내역을 안전하게 연결할 수 있습니다.</p>
-          <dl id="account-details" hidden>
-            <div><dt>계정</dt><dd id="account-id">-</dd></div>
-            <div><dt>세션</dt><dd id="account-expiry">-</dd></div>
-          </dl>
-          <div class="account-actions">
-            <button id="account-login-button" type="button">HIVE 가입·로그인</button>
-            <button id="logout-button" class="button ghost" type="button" hidden>로그아웃</button>
-          </div>
-        </aside>
-      </section>
-
-      <section id="game" class="section-block">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">PLAY NOW</p>
-            <h2>붕어빵 가게</h2>
-          </div>
-          <a href="/game/index.html" target="_blank" rel="noopener">새 창에서 열기 ↗</a>
-        </div>
-        <div class="game-shell">
-          <iframe id="game-frame" title="붕어빵 타이쿤 Unity WebGL 게임" src="/game/index.html" allow="fullscreen; autoplay" loading="eager"></iframe>
-        </div>
-        <p class="game-note">첫 실행은 게임 데이터를 내려받느라 잠시 걸릴 수 있습니다.</p>
-      </section>
-
-      <section id="market" class="section-block">
-        <div class="section-heading market-heading">
-          <div>
-            <p class="eyebrow">BUNGEOPPANG MARKET</p>
-            <h2>장인 상점</h2>
-            <p>로컬에서는 mock 구매로 지급 흐름을 검증하고, 운영에서는 HIVE 웹 상점으로 안전하게 결제합니다.</p>
-          </div>
-          <a id="web-shop-link" class="button primary" href="#" target="_blank" rel="noopener" hidden>HIVE 웹 상점 열기</a>
-        </div>
-        <div id="inventory" class="inventory" aria-live="polite">로그인하면 보유 아이템이 표시됩니다.</div>
-        <div id="product-grid" class="product-grid" aria-live="polite"><p>상품을 불러오는 중입니다.</p></div>
-        <p id="market-notice" class="notice">표시 가격과 상품은 데모용이며 실제 결제는 발생하지 않습니다.</p>
-      </section>
-
-      <section class="section-block ai-lab">
-        <div>
-          <p class="eyebrow">OPENAI LAB</p>
-          <h2>손님 반응 테스트</h2>
-          <p>게임 서버가 OpenAI를 호출하는 경계를 확인하는 데모입니다.</p>
-        </div>
-        <form id="ai-form">
-          <label>현재 상황 <input id="situation" value="손님이 갓 구운 붕어빵을 기다리고 있다" maxlength="500" /></label>
-          <label>플레이어 행동 <input id="player-action" value="팥을 듬뿍 넣었다" maxlength="500" /></label>
-          <button type="submit">반응 생성</button>
-        </form>
-        <output id="ai-output" aria-live="polite">로그인 후 테스트할 수 있습니다.</output>
-      </section>
-
-      <details class="diagnostics">
-        <summary>개발 진단 로그</summary>
-        <div class="diagnostic-actions">
-          <button id="health-button" type="button">Health</button>
-          <button id="session-button" type="button">세션</button>
-          <button id="clear-button" class="button ghost" type="button">비우기</button>
-        </div>
-        <pre id="output" aria-live="polite">포털을 준비하고 있습니다.</pre>
-      </details>
+    <main class="game-stage">
+      <iframe
+        id="game-frame"
+        title="붕어빵 타이쿤 Unity WebGL 게임"
+        src="/game/index.html"
+        allow="fullscreen; autoplay"
+        loading="eager"
+      ></iframe>
     </main>
-
-    <footer>
-      <span>GONGSAMZ · OpenAI Game Builders Seoul</span>
-      <a href="/api/v1/health">API 상태</a>
-    </footer>
   </body>
 </html>

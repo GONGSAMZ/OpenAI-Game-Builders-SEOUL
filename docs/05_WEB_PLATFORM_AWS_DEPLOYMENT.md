@@ -3,7 +3,8 @@
 ## 구현 범위
 
 - Unity 6.3 LTS WebGL 빌드를 서버의 `/game/`에 제공
-- 메인 포털에서 게임 iframe, HIVE 가입·로그인, 장인 상점, OpenAI 데모 제공
+- 메인 화면에는 64px 상단 헤더와 게임 iframe만 표시
+- HIVE 가입·로그인, 장인 상점, OpenAI 기능은 서버 API와 Unity 브리지로 제공
 - HIVE 통합 Web Login과 HIVE 관리형 웹 상점 연결
 - mock 구매의 중복 지급 방지와 AWS DynamoDB 영속화
 - `DEV` 푸시 시 Unity 빌드 → Docker → ECR → ECS Fargate → CloudFront HTTPS 자동 배포

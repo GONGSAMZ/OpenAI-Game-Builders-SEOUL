@@ -65,7 +65,7 @@
 
 ## 🌐 웹 플랫폼 연동
 
-Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점, OpenAI API를 처리합니다. 서버가 같은 도메인의 `/game/`에서 WebGL 빌드를 제공하므로 접속 즉시 웹 포털과 게임을 함께 볼 수 있습니다. 외부 비밀키는 Unity나 브라우저에 포함하지 않고 서버 환경변수로만 관리합니다.
+Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점, OpenAI API를 처리합니다. 서버가 같은 도메인의 `/game/`에서 WebGL 빌드를 제공하며, 루트 화면은 상단 헤더와 게임만 표시합니다. HIVE·상점·OpenAI 기능은 서버 API와 Unity 브리지에 유지하고 게임 UI에서 호출할 수 있습니다. 외부 비밀키는 Unity나 브라우저에 포함하지 않고 서버 환경변수로만 관리합니다.
 
 | 구성 | 위치 | 역할 |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ pnpm install
 pnpm dev
 ```
 
-브라우저에서 `http://localhost:3000`을 열어 WebGL 게임 → HIVE mock 가입·로그인 → 상점 mock 구매 → AI mock 응답을 확인합니다. 상세 설정은 [`platform-server/README.md`](platform-server/README.md), AWS 구성은 [`docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md`](docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md)를 참고하세요.
+브라우저에서 `http://localhost:3000`을 열면 상단 헤더 아래에서 WebGL 게임이 실행됩니다. HIVE mock 가입·로그인, 상점 mock 구매, AI mock 응답은 Unity 브리지 또는 API로 검증합니다. 상세 설정은 [`platform-server/README.md`](platform-server/README.md), AWS 구성은 [`docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md`](docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md)를 참고하세요.
 
 ## 📁 프로젝트 구조
 
