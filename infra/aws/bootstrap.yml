@@ -186,6 +186,7 @@ Resources:
                   - ec2:DeleteVpc
                   - ec2:DetachInternetGateway
                   - ec2:DisassociateRouteTable
+                  - ec2:ModifySubnetAttribute
                   - ec2:ModifyVpcAttribute
                   - ec2:RevokeSecurityGroupIngress
                 Resource: "*"
@@ -218,7 +219,9 @@ Resources:
                 Resource: "*"
                 Condition:
                   StringEquals:
-                    iam:AWSServiceName: ecs.amazonaws.com
+                    iam:AWSServiceName:
+                      - ecs.amazonaws.com
+                      - elasticloadbalancing.amazonaws.com
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
