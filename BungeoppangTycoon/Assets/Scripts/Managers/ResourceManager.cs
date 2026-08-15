@@ -9,37 +9,37 @@ public class ResourceManager
         return Resources.Load<T>(name);
     }
 
-    //ÇÁ¸®ÆÕ »ı¼º&¹İÈ¯ ¸Ş¼­µå
+    //í”„ë¦¬íŒ¹ ìƒì„±&ë°˜í™˜ ë©”ì„œë“œ
     public GameObject Instantiate(string path)
     {
         GameObject prefab = Load<GameObject>($"{path}");
 
         if (prefab == null)
         {
-            Debug.Log($"{path}ÀÌ null");
+            Debug.Log($"{path}ì´ null");
             prefab = Load<GameObject>($"nullPrefab");
         }
 
-        //¿ø·¡ ¾²´ø Instantiate´Â ObjectÅ¬·¡½º »êÇÏ ¸Ş¼­µå¶ó¼­ µ¿¸í¸Ş¼­µå·Î ÀÎÇÑ Àç±Í ¹æÁö
+        //ì›ë˜ ì“°ë˜ InstantiateëŠ” Objectí´ë˜ìŠ¤ ì‚°í•˜ ë©”ì„œë“œë¼ì„œ ë™ëª…ë©”ì„œë“œë¡œ ì¸í•œ ì¬ê·€ ë°©ì§€
         return Object.Instantiate(prefab); 
     }
 
-    //Sprite ¹İÈ¯ ¸Ş¼­µå
+    //Sprite ë°˜í™˜ ë©”ì„œë“œ
     public Sprite LoadSprite(string path, int? index = null)
     {
-        //´ÜÀÏ ½ºÇÁ¶óÀÌÆ®¸¸ ¿øÇÏ´Â °æ¿ì
+        //ë‹¨ì¼ ìŠ¤í”„ë¼ì´íŠ¸ë§Œ ì›í•˜ëŠ” ê²½ìš°
         if(index == null)
         {
             Sprite sprite = Load<Sprite>($"Sprites/{path}");
             return sprite;
         }
-        //sliceÇÑ ½ºÇÁ¶óÀÌÆ® ½ÃÆ®¿¡¼­ ²¨³»¿À´Â °æ¿ì
+        //sliceí•œ ìŠ¤í”„ë¼ì´íŠ¸ ì‹œíŠ¸ì—ì„œ êº¼ë‚´ì˜¤ëŠ” ê²½ìš°
         else
         {
             Sprite[] sprites = Resources.LoadAll<Sprite>($"Sprites/{path}");
 
             if (sprites == null || sprites.Length == 0)
-                Debug.Log($"½ºÇÁ¶óÀÌÆ®½ÃÆ® X");
+                Debug.Log($"ìŠ¤í”„ë¼ì´íŠ¸ì‹œíŠ¸ X");
 
             return sprites[(int)index];
         }

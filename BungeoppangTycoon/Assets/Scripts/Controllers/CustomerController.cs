@@ -5,11 +5,11 @@ using UnityEngine.EventSystems;
 
 public class CustomerController : MonoBehaviour, IPointerClickHandler
 {
-    CustomerData CustomerData; //SO µ¥ÀÌÅÍ
-/*    static int level = 1; //¼Õ´Ô ·¹º§
-    static int Ex; //´©Àû ¼Õ´Ô ¸¸Á·µµ*/
+    CustomerData CustomerData; //SO ë°ì´í„°
+/*    static int level = 1; //ì†ë‹˜ ë ˆë²¨
+    static int Ex; //ëˆ„ì  ì†ë‹˜ ë§Œì¡±ë„*/
 
-    #region °ÔÀÓ ¿ÀºêÁ§Æ® °ü·Ã º¯¼ö
+    #region ê²Œì„ ì˜¤ë¸Œì íŠ¸ ê´€ë ¨ ë³€ìˆ˜
     UI_Order ui_order;
     UI_Order UI_order
     {
@@ -36,27 +36,27 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     }
     #endregion
 
-    #region ÁÖ¹® °ü·Ã º¯¼ö
+    #region ì£¼ë¬¸ ê´€ë ¨ ë³€ìˆ˜
     bool didAcceptOrder = false;
-    Dictionary<FillingType, int> order = new Dictionary<FillingType, int>(); //ºØ¾î»§ Á¾·ù, °³¼ö
-    int numsOfFishBun; //ÁÖ¹®ÇÏ´Â ºØ»§ °³¼ö
+    Dictionary<FillingType, int> order = new Dictionary<FillingType, int>(); //ë¶•ì–´ë¹µ ì¢…ë¥˜, ê°œìˆ˜
+    int numsOfFishBun; //ì£¼ë¬¸í•˜ëŠ” ë¶•ë¹µ ê°œìˆ˜
     public int NumOfFishBun
     {
         get{ return numsOfFishBun; }
         set { numsOfFishBun = value; }
     }
 
-    //ºØ¾î»§ ÁÖ¹® °³¼ö ¹üÀ§
+    //ë¶•ì–´ë¹µ ì£¼ë¬¸ ê°œìˆ˜ ë²”ìœ„
     int minFishBun = 1;
     int maxFishBun = 3;
 /*
-    //ºØ¾î»§ Á¾·ù °³¼ö ¹üÀ§
+    //ë¶•ì–´ë¹µ ì¢…ë¥˜ ê°œìˆ˜ ë²”ìœ„
     const int minOrderType = 1;
     const int maxOrderType = 3;*/
 
-    int orderAngryPoint; //ÁÖ¹® °ü·Ã ºÒ¸¸µµ
-    int angryPoint; //Á¾ÇÕ ºÒ¸¸µµ
-    public int AngryPoint //Á¾ÇÕ ºÒ¸¸µµ (ÁÖ¹® + ´ë±â ½Ã°£)
+    int orderAngryPoint; //ì£¼ë¬¸ ê´€ë ¨ ë¶ˆë§Œë„
+    int angryPoint; //ì¢…í•© ë¶ˆë§Œë„
+    public int AngryPoint //ì¢…í•© ë¶ˆë§Œë„ (ì£¼ë¬¸ + ëŒ€ê¸° ì‹œê°„)
     {
         get
         {
@@ -75,7 +75,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     int pay = 0;
     #endregion
 
-    #region ½Ã°£ °ü·Ã º¯¼ö
+    #region ì‹œê°„ ê´€ë ¨ ë³€ìˆ˜
     float startTime;
     float endTime;
     float WaitingTime
@@ -98,9 +98,9 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         if (didAcceptOrder == true)
             return;
 
-        //ÁÖ¹®
+        //ì£¼ë¬¸
         Order();
-        //ÁÖ¹® ¹ŞÀ½
+        //ì£¼ë¬¸ ë°›ìŒ
         Managers.Game.acceptOrder(order);
         didAcceptOrder = true;
     }
@@ -139,17 +139,17 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         UI_order.gameObject.SetActive(false);
         Customer.gameObject.SetActive(false);
 
-        //1. ¸¸Á·µµ °ü·Ã º¯¼ö ÃøÁ¤ ½ÃÀÛ
+        //1. ë§Œì¡±ë„ ê´€ë ¨ ë³€ìˆ˜ ì¸¡ì • ì‹œì‘
         startTime = Managers.Game.delta;
         orderAngryPoint = 0;
 
-        //1. ¼Õ´Ô Á¾·ù ·£´ı ÁöÁ¤
+        //1. ì†ë‹˜ ì¢…ë¥˜ ëœë¤ ì§€ì •
         int customerType = UnityEngine.Random.Range(0, Util.GetEnumSize(typeof(CustomerType)));
         CustomerData = Managers.Resource.LoadCustomerSO((CustomerType)customerType);
 
-        //2. ¼Õ´Ô ½ºÇÁ¶óÀÌÆ®
+        //2. ì†ë‹˜ ìŠ¤í”„ë¼ì´íŠ¸
         customer.GetComponent<SpriteRenderer>().sprite = CustomerData.GetImage();
-        //Äİ¶óÀÌ´õ reset
+        //ì½œë¼ì´ë” reset
         Destroy(customer.gameObject.GetComponent<PolygonCollider2D>());
         customer.gameObject.AddComponent<PolygonCollider2D>();
 
@@ -161,31 +161,31 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     public void Order()
     {
 
-        //ÁÖ¹® ³»¿ª ºñ¿ì±â
+        //ì£¼ë¬¸ ë‚´ì—­ ë¹„ìš°ê¸°
         order.Clear();
 
-        //¸À Áßº¹ ¹æÁö¸¦ À§ÇÑ ¹üÀ§ ¸®½ºÆ®
+        //ë§› ì¤‘ë³µ ë°©ì§€ë¥¼ ìœ„í•œ ë²”ìœ„ ë¦¬ìŠ¤íŠ¸
         List<int> orderableFillingType = new List<int>();
 
-        //ÁÖ¹® °¡´ÉÇÑ ¸À ¹üÀ§(orderableFillingType)¿¡ ´ëÇØ ÃÊ±âÈ­
+        //ì£¼ë¬¸ ê°€ëŠ¥í•œ ë§› ë²”ìœ„(orderableFillingType)ì— ëŒ€í•´ ì´ˆê¸°í™”
         for (int i = 0; i < Managers.Game.NumOfFilling; ++i)
             orderableFillingType.Add(i);
 
-        //1. ÁÖ¹®ÇÒ ºØ¾î»§ °³¼ö
+        //1. ì£¼ë¬¸í•  ë¶•ì–´ë¹µ ê°œìˆ˜
         NumOfFishBun = UnityEngine.Random.Range(minFishBun, maxFishBun + 1);
-        //Debug.Log($"[Order]{gameObject.name}ÀÇ ÁÖ¹® : ÃÑ {NumOfFishBun}°³");
+        //Debug.Log($"[Order]{gameObject.name}ì˜ ì£¼ë¬¸ : ì´ {NumOfFishBun}ê°œ");
 
-        //ºØ¾î»§ ·£´ı Á¾·ù*°³¼ö 
+        //ë¶•ì–´ë¹µ ëœë¤ ì¢…ë¥˜*ê°œìˆ˜
         for (int fishbun = NumOfFishBun; fishbun > 0;)
         {
-            //Á¾·ù ·£´ı
+            //ì¢…ë¥˜ ëœë¤
             int randomIndex = UnityEngine.Random.Range(0, orderableFillingType.Count);
             FillingType fillingType = (FillingType)orderableFillingType[randomIndex];
-            orderableFillingType.RemoveAt(randomIndex); //°í¸¥ ¸À »©±â
+            orderableFillingType.RemoveAt(randomIndex); //ê³ ë¥¸ ë§› ë¹¼ê¸°
 
-            //°³¼ö ·£´ı
-            int _numsOfFishBun; // fillingType¸ÀÀ¸·Î ½ÃÅ³ ºØ»§ °³¼ö
-            /*            //³²Àº ºØ¾î»§ °³¼ö 1°³ ÀÌ»óÀÏ ¶§¿¡¸¸ ·£´ı
+            //ê°œìˆ˜ ëœë¤
+            int _numsOfFishBun; // fillingTypeë§›ìœ¼ë¡œ ì‹œí‚¬ ë¶•ë¹µ ê°œìˆ˜
+            /*            //ë‚¨ì€ ë¶•ì–´ë¹µ ê°œìˆ˜ 1ê°œ ì´ìƒì¼ ë•Œì—ë§Œ ëœë¤
                         if (fishbun > 1)
                             _numsOfFishBun = UnityEngine.Random.Range(1, fishbun - 1);
                         else
@@ -208,27 +208,27 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     public void Eat(FillingType filling, QualityStatus baking)
     {
-        //ÁÖ¹® ¾È¹ŞÀ¸¸é ¾È¸ÔÀ½
+        //ì£¼ë¬¸ ì•ˆë°›ìœ¼ë©´ ì•ˆë¨¹ìŒ
         if(didAcceptOrder == false)
              return; 
 
         Managers.Game.serveOrder(order, filling);
 
-        //ºĞ³ëPoint ÆÇÁ¤
+        //ë¶„ë…¸Point íŒì •
         int perfectPoint = (100 / NumOfFishBun);
         int normalPoint = (int)(perfectPoint * 0.8);
         int disappointPoint = 20;
 
-        //1. Á¾·ù°¡ ¸Â´Â Áö Ã¼Å©
+        //1. ì¢…ë¥˜ê°€ ë§ëŠ” ì§€ ì²´í¬
         if (order.ContainsKey(filling) == true)
         {
 
-            //¸À Ã¼Å©
+            //ë§› ì²´í¬
             if (baking == QualityStatus.perfect)
             {
                 //Debug.Log($"{AngryPoint} - {perfectPoint}");
                 orderAngryPoint -= perfectPoint;
-                //Debug.Log($"{AngryPoint}·Î ³»·Á°¨");
+                //Debug.Log($"{AngryPoint}ë¡œ ë‚´ë ¤ê°");
 
             }
             else
@@ -236,14 +236,14 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
 
 
-            //ÁöºÒÇÒ µ· Àû¸³
+            //ì§€ë¶ˆí•  ëˆ ì ë¦½
             pay += Define.FillingPrice[(int)filling];
-            //Debug.Log($"Áö±İ±îÁö {pay}¿ø ¾îÄ¡ ¸ÔÀ½ ");
+            //Debug.Log($"ì§€ê¸ˆê¹Œì§€ {pay}ì› ì–´ì¹˜ ë¨¹ìŒ ");
 
-            //order µñ¼Å³Ê¸® Á¤¸®
+            //order ë”•ì…”ë„ˆë¦¬ ì •ë¦¬
             if (--order[filling] == 0)
             {
-                order.Remove(filling); //µñ¼Å³Ê¸® Á¦°Å
+                order.Remove(filling); //ë”•ì…”ë„ˆë¦¬ ì œê±°
 
                 if (order.Count == 0)
                 {
@@ -258,17 +258,17 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         }
         else
         {
-            //´Ù¸¥ ¸ÀÀ» ÁÖ¸é ºÒ¸¸ ¹Ì¼¼ÇÏ°Ô down
+            //ë‹¤ë¥¸ ë§›ì„ ì£¼ë©´ ë¶ˆë§Œ ë¯¸ì„¸í•˜ê²Œ down
             orderAngryPoint -= disappointPoint;
            
-            //È¯ºÒÇØÁà¾ß ÇÏ³ª
+            //í™˜ë¶ˆí•´ì¤˜ì•¼ í•˜ë‚˜
 
         }
 
-        //´Ù½Ã ¾÷µ«
+        //ë‹¤ì‹œ ì—…ëƒ
         UI_order.SetOrderText(order);
 
-        //Åë°è ¾÷µ«
+        //í†µê³„ ì—…ëƒ
         ++Managers.Game.totalFishBunsSold;
         
 
@@ -276,37 +276,37 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     IEnumerator Exit(bool isAngry = false)
     {
-        //Debug.Log($" {gameObject.name} Exit ½ÃÀÛ");
+        //Debug.Log($" {gameObject.name} Exit ì‹œì‘");
 
-        //¹İÀÀ È¿°ú
+        //ë°˜ì‘ íš¨ê³¼
         Sprite reaction;
         if (isAngry == true)
         {
-            reaction = CustomerData.GetImage(2); //ºÒ¸¸Á·
+            reaction = CustomerData.GetImage(2); //ë¶ˆë§Œì¡±
             if(didAcceptOrder == true)
-                Managers.Game.cancelOrder(order); //ÁÖ¹® Ãë¼Ò
+                Managers.Game.cancelOrder(order); //ì£¼ë¬¸ ì·¨ì†Œ
         }
         else
-            reaction = CustomerData.GetImage(1); //¸¸Á·
+            reaction = CustomerData.GetImage(1); //ë§Œì¡±
 
-        // ´ëÈ­ ÆË¾÷ ¾ø¾Ö±â
+        // ëŒ€í™” íŒì—… ì—†ì• ê¸°
         UI_order.gameObject.SetActive(false);
 
         customer.GetComponent<SpriteRenderer>().sprite = reaction;
 
         yield return new WaitForSeconds(reactionTime);
 
-        //µ· ³»±â
+        //ëˆ ë‚´ê¸°
         Managers.Game.Money += pay;
 
-        //¼Õ´Ô ºñÈ°¼ºÈ­
+        //ì†ë‹˜ ë¹„í™œì„±í™”
         customer.gameObject.SetActive(false);
         hasExited = false;
         --Managers.Game.numsOfCurCustomers;
-        Debug.Log($" {gameObject.name} Exit ³¡");
+        Debug.Log($" {gameObject.name} Exit ë");
 
 
-        //´ÙÀ½ ¼Õ´Ô
+        //ë‹¤ìŒ ì†ë‹˜
         StartCoroutine(InstatiateCustomer());
         yield break;
 
@@ -325,14 +325,14 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         InitCustomer();
         ++Managers.Game.totalCustomers;
 
-        //½ºÆù ´ë±â ½Ã°£ °ü·Ã º¯¼ö
+        //ìŠ¤í° ëŒ€ê¸° ì‹œê°„ ê´€ë ¨ ë³€ìˆ˜
         float spawnDalayMin = 3f;
         float spawnDalayMax = 8f;
 
         float spawnDelayTime = UnityEngine.Random.Range(spawnDalayMin, spawnDalayMax);
-        //Debug.Log($"1. {spawnDelayTime} ÃÊ ÈÄ »ı¼º");
-        spawnDelayTime /= Managers.Game.GameSpeed; //½Ã°£ ¼Óµµ
-        //Debug.Log($"2. {spawnDelayTime} ÃÊ ÈÄ »ı¼º");
+        //Debug.Log($"1. {spawnDelayTime} ì´ˆ í›„ ìƒì„±");
+        spawnDelayTime /= Managers.Game.GameSpeed; //ì‹œê°„ ì†ë„
+        //Debug.Log($"2. {spawnDelayTime} ì´ˆ í›„ ìƒì„±");
 
         yield return new WaitForSeconds(spawnDelayTime);
 

@@ -1,15 +1,15 @@
-using System; //Å¸ÀÔ Á¤º¸(Type)
+using System; //íƒ€ì… ì •ë³´(Type)
 using UnityEngine;
 
 public static class Util
 {
-    //¿­°ÅÇü Å©±â ¹İÈ¯ ¸Ş¼­µå
+    //ì—´ê±°í˜• í¬ê¸° ë°˜í™˜ ë©”ì„œë“œ
     public static int GetEnumSize(Type enumName)
     {
         return Enum.GetNames(enumName).Length;
     }
 
-    //µğ¹ö±ë¿ë ¸Ş¼­µå
+    //ë””ë²„ê¹…ìš© ë©”ì„œë“œ
     public static bool checkNull(UnityEngine.Object obj)
     {
         if (obj == null)
@@ -21,41 +21,41 @@ public static class Util
         return false;
     }
 
-    //GetComponent ·¦ÇÎÇÑ ¸Ş¼­µå: ÄÄÆ÷³ÍÆ® ¾ø´Â °æ¿ì ºÎÂø½ÃÅ´
+    //GetComponent ë©í•‘í•œ ë©”ì„œë“œ: ì»´í¬ë„ŒíŠ¸ ì—†ëŠ” ê²½ìš° ë¶€ì°©ì‹œí‚´
     public static T GetOrAddComponent<T>(GameObject go)
         where T : Component
     {
         T component = go.GetComponent<T>();
 
-        //¾ø´Ù¸é ÄÄÆ÷³ÍÆ® ºÎÂøÇÏ°í ¹İÈ¯
+        //ì—†ë‹¤ë©´ ì»´í¬ë„ŒíŠ¸ ë¶€ì°©í•˜ê³  ë°˜í™˜
         if (component == null)
             component = go.AddComponent<T>();
 
         return component;
     }
 
-    //update¿¡¼­ ÇÑ ¹ø¸¸ ½ÇÇà
+    //updateì—ì„œ í•œ ë²ˆë§Œ ì‹¤í–‰
     public static void ExecuteOnce(Action action, ref bool boolVar, bool condition = true)
     {
         if( boolVar == condition)
         {
             action();
             boolVar = !boolVar;
-            Debug.Log($"ÇÑ¹ø¸¸ ½ÇÇà: {condition} != {boolVar}");
+            Debug.Log($"í•œë²ˆë§Œ ì‹¤í–‰: {condition} != {boolVar}");
 
         }
     }
-    #region Find°è¿­ÇÔ¼ö
+    #region Findê³„ì—´í•¨ìˆ˜
 
 
 
-    //TÅ¸ÀÔÀÇ target¸¦ ¹İÈ¯ÇÏ´Â Find·¦ÇÎ ¸Ş¼­µå(ÄÄÆ÷³ÍÆ® ¿ë)
+    //Tíƒ€ì…ì˜ targetë¥¼ ë°˜í™˜í•˜ëŠ” Findë©í•‘ ë©”ì„œë“œ(ì»´í¬ë„ŒíŠ¸ ìš©)
     public static T Find<T>(GameObject parent, string target, bool includeInactive = false)
         where T : UnityEngine.Object
     {
         T result = null;
 
-        //_parentÀÇ TÅ¸ÀÔ ÀÚ½ÄÀ» T¹è¿­¿¡ ´Ù ÀúÀå
+        //_parentì˜ Tíƒ€ì… ìì‹ì„ Të°°ì—´ì— ë‹¤ ì €ì¥
         T[] childs = parent.GetComponentsInChildren<T>(includeInactive);
         foreach(T child in childs)
         {
@@ -69,7 +69,7 @@ public static class Util
         return result;
     }
 
-    //°ÔÀÓ ¿ÀºêÁ§Æ®¸¦ Ã£¾Æ¼­ ¹İÈ¯ÇÏ´Â ¸Ş¼­µå
+    //ê²Œì„ ì˜¤ë¸Œì íŠ¸ë¥¼ ì°¾ì•„ì„œ ë°˜í™˜í•˜ëŠ” ë©”ì„œë“œ
     public static GameObject FindObject(GameObject parent, string target, bool includeInactive = false)
     {
         Transform result = Find<Transform>(parent, target, includeInactive);

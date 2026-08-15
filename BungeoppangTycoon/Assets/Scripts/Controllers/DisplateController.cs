@@ -4,7 +4,7 @@ using UnityEngine.EventSystems;
 
 public class DisplateController : MonoBehaviour
 {
-    #region ∏¿∫∞∑Œ ¡¬«•
+    #region ÎßõÎ≥ÑÎ°ú Ï¢åÌëú
     static float upperY = 1.8f;
     static float lowerY = 0.5f;
 
@@ -38,16 +38,16 @@ public class DisplateController : MonoBehaviour
         if (fishBun.TryGetComponent(out fbc) == false)
             return;
 
-        //pos¡∂¡§
+        //posÏ°∞Ï†ï
         int index = (int)fbc.fillingType;
         Vector3 pos = fillingPos[index];
         pos.y -= 0.2f * numsOfFishBun[index];
         fbc.spawnPos = pos;
-        //Debug.Log($"{fishBun.name}¿« ¿ßƒ°: {pos.x}, {pos.y}");
+        //Debug.Log($"{fishBun.name}Ïùò ÏúÑÏπò: {pos.x}, {pos.y}");
 
-        //sprite_order ¡∂¡§
+        //sprite_order Ï°∞Ï†ï
         fishBun.GetComponent<SpriteRenderer>().sortingOrder = numsOfFishBun[index];
-        //Debug.Log($"{fishBun.name}¿« order: {fishBun.GetComponent<SpriteRenderer>().sortingOrder}");
+        //Debug.Log($"{fishBun.name}Ïùò order: {fishBun.GetComponent<SpriteRenderer>().sortingOrder}");
 
         ++numsOfFishBun[index];
 

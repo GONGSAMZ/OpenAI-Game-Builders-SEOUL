@@ -18,6 +18,12 @@
 # Local Codex configuration
 .agents/
 .codex/
+_codex-backups/
+BungeoppangTycoon/webgl-*.log
+
+# Keep Codex worklogs even though Unity's generic Logs rule is above.
+!docs/codex/logs/
+!docs/codex/logs/*.md
 
 # Incomplete outer Unity scaffold; open BungeoppangTycoon/ in Unity Hub.
 /Assets/

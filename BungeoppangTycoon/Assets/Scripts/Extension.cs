@@ -2,7 +2,7 @@
 using System;
 using UnityEngine;
 
-//È®Àå ÇÔ¼ö, ±âÁ¸ ÇÔ¼ö ·¦ÇÎÇÔ
+//í™•ìž¥ í•¨ìˆ˜, ê¸°ì¡´ í•¨ìˆ˜ ëž©í•‘í•¨
 public static class Extension 
 {
 /*    public static T FindComponent<T>(this T go, Object parent = null)

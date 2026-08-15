@@ -10,7 +10,7 @@ public class GameData
     public int money;
     //public int spritPiece;
 
-    //ÇØ±İµÈ Àç·á °³¼ö
+    //í•´ê¸ˆëœ ì¬ë£Œ ê°œìˆ˜
     public int numOfFilling;
 }
 
@@ -35,7 +35,7 @@ public class GameManagerEx
     {
         get { return CurData.money + Managers.Instance.money; }
         set {
-            Debug.Log($"µ· ¹Ù²ñ {value}");
+            Debug.Log($"ëˆ ë°”ë€œ {value}");
             CurData.money = value; }
     }
 
@@ -46,7 +46,7 @@ public class GameManagerEx
     }
     #endregion
 
-    #region ½Ã°£ °ü·Ã º¯¼ö
+    #region ì‹œê°„ ê´€ë ¨ ë³€ìˆ˜
     readonly int startHour = 18;
     readonly int endHour = 23;
     public int hour
@@ -56,25 +56,25 @@ public class GameManagerEx
     { get { return (int)delta % 60; } }
 
 
-    public float delta; //½Ã°£
-    float gameSpeed = 1f; //°ÔÀÓ ¼Óµµ
+    public float delta; //ì‹œê°„
+    float gameSpeed = 1f; //ê²Œì„ ì†ë„
     public float GameSpeed
     {
         get { return gameSpeed * Managers.Instance._gameSpeed; }
     }
 
-    //¿î¿µ °ü·Ã º¯¼ö
+    //ìš´ì˜ ê´€ë ¨ ë³€ìˆ˜
     DayState dayState = DayState.Opening;
 
-    bool didAlertClosingTime = false; // °¡°Ô ¿î¿µÁ¾·á ¾Ë·ÁÁá´ÂÁö
-    public bool isRunning = true; //°¡°Ô ¿î¿µ ÁßÀÎÁö(Á¤Áö ¿©ºÎ Æ÷ÇÔ)
+    bool didAlertClosingTime = false; // ê°€ê²Œ ìš´ì˜ì¢…ë£Œ ì•Œë ¤ì¤¬ëŠ”ì§€
+    public bool isRunning = true; //ê°€ê²Œ ìš´ì˜ ì¤‘ì¸ì§€(ì •ì§€ ì—¬ë¶€ í¬í•¨)
 
     public int numsOfCurCustomers = 0;
     public bool isAllExited
     {
         get {
 
-            //Debug.Log($"{numsOfCurCustomers}¸í Á¸Àç");
+            //Debug.Log($"{numsOfCurCustomers}ëª… ì¡´ì¬");
             return numsOfCurCustomers == 0; }
     }
     public bool isClosingTime
@@ -83,7 +83,7 @@ public class GameManagerEx
     }
     #endregion
 
-    #region °ÔÀÓ ¿ä¼Ò °ü·Ã º¯¼ö
+    #region ê²Œì„ ìš”ì†Œ ê´€ë ¨ ë³€ìˆ˜
     GameObject parentGo;
     public GameObject ParentGo
     {
@@ -100,12 +100,12 @@ public class GameManagerEx
 
     #endregion
 
-    #region Åë°è °ü·Ã º¯¼ö
-    public int totalFishBunsSold;      // ÆÇ¸ÅÇÑ ºØ¾î»§ ¼ö
-    public int totalCustomers;         // ¹æ¹®ÇÑ ¼Õ´Ô ¼ö
+    #region í†µê³„ ê´€ë ¨ ë³€ìˆ˜
+    public int totalFishBunsSold;      // íŒë§¤í•œ ë¶•ì–´ë¹µ ìˆ˜
+    public int totalCustomers;         // ë°©ë¬¸í•œ ì†ë‹˜ ìˆ˜
 
-    public int yesterdayProfit;      // ¾îÁ¦ ¼öÀÍ
-    private int ingredientCost;         // Àç·á ºñ¿ë
+    public int yesterdayProfit;      // ì–´ì œ ìˆ˜ìµ
+    private int ingredientCost;         // ì¬ë£Œ ë¹„ìš©
     public int IngredientCost
     {
         get { return ingredientCost; }
@@ -114,7 +114,7 @@ public class GameManagerEx
 
     public int todayRevenue;
 
-    public int netProfit //¿À´Ã ¼ø¼öÀÍ
+    public int netProfit //ì˜¤ëŠ˜ ìˆœìˆ˜ìµ
     {
         get {
             Debug.Log($"netProfit: {todayRevenue} - {ingredientCost} = {todayRevenue - ingredientCost}");
@@ -122,7 +122,7 @@ public class GameManagerEx
     }
     #endregion
 
-    #region ¿£µù °ü·Ã º¯¼ö
+    #region ì—”ë”© ê´€ë ¨ ë³€ìˆ˜
     int clearCondition = 40000;
     int endingDay = 5;
     
@@ -131,7 +131,7 @@ public class GameManagerEx
     bool isClear { get { return Money > clearCondition; } }
     #endregion
 
-    //ÇöÀç ÁÖ¹® 
+    //í˜„ì¬ ì£¼ë¬¸
     Dictionary<FillingType, int> order = new Dictionary<FillingType, int>();
     public Dictionary<FillingType, int> Order
     {
@@ -141,16 +141,16 @@ public class GameManagerEx
 
     public event Action InitAction;
 
-    //°ÔÀÓ »ı¼º ½Ã ÃÊ±âÈ­ ¸Ş¼­µå
+    //ê²Œì„ ìƒì„± ì‹œ ì´ˆê¸°í™” ë©”ì„œë“œ
     public void InitGame()
     {
-        Debug.Log("°ÔÀÓ ÃÊ±âÈ­");
+        Debug.Log("ê²Œì„ ì´ˆê¸°í™”");
 
-        //1. ÇÊ¸µ(fillings) ¿ÀºêÁ§Æ®
+        //1. í•„ë§(fillings) ì˜¤ë¸Œì íŠ¸
         for (int i = 0; i < GetEnumSize(typeof(FillingType)); ++i)
             fillingArr[i] = FindObject(ParentGo, $"{(FillingType)i}", true);
 
-        //2. µ¥ÀÌÅÍ ÃÊ±âÈ­
+        //2. ë°ì´í„° ì´ˆê¸°í™”
         CurData.day = 0;
         CurData.numOfFilling = 4;
         CurData.money = 0;
@@ -162,7 +162,7 @@ public class GameManagerEx
 
     }
 
-    //ÇÏ·ç ¿î¿µ ¸Ş¼­µå
+    //í•˜ë£¨ ìš´ì˜ ë©”ì„œë“œ
     public void OnUpdate()
     {
         if (isRunning == false)
@@ -177,7 +177,7 @@ public class GameManagerEx
 
             case DayState.Running:
 
-                //½Ã°£ ÃøÁ¤
+                //ì‹œê°„ ì¸¡ì •
                 delta += Time.deltaTime * GameSpeed;
 
                 if(isClosingTime == true)
@@ -200,13 +200,13 @@ public class GameManagerEx
                 break;
         }
 
-        /*//ÇÏ·ç ½ÃÀÛ Ã³¸® (1È¸¼º)
+        /*//í•˜ë£¨ ì‹œì‘ ì²˜ë¦¬ (1íšŒì„±)
         if (hasInitialized == false)
         {
             InitDaily();
             hasInitialized = true;
         }
-        //ÇÏ·ç ³¡ Ã³¸® (1È¸¼º) Á¶°Ç: ¿î¿µ Á¾·á & ³²Àº ¼Õ´Ô ¾øÀ½
+        //í•˜ë£¨ ë ì²˜ë¦¬ (1íšŒì„±) ì¡°ê±´: ìš´ì˜ ì¢…ë£Œ & ë‚¨ì€ ì†ë‹˜ ì—†ìŒ
         else if ( isClosingTime == true && isAllExited == true)
         {
             if (hasFinalized == false)
@@ -219,10 +219,10 @@ public class GameManagerEx
 
         else
         {
-            //°¡°Ô ¿î¿µ: ½Ã°£ °è»ê
+            //ê°€ê²Œ ìš´ì˜: ì‹œê°„ ê³„ì‚°
             delta += Time.deltaTime * GameSpeed;
 
-            //°¡°Ô Á¾·á ¾Ë¸®±â
+            //ê°€ê²Œ ì¢…ë£Œ ì•Œë¦¬ê¸°
             if (isClosingTime == true && didAlertClosingTime == false)
             {
                 Managers.UI.ShowUI<UI_AlertClosingTime>(false);
@@ -231,12 +231,12 @@ public class GameManagerEx
         }*/
     }
 
-    #region ÇÏ·ç ·çÆ¾ Ã³¸®
+    #region í•˜ë£¨ ë£¨í‹´ ì²˜ë¦¬
     void InitDaily()
     {
-        Debug.Log("1. ÇÏ·ç ½ÃÀÛ");
+        Debug.Log("1. í•˜ë£¨ ì‹œì‘");
 
-        //1. µ¥ÀÌÅÍ ÃÊ±âÈ­
+        //1. ë°ì´í„° ì´ˆê¸°í™”
         delta = 0; 
         ++CurData.day;
 
@@ -246,14 +246,14 @@ public class GameManagerEx
         yesterdayProfit = CurData.money;
         didAlertClosingTime = false;
 
-        //2. UIÈ­¸é
+        //2. UIí™”ë©´
         Managers.UI.CloseUI();
         Managers.UI.ShowUI<UI_Game>();
 
-        //3. ¿ÀºêÁ§Æ® È°¼ºÈ­/ºñÈ°¼ºÈ­ 
+        //3. ì˜¤ë¸Œì íŠ¸ í™œì„±í™”/ë¹„í™œì„±í™”
         InitAction?.Invoke();
 
-        //4. ÇÊ¸µ È°¼ºÈ­/ºñÈ°¼ºÈ­
+        //4. í•„ë§ í™œì„±í™”/ë¹„í™œì„±í™”
         for (int i = 0; i < GetEnumSize(typeof(FillingType)); ++i)
         {
             if (i < Managers.Game.CurData.numOfFilling)
@@ -265,14 +265,14 @@ public class GameManagerEx
 
     void FinalizeDaily()
     {
-        Debug.Log("2. ÇÏ·ç ³¡ & ¿£µù Ã¼Å©");
+        Debug.Log("2. í•˜ë£¨ ë & ì—”ë”© ì²´í¬");
         isRunning = false;
         order.Clear();
 
-        //Á¤»ê
+        //ì •ì‚°
         todayRevenue = Money - yesterdayProfit;
-        //Debug.Log($"ÇöÀç µ·: {Money} - ¾îÁ¦ ¸ÅÃâ{yesterdayProfit}");
-        //Debug.Log($"¿À´Ã ¸ÅÃâ: {todayRevenue} - Àç·áºñ: {ingredientCost} = ¿À´Ã ¼ø¼öÀÍ {netProfit}");
+        //Debug.Log($"í˜„ì¬ ëˆ: {Money} - ì–´ì œ ë§¤ì¶œ{yesterdayProfit}");
+        //Debug.Log($"ì˜¤ëŠ˜ ë§¤ì¶œ: {todayRevenue} - ì¬ë£Œë¹„: {ingredientCost} = ì˜¤ëŠ˜ ìˆœìˆ˜ìµ {netProfit}");
         Money -= ingredientCost;
 
 
@@ -286,9 +286,9 @@ public class GameManagerEx
 
     public void StartNextDay()
     {
-        Debug.Log("3. ´ÙÀ½ ³¯·Î ³Ñ¾î°¡±â");
+        Debug.Log("3. ë‹¤ìŒ ë‚ ë¡œ ë„˜ì–´ê°€ê¸°");
 
-/*        //¿£µù
+/*        //ì—”ë”©
         if (Managers.Game.IsEnding() == true)
             return;*/
 
@@ -299,7 +299,7 @@ public class GameManagerEx
 
     public bool IsEnding()
     {
-        Debug.Log("IsEnding ÁøÀÔ");
+        Debug.Log("IsEnding ì§„ì…");
 
         if (isOver == true)
         {
@@ -314,7 +314,7 @@ public class GameManagerEx
             if (isEndingDay == false)
                 return false;
 
-            Debug.Log("5ÀÏÂ÷´Ù");
+            Debug.Log("5ì¼ì°¨ë‹¤");
 
             Managers.UI.CloseUI();
 
@@ -330,7 +330,7 @@ public class GameManagerEx
 
     #endregion
 
-    #region ÁÖ¹®
+    #region ì£¼ë¬¸
     public void acceptOrder(Dictionary<FillingType, int> orders)
     {
         foreach (var _order in orders)
@@ -338,12 +338,12 @@ public class GameManagerEx
             if(order.ContainsKey(_order.Key) == true)
             {
                 order[_order.Key] += _order.Value;
-                //Debug.Log($"{_order.Key}: {_order.Value} += {order[_order.Key]}°³");
+                //Debug.Log($"{_order.Key}: {_order.Value} += {order[_order.Key]}ê°œ");
 
             }
             else
             {
-                //Debug.Log($"{_order.Key} »õ·Î¿î ¸À ÁÖ¹® ¹ŞÀ½");
+                //Debug.Log($"{_order.Key} ìƒˆë¡œìš´ ë§› ì£¼ë¬¸ ë°›ìŒ");
                 order.Add(_order.Key, _order.Value);
             }
 
@@ -368,12 +368,12 @@ public class GameManagerEx
     {
         foreach (var order in orders)
         {
-            //Debug.Log($"ÁÖ¹® Ãë¼Ò {order.Key}: {Order[order.Key]} - {order.Value}");
+            //Debug.Log($"ì£¼ë¬¸ ì·¨ì†Œ {order.Key}: {Order[order.Key]} - {order.Value}");
             if (Order.ContainsKey(order.Key) == false)
                 return;
 
             Order[order.Key] -= order.Value;
-            //Debug.Log($"ÁÖ¹® Ãë¼Ò °á°ú {Order[order.Key]}");
+            //Debug.Log($"ì£¼ë¬¸ ì·¨ì†Œ ê²°ê³¼ {Order[order.Key]}");
 
             if (Order[order.Key] == 0)
                 Order.Remove(order.Key);
@@ -385,12 +385,12 @@ public class GameManagerEx
     }
     #endregion
 
-    #region ±âÅ¸
+    #region ê¸°íƒ€
     public void QuitGame()
     {
     #if UNITY_EDITOR
-        //¿¡µğÅÍ¿¡¼­ ½ÇÇàÇÒ ¶§
-        UnityEditor.EditorApplication.isPlaying = false; //¿¡µğÅÍ ½ÇÇà Áß´Ü
+        //ì—ë””í„°ì—ì„œ ì‹¤í–‰í•  ë•Œ
+        UnityEditor.EditorApplication.isPlaying = false; //ì—ë””í„° ì‹¤í–‰ ì¤‘ë‹¨
     #else
         Application.Quit();
     #endif
