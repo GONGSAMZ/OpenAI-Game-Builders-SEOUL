@@ -38,13 +38,14 @@ describe("integration API", () => {
       });
     const page = await request(app).get("/").expect(200);
     expect(page.text).toContain("붕어빵 타이쿤");
-    expect(page.text).toContain('src="/game/index.html"');
+    expect(page.text).toContain('src="/game/index.html?v=');
     expect(page.text).not.toContain("장인 상점");
     expect(page.text).not.toContain("OPENAI LAB");
     expect(page.text).not.toContain("개발 진단 로그");
     expect(page.headers["content-security-policy"]).toContain("'unsafe-inline'");
     expect(page.headers["content-security-policy"]).toContain("'wasm-unsafe-eval'");
     expect(page.headers["content-security-policy"]).toContain("blob:");
+    expect(page.headers["cache-control"]).toContain("no-store");
   });
 
   it("mock Hive 로그인 후 게임 세션을 조회한다", async () => {
@@ -126,5 +127,6 @@ describe("integration API", () => {
     expect(response.headers["content-type"]).toContain("application/wasm");
     const page = await request(app).get("/game/").expect(200);
     expect(page.text).toContain("Unity test fixture");
+    expect(page.headers["cache-control"]).toContain("no-store");
   });
 });

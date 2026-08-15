@@ -42,6 +42,11 @@ interface AppDependencies {
 }
 
 function setUnityAssetHeaders(response: Response, filePath: string): void {
+  if (filePath.endsWith(".html")) {
+    response.setHeader("Cache-Control", "no-store");
+    return;
+  }
+
   if (!filePath.endsWith(".unityweb")) return;
 
   response.setHeader("Content-Encoding", "gzip");
@@ -51,6 +56,12 @@ function setUnityAssetHeaders(response: Response, filePath: string): void {
     response.setHeader("Content-Type", "text/javascript; charset=utf-8");
   } else {
     response.setHeader("Content-Type", "application/octet-stream");
+  }
+}
+
+function setPortalAssetHeaders(response: Response, filePath: string): void {
+  if (path.basename(filePath) === "index.html") {
+    response.setHeader("Cache-Control", "no-store");
   }
 }
 
@@ -330,7 +341,8 @@ export function createApp(dependencies: AppDependencies) {
   app.use(
     express.static(publicDirectory, {
       extensions: ["html"],
-      maxAge: config.nodeEnv === "production" ? "1h" : 0
+      maxAge: config.nodeEnv === "production" ? "1h" : 0,
+      setHeaders: setPortalAssetHeaders
     })
   );
 
