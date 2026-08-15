@@ -78,7 +78,10 @@ export function createApp(dependencies: AppDependencies) {
       crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
       contentSecurityPolicy: {
         directives: {
-          "script-src": ["'self'", "'wasm-unsafe-eval'"],
+          // Unity's generated WebGL template bootstraps the loader with an
+          // inline script. The auth callback page still supplies its own
+          // stricter nonce-based policy in auth-page.ts.
+          "script-src": ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"],
           "worker-src": ["'self'", "blob:"],
           "img-src": ["'self'", "data:", "blob:"],
           "connect-src": ["'self'"],

@@ -42,6 +42,8 @@ describe("integration API", () => {
     expect(page.text).not.toContain("장인 상점");
     expect(page.text).not.toContain("OPENAI LAB");
     expect(page.text).not.toContain("개발 진단 로그");
+    expect(page.headers["content-security-policy"]).toContain("'unsafe-inline'");
+    expect(page.headers["content-security-policy"]).toContain("'wasm-unsafe-eval'");
   });
 
   it("mock Hive 로그인 후 게임 세션을 조회한다", async () => {
