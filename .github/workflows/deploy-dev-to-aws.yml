@@ -31,6 +31,7 @@ jobs:
       AWS_TASK_ROLE_ARN: ${{ vars.AWS_TASK_ROLE_ARN }}
       AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
       AWS_RUNTIME_SECRET_ARN: ${{ vars.AWS_RUNTIME_SECRET_ARN }}
+      UNITY_CI_ENABLED: ${{ vars.UNITY_CI_ENABLED || 'false' }}
       UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -39,9 +40,14 @@ jobs:
         shell: bash
         run: |
           missing=()
-          for name in AWS_ROLE_ARN AWS_REGION AWS_ECR_REPOSITORY AWS_TASK_EXECUTION_ROLE_ARN AWS_TASK_ROLE_ARN AWS_DYNAMODB_TABLE AWS_RUNTIME_SECRET_ARN UNITY_LICENSE UNITY_EMAIL UNITY_PASSWORD; do
+          for name in AWS_ROLE_ARN AWS_REGION AWS_ECR_REPOSITORY AWS_TASK_EXECUTION_ROLE_ARN AWS_TASK_ROLE_ARN AWS_DYNAMODB_TABLE AWS_RUNTIME_SECRET_ARN; do
             if [[ -z "${!name}" ]]; then missing+=("$name"); fi
           done
+          if [[ "$UNITY_CI_ENABLED" == "true" ]]; then
+            for name in UNITY_LICENSE UNITY_EMAIL UNITY_PASSWORD; do
+              if [[ -z "${!name}" ]]; then missing+=("$name"); fi
+            done
+          fi
           if (( ${#missing[@]} > 0 )); then
             echo "ready=false" >> "$GITHUB_OUTPUT"
             echo "### AWS 배포 설정 대기" >> "$GITHUB_STEP_SUMMARY"
@@ -73,6 +79,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Build Unity 6.3 WebGL
+        if: vars.UNITY_CI_ENABLED == 'true'
         uses: game-ci/unity-builder@v5
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -85,12 +92,20 @@ jobs:
           buildMethod: WebGLBuildCommand.Build
 
       - name: Stage Unity build in the server image
+        if: vars.UNITY_CI_ENABLED == 'true'
         shell: bash
         run: |
           test -f BungeoppangTycoon/Builds/WebGL/index.html
           grep -q '/game-bridge.js' BungeoppangTycoon/Builds/WebGL/index.html
           find platform-server/game-dist -mindepth 1 -maxdepth 1 ! -name README.md -exec rm -rf {} +
           cp -R BungeoppangTycoon/Builds/WebGL/. platform-server/game-dist/
+
+      - name: Validate tracked Unity WebGL build
+        if: vars.UNITY_CI_ENABLED != 'true'
+        shell: bash
+        run: |
+          test -f platform-server/game-dist/index.html
+          grep -q '/game-bridge.js' platform-server/game-dist/index.html
 
       - uses: pnpm/action-setup@v6
         with:
