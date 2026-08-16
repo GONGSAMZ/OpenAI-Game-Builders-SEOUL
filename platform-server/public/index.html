@@ -28,10 +28,31 @@
           <span aria-hidden="true">▣</span>
           <span>상점</span>
         </a>
-        <button id="login-button" class="account-button" type="button" aria-live="polite">
-          <span id="account-avatar" class="account-avatar" aria-hidden="true">H</span>
-          <span id="login-label">HIVE 로그인</span>
-        </button>
+        <div id="account-shell" class="account-shell">
+          <button
+            id="login-button"
+            class="account-button"
+            type="button"
+            aria-live="polite"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-controls="account-menu"
+          >
+            <span id="account-avatar" class="account-avatar" aria-hidden="true">H</span>
+            <span id="login-label">HIVE 로그인</span>
+          </button>
+
+          <div id="account-menu" class="account-menu" role="menu" hidden>
+            <div class="account-summary">
+              <span class="account-summary-label">내 정보</span>
+              <strong id="account-player-id" class="account-player-id">-</strong>
+              <span id="account-provider" class="account-provider">HIVE 계정</span>
+            </div>
+            <button id="logout-button" class="logout-button" type="button" role="menuitem">
+              로그아웃
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 

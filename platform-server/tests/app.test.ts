@@ -42,6 +42,8 @@ describe("integration API", () => {
     expect(page.text).not.toContain("장인 상점");
     expect(page.text).not.toContain("OPENAI LAB");
     expect(page.text).not.toContain("개발 진단 로그");
+    expect(page.text).toContain('id="account-menu"');
+    expect(page.text).toContain('id="logout-button"');
     expect(page.headers["content-security-policy"]).toContain("'unsafe-inline'");
     expect(page.headers["content-security-policy"]).toContain("'wasm-unsafe-eval'");
     expect(page.headers["content-security-policy"]).toContain("blob:");
@@ -59,6 +61,21 @@ describe("integration API", () => {
     expect(session.body.session).toEqual(
       expect.objectContaining({ provider: "mock-hive", playerId: "local-player" })
     );
+  });
+
+  it("인증 콜백은 메인 창의 수신 확인까지 결과를 재전송한다", async () => {
+    const app = createApp({ config: createTestConfig() });
+    const start = await request(app).get("/api/v1/auth/hive/login").expect(200);
+    const cookie = start.headers["set-cookie"]?.[0];
+    if (!cookie) throw new Error("로그인 시도 쿠키가 없습니다.");
+
+    const callback = await request(app)
+      .get("/api/v1/auth/hive/mock/complete")
+      .set("Cookie", cookie)
+      .expect(200);
+
+    expect(callback.text).toContain("HIVE_AUTH_ACK");
+    expect(callback.text).toContain("setInterval(notifyOpener, 250)");
   });
 
   it("짧은 HIVE 콜백 경로에서도 로그인 시도 쿠키를 전달한다", async () => {

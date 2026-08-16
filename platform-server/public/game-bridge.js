@@ -65,6 +65,7 @@
 
       return new Promise((resolve, reject) => {
         let settled = false;
+        let closeGrace = null;
 
         const finish = (callback) => {
           if (settled) return;
@@ -72,6 +73,7 @@
           global.removeEventListener("message", onMessage);
           global.clearInterval(closedWatcher);
           global.clearTimeout(timeout);
+          if (closeGrace) global.clearTimeout(closeGrace);
           callback();
         };
 
@@ -80,15 +82,32 @@
           if (event.data?.type === "HIVE_AUTH_SUCCESS" && event.data.sessionToken) {
             finish(() => {
               this.sessionToken = event.data.sessionToken;
+              try {
+                event.source?.postMessage({ type: "HIVE_AUTH_ACK" }, event.origin);
+              } catch (_error) {
+                // The callback window may already be closing; the session is still valid.
+              }
               resolve(event.data.sessionToken);
             });
           } else if (event.data?.type === "HIVE_AUTH_ERROR") {
-            finish(() => reject(new Error(event.data.message || "Hive 로그인에 실패했습니다.")));
+            finish(() => {
+              try {
+                event.source?.postMessage({ type: "HIVE_AUTH_ACK" }, event.origin);
+              } catch (_error) {
+                // The callback window may already be closing.
+              }
+              reject(new Error(event.data.message || "Hive 로그인에 실패했습니다."));
+            });
           }
         };
 
         const closedWatcher = global.setInterval(() => {
-          if (popup.closed) finish(() => reject(new Error("로그인 창이 닫혔습니다.")));
+          if (popup.closed && !closeGrace) {
+            closeGrace = global.setTimeout(
+              () => finish(() => reject(new Error("로그인 창이 닫혔습니다."))),
+              1500
+            );
+          }
         }, 500);
         const timeout = global.setTimeout(() => {
           popup.close();
