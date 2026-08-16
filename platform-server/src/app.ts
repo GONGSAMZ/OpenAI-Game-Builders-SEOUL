@@ -17,6 +17,8 @@ import { createMarketStore, type MarketStore } from "./store/store.js";
 const publicDirectory = path.resolve(process.cwd(), "public");
 const loginCookieName = "hive_login_attempt";
 const loginCookiePath = "/";
+const sessionCookieName = "game_session";
+const sessionCookiePath = "/";
 
 const npcReactionSchema = z.object({
   situation: z.string().trim().min(1).max(500),
@@ -75,6 +77,25 @@ function sessionResponse(session: ReturnType<InMemorySessionStore["create"]>) {
   };
 }
 
+function setSessionCookie(response: Response, config: AppConfig, token: string): void {
+  response.cookie(sessionCookieName, token, {
+    httpOnly: true,
+    secure: config.nodeEnv === "production",
+    sameSite: "lax",
+    maxAge: config.sessionTtlSeconds * 1000,
+    path: sessionCookiePath
+  });
+}
+
+function clearSessionCookie(response: Response, config: AppConfig): void {
+  response.clearCookie(sessionCookieName, {
+    httpOnly: true,
+    secure: config.nodeEnv === "production",
+    sameSite: "lax",
+    path: sessionCookiePath
+  });
+}
+
 export function createApp(dependencies: AppDependencies) {
   const { config } = dependencies;
   const sessions = dependencies.sessions ?? new InMemorySessionStore(config.sessionTtlSeconds);
@@ -83,6 +104,7 @@ export function createApp(dependencies: AppDependencies) {
   const aiService = dependencies.aiService ?? new AiService(config.openai);
   const marketStore = dependencies.marketStore ?? createMarketStore(config);
   const app = express();
+  const requireGameSession = requireSession(sessions, sessionCookieName);
 
   app.disable("x-powered-by");
   app.use(
@@ -175,6 +197,7 @@ export function createApp(dependencies: AppDependencies) {
       idpIndex: 1,
       idpUserId: "local-player"
     });
+    setSessionCookie(response, config, session.token);
 
     sendAuthBridgePage(response, config.gameOrigin, {
       type: "HIVE_AUTH_SUCCESS",
@@ -206,6 +229,7 @@ export function createApp(dependencies: AppDependencies) {
         idpUserId: verified.idp_user_id
       });
 
+      setSessionCookie(response, config, session.token);
       response.clearCookie(loginCookieName, { path: loginCookiePath });
       sendAuthBridgePage(response, config.gameOrigin, {
         type: "HIVE_AUTH_SUCCESS",
@@ -222,7 +246,7 @@ export function createApp(dependencies: AppDependencies) {
 
   app.get(
     "/api/v1/auth/session",
-    requireSession(sessions),
+    requireGameSession,
     (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
       response.json({ session: sessionResponse(session) });
@@ -231,10 +255,11 @@ export function createApp(dependencies: AppDependencies) {
 
   app.delete(
     "/api/v1/auth/session",
-    requireSession(sessions),
+    requireGameSession,
     (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
       sessions.delete(session.token);
+      clearSessionCookie(response, config);
       response.status(204).end();
     }
   );
@@ -245,7 +270,7 @@ export function createApp(dependencies: AppDependencies) {
 
   app.get(
     "/api/v1/store/me",
-    requireSession(sessions),
+    requireGameSession,
     async (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
       response.json({ inventory: await marketStore.getInventory(session.subject) });
@@ -263,7 +288,7 @@ export function createApp(dependencies: AppDependencies) {
   app.post(
     "/api/v1/store/mock-purchases",
     purchaseLimiter,
-    requireSession(sessions),
+    requireGameSession,
     async (request: Request, response: Response) => {
       if (config.store.mode !== "mock") {
         throw new HttpError(403, "실제 HIVE 웹 상점 모드에서는 mock 구매를 사용할 수 없습니다.");
@@ -322,7 +347,7 @@ export function createApp(dependencies: AppDependencies) {
   app.post(
     "/api/v1/ai/npc-reaction",
     aiLimiter,
-    requireSession(sessions),
+    requireGameSession,
     async (request, response) => {
       const input = npcReactionSchema.parse(request.body);
       const result = await aiService.createNpcReaction(input);

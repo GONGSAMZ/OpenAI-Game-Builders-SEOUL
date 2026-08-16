@@ -33,11 +33,6 @@
   }
 
   async function restoreSession() {
-    if (!window.gameBridge.sessionToken) {
-      renderSession(null);
-      return;
-    }
-
     try {
       const result = await window.gameBridge.getSession();
       renderSession(result.session);

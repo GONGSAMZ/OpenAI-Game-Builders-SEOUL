@@ -33,9 +33,9 @@ export interface AuthenticatedLocals {
   session: GameSession;
 }
 
-export function requireSession(store: InMemorySessionStore) {
+export function requireSession(store: InMemorySessionStore, cookieName?: string) {
   return (request: Request, response: Response, next: NextFunction): void => {
-    const token = getBearerToken(request);
+    const token = getBearerToken(request) ?? (cookieName ? readCookie(request, cookieName) : undefined);
     const session = token ? store.get(token) : undefined;
 
     if (!session) {

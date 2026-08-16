@@ -63,6 +63,49 @@ describe("integration API", () => {
     );
   });
 
+  it("팝업 연결이 끊겨도 HttpOnly 쿠키로 로그인 세션을 복구하고 로그아웃한다", async () => {
+    const app = createApp({ config: createTestConfig() });
+    const start = await request(app).get("/api/v1/auth/hive/login").expect(200);
+    const loginCookie = start.headers["set-cookie"]?.[0];
+    if (!loginCookie) throw new Error("로그인 시도 쿠키가 없습니다.");
+
+    const callback = await request(app)
+      .get("/api/v1/auth/hive/mock/complete")
+      .set("Cookie", loginCookie)
+      .expect(200);
+    const callbackSetCookie = callback.headers["set-cookie"];
+    const callbackCookies = Array.isArray(callbackSetCookie)
+      ? callbackSetCookie
+      : callbackSetCookie
+        ? [callbackSetCookie]
+        : [];
+    const sessionCookie = callbackCookies.find((cookie: string) =>
+      cookie.startsWith("game_session=")
+    );
+    if (!sessionCookie) throw new Error("게임 세션 쿠키가 없습니다.");
+
+    const session = await request(app)
+      .get("/api/v1/auth/session")
+      .set("Cookie", sessionCookie)
+      .expect(200);
+    expect(session.body.session).toEqual(
+      expect.objectContaining({ provider: "mock-hive", playerId: "local-player" })
+    );
+
+    const logout = await request(app)
+      .delete("/api/v1/auth/session")
+      .set("Cookie", sessionCookie)
+      .expect(204);
+    const logoutSetCookie = logout.headers["set-cookie"];
+    const logoutCookies = Array.isArray(logoutSetCookie)
+      ? logoutSetCookie
+      : logoutSetCookie
+        ? [logoutSetCookie]
+        : [];
+    expect(logoutCookies.join(";")).toContain("game_session=");
+    await request(app).get("/api/v1/auth/session").set("Cookie", sessionCookie).expect(401);
+  });
+
   it("인증 콜백은 메인 창의 수신 확인까지 결과를 재전송한다", async () => {
     const app = createApp({ config: createTestConfig() });
     const start = await request(app).get("/api/v1/auth/hive/login").expect(200);
