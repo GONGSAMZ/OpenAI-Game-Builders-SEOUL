@@ -19,15 +19,6 @@ public class UI_DayEnd : UI_Base
     Button CheckButton;
     #endregion
 
-    string[] result =
-    {
-        $"{Managers.Game.totalFishBunsSold } 개",
-        $"{Managers.Game.totalCustomers} 명",
-        $"{Managers.Game.todayRevenue.ToString("N0")} 원",
-        $"{(-Managers.Game.IngredientCost).ToString("N0")} 원",
-        $"{Managers.Game.netProfit.ToString("N0")} 원"
-    };
-
     protected override void Init()
     {
 
@@ -39,6 +30,7 @@ public class UI_DayEnd : UI_Base
 
 
         TitleText.text = $"{Managers.Game.Day} 일차";
+        string[] result = BuildResult();
         int size = GetEnumSize(typeof(Panels));
         for (int index = 0; index < size  * 2; ++index)
         {
@@ -55,6 +47,18 @@ public class UI_DayEnd : UI_Base
         CheckButton.gameObject.AddEvent(CheckButtonFunc);
 
 
+    }
+
+    string[] BuildResult()
+    {
+        return new[]
+        {
+            $"{Managers.Game.totalFishBunsSold} 개",
+            $"{Managers.Game.totalCustomers} 명",
+            $"{Managers.Game.todayRevenue.ToString("N0")} 원",
+            $"{(-Managers.Game.IngredientCost).ToString("N0")} 원",
+            $"{Managers.Game.netProfit.ToString("N0")} 원"
+        };
     }
 
     private void CheckButtonFunc()

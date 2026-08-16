@@ -26,17 +26,14 @@ public class GameManagerEx
     #region GameData
     public int Day
     {
-        get { 
-            return CurData.day + Managers.Instance.day; }
+        get { return CurData.day; }
         set { CurData.day = value; }
     }
 
     public int Money
     {
-        get { return CurData.money + Managers.Instance.money; }
-        set {
-            Debug.Log($"돈 바뀜 {value}");
-            CurData.money = value; }
+        get { return CurData.money; }
+        set { CurData.money = value; }
     }
 
     public int NumOfFilling
@@ -104,7 +101,7 @@ public class GameManagerEx
     public int totalFishBunsSold;      // 판매한 붕어빵 수
     public int totalCustomers;         // 방문한 손님 수
 
-    public int yesterdayProfit;      // 어제 수익
+    int openingMoney;                // 오늘 영업을 시작할 때의 보유금
     private int ingredientCost;         // 재료 비용
     public int IngredientCost
     {
@@ -131,6 +128,8 @@ public class GameManagerEx
     bool isClear { get { return Money > clearCondition; } }
     #endregion
 
+    bool hasFinalizedDaily;
+
     //현재 주문
     Dictionary<FillingType, int> order = new Dictionary<FillingType, int>();
     public Dictionary<FillingType, int> Order
@@ -151,11 +150,14 @@ public class GameManagerEx
             fillingArr[i] = FindObject(ParentGo, $"{(FillingType)i}", true);
 
         //2. 데이터 초기화
-        CurData.day = 0;
+        // Managers의 값은 기획용 시작값이다. 게임을 시작할 때만 현재 데이터로 복사한다.
+        CurData.day = Mathf.Max(1, Managers.Instance.day) - 1;
         CurData.numOfFilling = 4;
-        CurData.money = 0;
+        CurData.money = Managers.Instance.money;
 
         isRunning = true;
+        dayState = DayState.Opening;
+        hasFinalizedDaily = false;
 
         numsOfCurCustomers = 0;
 
@@ -243,7 +245,9 @@ public class GameManagerEx
         totalFishBunsSold = 0;      
         totalCustomers = 0;         
         ingredientCost = 0;
-        yesterdayProfit = CurData.money;
+        todayRevenue = 0;
+        openingMoney = Money;
+        hasFinalizedDaily = false;
         didAlertClosingTime = false;
 
         //2. UI화면
@@ -265,13 +269,17 @@ public class GameManagerEx
 
     void FinalizeDaily()
     {
+        if (hasFinalizedDaily == true)
+            return;
+
+        hasFinalizedDaily = true;
         Debug.Log("2. 하루 끝 & 엔딩 체크");
         isRunning = false;
         order.Clear();
 
         //정산
-        todayRevenue = Money - yesterdayProfit;
-        //Debug.Log($"현재 돈: {Money} - 어제 매출{yesterdayProfit}");
+        todayRevenue = Money - openingMoney;
+        //Debug.Log($"현재 돈: {Money} - 오늘 시작 보유금 {openingMoney}");
         //Debug.Log($"오늘 매출: {todayRevenue} - 재료비: {ingredientCost} = 오늘 순수익 {netProfit}");
         Money -= ingredientCost;
 
