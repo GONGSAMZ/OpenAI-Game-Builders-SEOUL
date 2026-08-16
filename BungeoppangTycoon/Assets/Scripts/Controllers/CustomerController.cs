@@ -38,6 +38,16 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     #region 주문 관련 변수
     bool didAcceptOrder = false;
+    public bool HasAcceptedOrder { get { return didAcceptOrder; } }
+
+    static readonly string[] OrderNotAcceptedMessages =
+    {
+        "저 아직 주문 안 했는데요?",
+        "음… 아직 고르는 중이에요.",
+        "아직 주문을 못 했어요."
+    };
+
+    Coroutine orderNotAcceptedMessageRoutine;
     Dictionary<FillingType, int> order = new Dictionary<FillingType, int>(); //붕어빵 종류, 개수
     int numsOfFishBun; //주문하는 붕빵 개수
     public int NumOfFishBun
@@ -105,6 +115,28 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         didAcceptOrder = true;
     }
 
+    public void ShowOrderNotAcceptedMessage()
+    {
+        if (orderNotAcceptedMessageRoutine != null)
+            StopCoroutine(orderNotAcceptedMessageRoutine);
+
+        orderNotAcceptedMessageRoutine = StartCoroutine(ShowOrderNotAcceptedMessageRoutine());
+    }
+
+    IEnumerator ShowOrderNotAcceptedMessageRoutine()
+    {
+        int randomIndex = Random.Range(0, OrderNotAcceptedMessages.Length);
+        UI_order.SetMessage(OrderNotAcceptedMessages[randomIndex]);
+        UI_order.gameObject.SetActive(true);
+
+        yield return new WaitForSeconds(1f);
+
+        if (didAcceptOrder == false)
+            UI_order.gameObject.SetActive(false);
+
+        orderNotAcceptedMessageRoutine = null;
+    }
+
     void Awake()
     {
         Managers.Game.InitAction -= CoInstantiateCustomer;
@@ -135,6 +167,10 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     public void InitCustomer()
     {
+        if (orderNotAcceptedMessageRoutine != null)
+            StopCoroutine(orderNotAcceptedMessageRoutine);
+
+        orderNotAcceptedMessageRoutine = null;
 
         UI_order.gameObject.SetActive(false);
         Customer.gameObject.SetActive(false);

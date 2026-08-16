@@ -75,8 +75,13 @@ public class FishBunController : MonoBehaviour,
                 if (hit.collider.CompareTag("customer"))
                 {
                     Debug.Log($"{hit.collider.name}에게 붕어빵 제공");
+                    if (TryServeFishBun(hit.transform.gameObject) == false)
+                    {
+                        transform.position = spawnPos;
+                        return;
+                    }
+
                     DisplateController.Reset(fillingType);
-                    ServeFishBun(hit.transform.gameObject);
 
                 }
 
@@ -137,12 +142,19 @@ public class FishBunController : MonoBehaviour,
 
     }
 
-    void ServeFishBun(GameObject sprite)
+    bool TryServeFishBun(GameObject sprite)
     {
         //부모 오브젝트에서 스크립트 추출
         CustomerController controller = sprite.GetComponentInParent<CustomerController>();
-        controller.Eat(fillingType, bakingStatus);
 
+        if (controller.HasAcceptedOrder == false)
+        {
+            controller.ShowOrderNotAcceptedMessage();
+            return false;
+        }
+
+        controller.Eat(fillingType, bakingStatus);
+        return true;
     }
     #region 요리 함수
     void cooking()
