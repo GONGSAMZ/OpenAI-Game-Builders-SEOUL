@@ -61,6 +61,19 @@ describe("integration API", () => {
     );
   });
 
+  it("짧은 HIVE 콜백 경로에서도 로그인 시도 쿠키를 전달한다", async () => {
+    const app = createApp({ config: createTestConfig() });
+    const start = await request(app).get("/api/v1/auth/hive/login").expect(200);
+    const cookie = start.headers["set-cookie"]?.[0];
+
+    expect(cookie).toContain("Path=/");
+    if (!cookie) throw new Error("로그인 시도 쿠키가 없습니다.");
+
+    const callback = await request(app).get("/hive/cb").set("Cookie", cookie).expect(400);
+    expect(callback.text).toContain("HIVE_AUTH_ERROR");
+    expect(callback.text).toContain("실제 연동이 비활성화");
+  });
+
   it("로그인한 사용자에게 mock NPC 반응을 반환한다", async () => {
     const app = createApp({ config: createTestConfig() });
     const token = await login(app);

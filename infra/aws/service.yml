@@ -202,7 +202,7 @@ Resources:
             - Name: HIVE_MODE
               Value: !Ref HiveMode
             - Name: HIVE_REDIRECT_URI
-              Value: !Sub https://${Distribution.DomainName}/api/v1/auth/hive/callback
+              Value: !Sub https://${Distribution.DomainName}/hive/cb
             - Name: HIVE_WEB_SHOP_URL
               Value: !Ref HiveWebShopUrl
             - Name: STORE_MODE
@@ -273,7 +273,7 @@ Outputs:
   PublicUrl:
     Value: !Sub https://${Distribution.DomainName}
   HiveRedirectUri:
-    Value: !Sub https://${Distribution.DomainName}/api/v1/auth/hive/callback
+    Value: !Sub https://${Distribution.DomainName}/hive/cb
   ClusterName:
     Value: !Ref Cluster
   ServiceName:

@@ -16,6 +16,7 @@ import { createMarketStore, type MarketStore } from "./store/store.js";
 
 const publicDirectory = path.resolve(process.cwd(), "public");
 const loginCookieName = "hive_login_attempt";
+const loginCookiePath = "/";
 
 const npcReactionSchema = z.object({
   situation: z.string().trim().min(1).max(500),
@@ -137,7 +138,7 @@ export function createApp(dependencies: AppDependencies) {
       secure: config.nodeEnv === "production",
       sameSite: config.nodeEnv === "production" ? "none" : "lax",
       maxAge: 10 * 60 * 1000,
-      path: "/api/v1/auth/hive"
+      path: loginCookiePath
     });
 
     const loginUrl =
@@ -166,7 +167,7 @@ export function createApp(dependencies: AppDependencies) {
       return;
     }
 
-    response.clearCookie(loginCookieName, { path: "/api/v1/auth/hive" });
+    response.clearCookie(loginCookieName, { path: loginCookiePath });
     const session = sessions.create({
       subject: "mock-hive:local-player",
       provider: "mock-hive",
@@ -181,7 +182,7 @@ export function createApp(dependencies: AppDependencies) {
     });
   });
 
-  app.get("/api/v1/auth/hive/callback", async (request, response) => {
+  app.get(["/hive/cb", "/api/v1/auth/hive/callback"], async (request, response) => {
     const attempt = readCookie(request, loginCookieName);
     if (!loginAttempts.consume(attempt)) {
       sendAuthBridgePage(response, config.gameOrigin, {
@@ -205,7 +206,7 @@ export function createApp(dependencies: AppDependencies) {
         idpUserId: verified.idp_user_id
       });
 
-      response.clearCookie(loginCookieName, { path: "/api/v1/auth/hive" });
+      response.clearCookie(loginCookieName, { path: loginCookiePath });
       sendAuthBridgePage(response, config.gameOrigin, {
         type: "HIVE_AUTH_SUCCESS",
         sessionToken: session.token
