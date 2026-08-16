@@ -135,7 +135,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
-          image_uri="$ECR_REGISTRY/$AWS_ECR_REPOSITORY:$GITHUB_SHA"
+          image_uri="$ECR_REGISTRY/$AWS_ECR_REPOSITORY:$GITHUB_SHA-$GITHUB_RUN_ATTEMPT"
           docker build --file platform-server/Dockerfile --tag "$image_uri" .
           docker push "$image_uri"
           echo "IMAGE_URI=$image_uri" >> "$GITHUB_ENV"
