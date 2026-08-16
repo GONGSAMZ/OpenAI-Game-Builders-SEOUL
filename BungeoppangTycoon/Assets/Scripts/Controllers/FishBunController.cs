@@ -147,14 +147,7 @@ public class FishBunController : MonoBehaviour,
         //부모 오브젝트에서 스크립트 추출
         CustomerController controller = sprite.GetComponentInParent<CustomerController>();
 
-        if (controller.HasAcceptedOrder == false)
-        {
-            controller.ShowOrderNotAcceptedMessage();
-            return false;
-        }
-
-        controller.Eat(fillingType, bakingStatus);
-        return true;
+        return controller.TryEat(fillingType, bakingStatus);
     }
     #region 요리 함수
     void cooking()
