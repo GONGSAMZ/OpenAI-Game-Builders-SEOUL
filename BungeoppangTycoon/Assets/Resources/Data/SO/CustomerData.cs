@@ -15,7 +15,7 @@ public class CustomerData : ScriptableObject
     
     public Sprite GetImage(int index = 0)
     {
-        return Managers.Resource.LoadSprite($"Customers/{_Customer}", index);
+        return Managers.Resource.LoadSprite($"Customers/Revised/{_Customer}-uniform-v4", index);
     }
 /*    [SerializeField]
     private Sprite image; //외형 스프라이트
