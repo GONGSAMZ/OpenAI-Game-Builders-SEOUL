@@ -70,11 +70,12 @@ jobs:
       AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
       AWS_RUNTIME_SECRET_ARN: ${{ vars.AWS_RUNTIME_SECRET_ARN }}
       AWS_SERVICE_STACK: openai-game-builders-seoul-service
-      HIVE_MODE: ${{ vars.HIVE_MODE || 'mock' }}
+      # DEV always uses the HIVE sandbox and server-side runtime credentials.
+      HIVE_MODE: sandbox
       STORE_MODE: ${{ vars.STORE_MODE || 'mock' }}
       HIVE_WEB_SHOP_URL: ${{ vars.HIVE_WEB_SHOP_URL }}
       OPENAI_MODE: ${{ vars.OPENAI_MODE || 'mock' }}
-      USE_RUNTIME_SECRETS: ${{ vars.USE_RUNTIME_SECRETS || 'false' }}
+      USE_RUNTIME_SECRETS: "true"
     steps:
       - uses: actions/checkout@v7
 

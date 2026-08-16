@@ -34,7 +34,12 @@ Parameters:
     Default: mock
 
 Conditions:
-  HasRuntimeSecrets: !Equals [!Ref UseRuntimeSecrets, "true"]
+  HasHiveRuntimeSecrets: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Not [!Equals [!Ref HiveMode, mock]]
+  HasOpenAiRuntimeSecrets: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Equals [!Ref OpenAiMode, live]
 
 Resources:
   Vpc:
@@ -208,17 +213,27 @@ Resources:
               Value: !Ref DynamoDbTable
             - Name: OPENAI_MODE
               Value: !Ref OpenAiMode
-          Secrets: !If
-            - HasRuntimeSecrets
-            - - Name: HIVE_APP_ID
+          Secrets:
+            - !If
+              - HasHiveRuntimeSecrets
+              - Name: HIVE_APP_ID
                 ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_APP_ID::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasHiveRuntimeSecrets
               - Name: HIVE_CLIENT_ID
                 ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_CLIENT_ID::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasHiveRuntimeSecrets
               - Name: HIVE_CLIENT_SECRET
                 ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_CLIENT_SECRET::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasOpenAiRuntimeSecrets
               - Name: OPENAI_API_KEY
                 ValueFrom: !Sub "${RuntimeSecretArn}:OPENAI_API_KEY::"
-            - !Ref AWS::NoValue
+              - !Ref AWS::NoValue
           LogConfiguration:
             LogDriver: awslogs
             Options:
