@@ -64,6 +64,51 @@ Resources:
           KeyType: RANGE
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAtEpoch
+        Enabled: true
+
+  OperationsAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: openai-game-builders-seoul-operations
+
+  OperationsAlertTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref OperationsAlertTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowBudgetsToPublish
+            Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref OperationsAlertTopic
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+
+  MonthlyCostBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub openai-game-builders-seoul-${AWS::AccountId}
+        BudgetLimit:
+          Amount: 30
+          Unit: USD
+        BudgetType: COST
+        TimeUnit: MONTHLY
+      NotificationsWithSubscribers:
+        - Notification:
+            ComparisonOperator: GREATER_THAN
+            NotificationType: FORECASTED
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref OperationsAlertTopic
 
   RuntimeSecret:
     Type: AWS::SecretsManager::Secret
@@ -165,7 +210,14 @@ Resources:
                   - cloudformation:UpdateStack
                 Resource:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/openai-game-builders-seoul-service/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/openai-game-builders-seoul-bootstrap/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/*/*
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:DescribeTimeToLive
+                  - dynamodb:UpdateTimeToLive
+                Resource: !GetAtt GameDataTable.Arn
               - Effect: Allow
                 Action:
                   - ec2:AuthorizeSecurityGroupIngress
@@ -227,9 +279,17 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
+                  - logs:DeleteMetricFilter
                   - logs:DescribeLogGroups
                   - logs:DeleteLogGroup
+                  - logs:PutMetricFilter
                   - logs:PutRetentionPolicy
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cloudwatch:DeleteAlarms
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:PutMetricAlarm
                 Resource: "*"
               - Effect: Allow
                 Action:
@@ -261,3 +321,7 @@ Outputs:
     Value: !GetAtt TaskExecutionRole.Arn
   TaskRoleArn:
     Value: !GetAtt TaskRole.Arn
+  OperationsAlertTopicArn:
+    Value: !Ref OperationsAlertTopic
+  MonthlyBudgetName:
+    Value: !Sub openai-game-builders-seoul-${AWS::AccountId}

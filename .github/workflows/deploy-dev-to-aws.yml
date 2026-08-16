@@ -70,6 +70,7 @@ jobs:
       AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
       AWS_RUNTIME_SECRET_ARN: ${{ vars.AWS_RUNTIME_SECRET_ARN }}
       AWS_SERVICE_STACK: openai-game-builders-seoul-service
+      AWS_BOOTSTRAP_STACK: openai-game-builders-seoul-bootstrap
       # AAA111 production Web Login credentials are stored server-side in Secrets Manager.
       HIVE_MODE: production
       STORE_MODE: ${{ vars.STORE_MODE || 'mock' }}
@@ -130,13 +131,50 @@ jobs:
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Verify DynamoDB recovery and session expiry
+        shell: bash
+        run: |
+          pitr_status=$(aws dynamodb describe-continuous-backups \
+            --table-name "$AWS_DYNAMODB_TABLE" \
+            --query 'ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus' \
+            --output text)
+          test "$pitr_status" = "ENABLED"
+
+          ttl_status=$(aws dynamodb describe-time-to-live \
+            --table-name "$AWS_DYNAMODB_TABLE" \
+            --query 'TimeToLiveDescription.TimeToLiveStatus' \
+            --output text)
+          ttl_attribute=$(aws dynamodb describe-time-to-live \
+            --table-name "$AWS_DYNAMODB_TABLE" \
+            --query 'TimeToLiveDescription.AttributeName' \
+            --output text)
+          if [[ "$ttl_status" == "DISABLED" ]]; then
+            aws dynamodb update-time-to-live \
+              --table-name "$AWS_DYNAMODB_TABLE" \
+              --time-to-live-specification Enabled=true,AttributeName=expiresAtEpoch
+          elif [[ "$ttl_attribute" != "expiresAtEpoch" ]]; then
+            echo "DynamoDB TTL attribute mismatch: $ttl_attribute" >&2
+            exit 1
+          fi
+
+          operations_topic=$(aws cloudformation describe-stacks \
+            --stack-name "$AWS_BOOTSTRAP_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='OperationsAlertTopicArn'].OutputValue" \
+            --output text)
+          test -n "$operations_topic"
+          echo "OPERATIONS_ALERT_TOPIC_ARN=$operations_topic" >> "$GITHUB_ENV"
+
       - name: Build and push immutable image
         shell: bash
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
           image_uri="$ECR_REGISTRY/$AWS_ECR_REPOSITORY:$GITHUB_SHA-$GITHUB_RUN_ATTEMPT"
-          docker build --file platform-server/Dockerfile --tag "$image_uri" .
+          docker build \
+            --file platform-server/Dockerfile \
+            --build-arg "APP_REVISION=$GITHUB_SHA" \
+            --tag "$image_uri" \
+            .
           docker push "$image_uri"
           echo "IMAGE_URI=$image_uri" >> "$GITHUB_ENV"
 
@@ -157,7 +195,8 @@ jobs:
               "HiveMode=$HIVE_MODE" \
               "StoreMode=$STORE_MODE" \
               "HiveWebShopUrl=$HIVE_WEB_SHOP_URL" \
-              "OpenAiMode=$OPENAI_MODE"
+              "OpenAiMode=$OPENAI_MODE" \
+              "OperationsAlertTopicArn=$OPERATIONS_ALERT_TOPIC_ARN"
 
       - name: Verify public endpoint
         shell: bash
@@ -166,6 +205,23 @@ jobs:
             --stack-name "$AWS_SERVICE_STACK" \
             --query "Stacks[0].Outputs[?OutputKey=='PublicUrl'].OutputValue" \
             --output text)
-          curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors "$public_url/api/v1/health"
+          health_json=$(curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors \
+            "$public_url/api/v1/health")
+          test "$(jq -r '.revision' <<< "$health_json")" = "$GITHUB_SHA"
+
+          version_json=$(curl --fail --show-error "$public_url/api/v1/version")
+          test "$(jq -r '.revision' <<< "$version_json")" = "$GITHUB_SHA"
+
+          curl --fail --show-error "$public_url/" | grep -q 'id="account-menu"'
+          game_html=$(curl --fail --show-error "$public_url/game/")
+          grep -q '/game-bridge.js' <<< "$game_html"
+          grep -q 'createUnityInstance' <<< "$game_html"
+
+          login_json=$(curl --fail --show-error "$public_url/api/v1/auth/hive/login")
+          login_url=$(jq -r '.loginUrl' <<< "$login_json")
+          [[ "$login_url" == https://weblogin.withhive.com/login?param=* ]]
+
           echo "### 배포 완료" >> "$GITHUB_STEP_SUMMARY"
-          echo "$public_url" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: $public_url" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Revision: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Smoke: health/version/portal/Unity/HIVE login URL 통과" >> "$GITHUB_STEP_SUMMARY"

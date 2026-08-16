@@ -26,7 +26,13 @@ describe("integration API", () => {
   it("health와 공개 설정을 반환한다", async () => {
     const app = createApp({ config: createTestConfig() });
     const health = await request(app).get("/api/v1/health").expect(200);
-    expect(health.body).toEqual(expect.objectContaining({ status: "ok" }));
+    expect(health.body).toEqual(
+      expect.objectContaining({ status: "ok", revision: "test-revision" })
+    );
+    await request(app)
+      .get("/api/v1/version")
+      .expect(200, { revision: "test-revision" })
+      .expect("cache-control", /no-store/);
     await request(app)
       .get("/api/v1/config/public")
       .expect(200, {

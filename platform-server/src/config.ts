@@ -30,7 +30,8 @@ const environmentSchema = z.object({
   DYNAMODB_TABLE: optionalNonEmptyString,
   OPENAI_MODE: z.enum(["mock", "live"]).default("mock"),
   OPENAI_API_KEY: z.string().optional(),
-  OPENAI_MODEL: z.string().min(1).default("gpt-5.6-luna")
+  OPENAI_MODEL: z.string().min(1).default("gpt-5.6-luna"),
+  APP_REVISION: z.string().min(1).max(200).default("development")
 });
 
 export type HiveMode = "mock" | "sandbox" | "production";
@@ -44,6 +45,7 @@ export interface AppConfig {
   gameOrigin: string;
   gameBuildDirectory: string;
   sessionTtlSeconds: number;
+  revision: string;
   hive: {
     mode: HiveMode;
     appId?: string;
@@ -104,6 +106,7 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     gameOrigin: new URL(parsed.GAME_ORIGIN).origin,
     gameBuildDirectory: path.resolve(parsed.GAME_BUILD_DIR ?? path.join(process.cwd(), "game-dist")),
     sessionTtlSeconds: parsed.SESSION_TTL_SECONDS,
+    revision: parsed.APP_REVISION,
     hive: {
       mode: parsed.HIVE_MODE,
       appId: parsed.HIVE_APP_ID,

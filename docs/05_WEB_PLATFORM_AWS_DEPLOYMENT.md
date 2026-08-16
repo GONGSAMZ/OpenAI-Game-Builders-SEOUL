@@ -29,6 +29,8 @@ GitHub DEV push
 
 AWS 계정에서 한 번만 `infra/aws/bootstrap.yml`을 배포합니다. 이 스택은 GitHub OIDC 역할, ECR, DynamoDB, ECS 역할, Secrets Manager 비밀 저장소를 만듭니다. 장기 AWS Access Key를 GitHub에 저장하지 않습니다.
 
+배포 확인, 로그, 비용 경보, DynamoDB 복구와 롤백 절차는 [AWS 운영·복구 런북](../infra/aws/operations-runbook.md)을 기준으로 합니다.
+
 ```bash
 aws cloudformation deploy \
   --stack-name openai-game-builders-seoul-bootstrap \

@@ -7,7 +7,9 @@ COPY platform-server/src ./src
 RUN pnpm build
 
 FROM node:24-alpine AS runtime
+ARG APP_REVISION=development
 ENV NODE_ENV=production
+ENV APP_REVISION=$APP_REVISION
 WORKDIR /app
 RUN corepack enable
 COPY platform-server/package.json platform-server/pnpm-lock.yaml platform-server/pnpm-workspace.yaml ./
