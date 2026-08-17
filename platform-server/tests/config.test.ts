@@ -7,6 +7,7 @@ describe("loadConfig", () => {
     expect(config.hive.mode).toBe("mock");
     expect(config.openai.mode).toBe("mock");
     expect(config.port).toBe(3000);
+    expect(config.revision).toBe("development");
   });
 
   it("빈 선택 환경변수는 미설정으로 처리한다", () => {

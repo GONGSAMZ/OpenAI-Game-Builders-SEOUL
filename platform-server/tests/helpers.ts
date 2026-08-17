@@ -9,6 +9,7 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     gameOrigin: "http://localhost:3000",
     gameBuildDirectory: path.resolve(process.cwd(), "game-dist"),
     sessionTtlSeconds: 3600,
+    revision: "test-revision",
     hive: {
       mode: "mock",
       country: "KR",

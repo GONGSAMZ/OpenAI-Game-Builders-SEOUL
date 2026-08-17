@@ -32,9 +32,18 @@ Parameters:
     Type: String
     AllowedValues: [mock, live]
     Default: mock
+  OperationsAlertTopicArn:
+    Type: String
+    Default: ""
 
 Conditions:
-  HasRuntimeSecrets: !Equals [!Ref UseRuntimeSecrets, "true"]
+  HasHiveRuntimeSecrets: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Not [!Equals [!Ref HiveMode, mock]]
+  HasOpenAiRuntimeSecrets: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Equals [!Ref OpenAiMode, live]
+  HasOperationsAlertTopic: !Not [!Equals [!Ref OperationsAlertTopicArn, ""]]
 
 Resources:
   Vpc:
@@ -166,6 +175,35 @@ Resources:
     Properties:
       LogGroupName: /ecs/openai-game-builders-seoul
       RetentionInDays: 14
+  HttpServerErrorMetric:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref LogGroup
+      FilterName: openai-game-builders-seoul-http-5xx
+      FilterPattern: '{ $.type = "http_request" && $.status >= 500 }'
+      MetricTransformations:
+        - MetricNamespace: OpenAIGameBuildersSeoul
+          MetricName: Http5xx
+          MetricValue: "1"
+          DefaultValue: 0
+  HttpServerErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: openai-game-builders-seoul-http-5xx
+      AlarmDescription: Platform server returned an HTTP 5xx response.
+      Namespace: OpenAIGameBuildersSeoul
+      MetricName: Http5xx
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If
+        - HasOperationsAlertTopic
+        - [!Ref OperationsAlertTopicArn]
+        - !Ref AWS::NoValue
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -197,7 +235,7 @@ Resources:
             - Name: HIVE_MODE
               Value: !Ref HiveMode
             - Name: HIVE_REDIRECT_URI
-              Value: !Sub https://${Distribution.DomainName}/api/v1/auth/hive/callback
+              Value: !Sub https://${Distribution.DomainName}/hive/cb
             - Name: HIVE_WEB_SHOP_URL
               Value: !Ref HiveWebShopUrl
             - Name: STORE_MODE
@@ -208,17 +246,27 @@ Resources:
               Value: !Ref DynamoDbTable
             - Name: OPENAI_MODE
               Value: !Ref OpenAiMode
-          Secrets: !If
-            - HasRuntimeSecrets
-            - - Name: HIVE_APP_ID
+          Secrets:
+            - !If
+              - HasHiveRuntimeSecrets
+              - Name: HIVE_APP_ID
                 ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_APP_ID::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasHiveRuntimeSecrets
               - Name: HIVE_CLIENT_ID
                 ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_CLIENT_ID::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasHiveRuntimeSecrets
               - Name: HIVE_CLIENT_SECRET
                 ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_CLIENT_SECRET::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasOpenAiRuntimeSecrets
               - Name: OPENAI_API_KEY
                 ValueFrom: !Sub "${RuntimeSecretArn}:OPENAI_API_KEY::"
-            - !Ref AWS::NoValue
+              - !Ref AWS::NoValue
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -242,6 +290,9 @@ Resources:
       LaunchType: FARGATE
       HealthCheckGracePeriodSeconds: 90
       DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
         MinimumHealthyPercent: 100
         MaximumPercent: 200
       NetworkConfiguration:
@@ -258,7 +309,7 @@ Outputs:
   PublicUrl:
     Value: !Sub https://${Distribution.DomainName}
   HiveRedirectUri:
-    Value: !Sub https://${Distribution.DomainName}/api/v1/auth/hive/callback
+    Value: !Sub https://${Distribution.DomainName}/hive/cb
   ClusterName:
     Value: !Ref Cluster
   ServiceName:

@@ -20,7 +20,7 @@
 예상 로컬 콜백 주소:
 
 ```text
-http://localhost:3000/api/v1/auth/hive/callback
+http://localhost:3000/hive/cb
 ```
 
 Hive Console에는 실제 배포 환경에서 브라우저가 접근할 수 있는 HTTPS 주소를 등록해야 합니다. `HIVE_CLIENT_SECRET`은 서버의 비밀 환경변수로만 보관하고 게임 빌드나 저장소에 넣지 않습니다.

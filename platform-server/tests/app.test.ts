@@ -26,7 +26,13 @@ describe("integration API", () => {
   it("health와 공개 설정을 반환한다", async () => {
     const app = createApp({ config: createTestConfig() });
     const health = await request(app).get("/api/v1/health").expect(200);
-    expect(health.body).toEqual(expect.objectContaining({ status: "ok" }));
+    expect(health.body).toEqual(
+      expect.objectContaining({ status: "ok", revision: "test-revision" })
+    );
+    await request(app)
+      .get("/api/v1/version")
+      .expect(200, { revision: "test-revision" })
+      .expect("cache-control", /no-store/);
     await request(app)
       .get("/api/v1/config/public")
       .expect(200, {
@@ -42,6 +48,8 @@ describe("integration API", () => {
     expect(page.text).not.toContain("장인 상점");
     expect(page.text).not.toContain("OPENAI LAB");
     expect(page.text).not.toContain("개발 진단 로그");
+    expect(page.text).toContain('id="account-menu"');
+    expect(page.text).toContain('id="logout-button"');
     expect(page.headers["content-security-policy"]).toContain("'unsafe-inline'");
     expect(page.headers["content-security-policy"]).toContain("'wasm-unsafe-eval'");
     expect(page.headers["content-security-policy"]).toContain("blob:");
@@ -59,6 +67,77 @@ describe("integration API", () => {
     expect(session.body.session).toEqual(
       expect.objectContaining({ provider: "mock-hive", playerId: "local-player" })
     );
+  });
+
+  it("팝업 연결이 끊겨도 HttpOnly 쿠키로 로그인 세션을 복구하고 로그아웃한다", async () => {
+    const app = createApp({ config: createTestConfig() });
+    const start = await request(app).get("/api/v1/auth/hive/login").expect(200);
+    const loginCookie = start.headers["set-cookie"]?.[0];
+    if (!loginCookie) throw new Error("로그인 시도 쿠키가 없습니다.");
+
+    const callback = await request(app)
+      .get("/api/v1/auth/hive/mock/complete")
+      .set("Cookie", loginCookie)
+      .expect(200);
+    const callbackSetCookie = callback.headers["set-cookie"];
+    const callbackCookies = Array.isArray(callbackSetCookie)
+      ? callbackSetCookie
+      : callbackSetCookie
+        ? [callbackSetCookie]
+        : [];
+    const sessionCookie = callbackCookies.find((cookie: string) =>
+      cookie.startsWith("game_session=")
+    );
+    if (!sessionCookie) throw new Error("게임 세션 쿠키가 없습니다.");
+
+    const session = await request(app)
+      .get("/api/v1/auth/session")
+      .set("Cookie", sessionCookie)
+      .expect(200);
+    expect(session.body.session).toEqual(
+      expect.objectContaining({ provider: "mock-hive", playerId: "local-player" })
+    );
+
+    const logout = await request(app)
+      .delete("/api/v1/auth/session")
+      .set("Cookie", sessionCookie)
+      .expect(204);
+    const logoutSetCookie = logout.headers["set-cookie"];
+    const logoutCookies = Array.isArray(logoutSetCookie)
+      ? logoutSetCookie
+      : logoutSetCookie
+        ? [logoutSetCookie]
+        : [];
+    expect(logoutCookies.join(";")).toContain("game_session=");
+    await request(app).get("/api/v1/auth/session").set("Cookie", sessionCookie).expect(401);
+  });
+
+  it("인증 콜백은 메인 창의 수신 확인까지 결과를 재전송한다", async () => {
+    const app = createApp({ config: createTestConfig() });
+    const start = await request(app).get("/api/v1/auth/hive/login").expect(200);
+    const cookie = start.headers["set-cookie"]?.[0];
+    if (!cookie) throw new Error("로그인 시도 쿠키가 없습니다.");
+
+    const callback = await request(app)
+      .get("/api/v1/auth/hive/mock/complete")
+      .set("Cookie", cookie)
+      .expect(200);
+
+    expect(callback.text).toContain("HIVE_AUTH_ACK");
+    expect(callback.text).toContain("setInterval(notifyOpener, 250)");
+  });
+
+  it("짧은 HIVE 콜백 경로에서도 로그인 시도 쿠키를 전달한다", async () => {
+    const app = createApp({ config: createTestConfig() });
+    const start = await request(app).get("/api/v1/auth/hive/login").expect(200);
+    const cookie = start.headers["set-cookie"]?.[0];
+
+    expect(cookie).toContain("Path=/");
+    if (!cookie) throw new Error("로그인 시도 쿠키가 없습니다.");
+
+    const callback = await request(app).get("/hive/cb").set("Cookie", cookie).expect(400);
+    expect(callback.text).toContain("HIVE_AUTH_ERROR");
+    expect(callback.text).toContain("실제 연동이 비활성화");
   });
 
   it("로그인한 사용자에게 mock NPC 반응을 반환한다", async () => {

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import type { GameSession, InMemorySessionStore } from "./session-store.js";
+import type { GameSession, SessionStore } from "./session-store.js";
 
 export class HttpError extends Error {
   public constructor(
@@ -33,19 +33,24 @@ export interface AuthenticatedLocals {
   session: GameSession;
 }
 
-export function requireSession(store: InMemorySessionStore) {
-  return (request: Request, response: Response, next: NextFunction): void => {
-    const token = getBearerToken(request);
-    const session = token ? store.get(token) : undefined;
+export function requireSession(store: SessionStore, cookieName?: string) {
+  return async (request: Request, response: Response, next: NextFunction): Promise<void> => {
+    try {
+      const token =
+        getBearerToken(request) ?? (cookieName ? readCookie(request, cookieName) : undefined);
+      const session = token ? await store.get(token) : undefined;
 
-    if (!session) {
-      response.status(401).json({
-        error: { code: "AUTH_REQUIRED", message: "유효한 게임 세션이 필요합니다." }
-      });
-      return;
+      if (!session) {
+        response.status(401).json({
+          error: { code: "AUTH_REQUIRED", message: "유효한 게임 세션이 필요합니다." }
+        });
+        return;
+      }
+
+      (response.locals as AuthenticatedLocals).session = session;
+      next();
+    } catch (error) {
+      next(error);
     }
-
-    (response.locals as AuthenticatedLocals).session = session;
-    next();
   };
 }

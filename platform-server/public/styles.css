@@ -114,6 +114,10 @@ button {
   background: #f4f4f6;
 }
 
+.account-shell {
+  position: relative;
+}
+
 .account-button {
   display: inline-flex;
   max-width: 230px;
@@ -158,6 +162,63 @@ button {
 
 .account-button.signed-in {
   max-width: 190px;
+}
+
+.account-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 240px;
+  padding: 8px;
+  border: 1px solid #e3e3e8;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgb(24 24 31 / 14%);
+}
+
+.account-summary {
+  display: grid;
+  gap: 3px;
+  padding: 10px 10px 12px;
+  border-bottom: 1px solid #eeeef2;
+}
+
+.account-summary-label,
+.account-provider {
+  color: #777881;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.account-player-id {
+  overflow: hidden;
+  color: #242429;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logout-button {
+  width: 100%;
+  margin-top: 6px;
+  border: 0;
+  border-radius: 9px;
+  padding: 9px 10px;
+  color: #a02b37;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.logout-button:hover {
+  background: #fff2f3;
+}
+
+.logout-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .game-stage {

@@ -29,6 +29,8 @@ GitHub DEV push
 
 AWS 계정에서 한 번만 `infra/aws/bootstrap.yml`을 배포합니다. 이 스택은 GitHub OIDC 역할, ECR, DynamoDB, ECS 역할, Secrets Manager 비밀 저장소를 만듭니다. 장기 AWS Access Key를 GitHub에 저장하지 않습니다.
 
+배포 확인, 로그, 비용 경보, DynamoDB 복구와 롤백 절차는 [AWS 운영·복구 런북](../infra/aws/operations-runbook.md)을 기준으로 합니다.
+
 ```bash
 aws cloudformation deploy \
   --stack-name openai-game-builders-seoul-bootstrap \
@@ -64,13 +66,15 @@ Unity GameCI용 `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`는 GitHub Actio
 
 그 후 GitHub variables를 설정합니다.
 
-| Variable | Sandbox 예시 |
+| Variable | 상용 로그인 예시 |
 | --- | --- |
-| `HIVE_MODE` | `sandbox` |
+| `HIVE_MODE` | `production` |
 | `STORE_MODE` | `hive-web-shop` |
 | `HIVE_WEB_SHOP_URL` | HIVE가 발급한 `https://shop.withhive.com/...` |
 | `OPENAI_MODE` | `live` 또는 `mock` |
 | `USE_RUNTIME_SECRETS` | `true` |
+
+현재 DEV 자동 배포는 HIVE 상용 Web Login 키를 Secrets Manager에서 읽고 `HIVE_MODE=production`으로 실행합니다. 스토어와 OpenAI 모드는 각각 별도 변수로 전환합니다.
 
 실결제 상품은 HIVE Console의 Billing/Web Shop에서 PG사, 가격표, Product ID/Market PID, 아이템 지급을 설정하고 Sandbox 구매로 검증한 뒤 Live로 전환합니다.
 

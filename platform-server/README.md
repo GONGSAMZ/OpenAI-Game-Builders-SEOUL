@@ -7,7 +7,7 @@ Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, �
 - TypeScript/Express 서버와 `/api/v1/health`
 - HIVE 통합 Web Login URL 생성, 콜백 디코딩, `/token` 서버 검증
 - Hive 계정 없이 시험하는 mock 로그인
-- 외부 토큰을 브라우저에 노출하지 않는 서버 게임 세션
+- 외부 토큰을 브라우저에 노출하지 않는 서버 게임 세션과 DynamoDB 세션 영속화
 - OpenAI Responses API 서버 프록시와 mock 응답
 - mock 마켓, 중복 구매 방지, 메모리/DynamoDB 아이템 저장소
 - HIVE 웹 상점 연결과 인게임 정보 조회 API
@@ -16,6 +16,7 @@ Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, �
 - 브라우저용 `game-bridge.js`와 Unity 통합 API
 - Unity 프로젝트에 적용된 WebGL `.jslib`/C# 어댑터
 - Docker 및 GitHub Actions 기본 설정
+- 배포 revision API, smoke test, ECS 자동 롤백과 수동 immutable 이미지 롤백
 
 ## 로컬 실행
 
@@ -73,7 +74,7 @@ OpenAI 공식 문서:
 
 ## 현재 제한 사항
 
-- 게임 세션은 단일 프로세스 메모리 방식이라 서버 재배포 시 다시 로그인해야 합니다. 상점 아이템은 AWS에서 DynamoDB에 유지됩니다.
+- 로컬 기본값에서는 세션·상점 데이터를 메모리에 저장하고, AWS `DATA_STORE=dynamodb` 환경에서는 둘 다 DynamoDB에 유지합니다.
 - AI 엔드포인트는 연동 검증용 NPC 반응 예시입니다. 기획 확정 후 게임 기능에 맞춘 입출력 계약으로 버전 관리합니다.
 - 실제 HIVE 연동은 Console Web Login AppID, 보안 키, 웹 상점/PG 설정이 준비된 뒤 Sandbox에서 검증해야 합니다.
 - 게임 세이브·점수·랭킹 DB는 게임 기획과 데이터 소유권이 확정된 후 추가합니다.

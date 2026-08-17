@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
@@ -10,12 +11,20 @@ import { HttpError, readCookie, requireSession, type AuthenticatedLocals } from 
 import { AiService } from "./integrations/openai/service.js";
 import { HiveWebLoginClient } from "./integrations/hive/client.js";
 import { decodeHivePayload } from "./integrations/hive/codec.js";
-import { InMemorySessionStore, OneTimeAttemptStore } from "./session-store.js";
+import {
+  createSessionStore,
+  OneTimeAttemptStore,
+  type GameSession,
+  type SessionStore
+} from "./session-store.js";
 import { findProduct, storeCatalog } from "./store/catalog.js";
 import { createMarketStore, type MarketStore } from "./store/store.js";
 
 const publicDirectory = path.resolve(process.cwd(), "public");
 const loginCookieName = "hive_login_attempt";
+const loginCookiePath = "/";
+const sessionCookieName = "game_session";
+const sessionCookiePath = "/";
 
 const npcReactionSchema = z.object({
   situation: z.string().trim().min(1).max(500),
@@ -34,7 +43,7 @@ const hiveWebShopProfileSchema = z.object({
 
 interface AppDependencies {
   config: AppConfig;
-  sessions?: InMemorySessionStore;
+  sessions?: SessionStore;
   loginAttempts?: OneTimeAttemptStore;
   hiveClient?: HiveWebLoginClient;
   aiService?: AiService;
@@ -65,7 +74,7 @@ function setPortalAssetHeaders(response: Response, filePath: string): void {
   }
 }
 
-function sessionResponse(session: ReturnType<InMemorySessionStore["create"]>) {
+function sessionResponse(session: GameSession) {
   return {
     subject: session.subject,
     provider: session.provider,
@@ -74,14 +83,34 @@ function sessionResponse(session: ReturnType<InMemorySessionStore["create"]>) {
   };
 }
 
+function setSessionCookie(response: Response, config: AppConfig, token: string): void {
+  response.cookie(sessionCookieName, token, {
+    httpOnly: true,
+    secure: config.nodeEnv === "production",
+    sameSite: "lax",
+    maxAge: config.sessionTtlSeconds * 1000,
+    path: sessionCookiePath
+  });
+}
+
+function clearSessionCookie(response: Response, config: AppConfig): void {
+  response.clearCookie(sessionCookieName, {
+    httpOnly: true,
+    secure: config.nodeEnv === "production",
+    sameSite: "lax",
+    path: sessionCookiePath
+  });
+}
+
 export function createApp(dependencies: AppDependencies) {
   const { config } = dependencies;
-  const sessions = dependencies.sessions ?? new InMemorySessionStore(config.sessionTtlSeconds);
+  const sessions = dependencies.sessions ?? createSessionStore(config);
   const loginAttempts = dependencies.loginAttempts ?? new OneTimeAttemptStore();
   const hiveClient = dependencies.hiveClient ?? new HiveWebLoginClient(config.hive);
   const aiService = dependencies.aiService ?? new AiService(config.openai);
   const marketStore = dependencies.marketStore ?? createMarketStore(config);
   const app = express();
+  const requireGameSession = requireSession(sessions, sessionCookieName);
 
   app.disable("x-powered-by");
   app.use(
@@ -116,8 +145,33 @@ export function createApp(dependencies: AppDependencies) {
   );
   app.use(express.json({ limit: "32kb" }));
 
+  app.use((request, response, next) => {
+    const requestId = request.header("x-request-id")?.slice(0, 128) ?? randomUUID();
+    const startedAt = performance.now();
+    response.setHeader("x-request-id", requestId);
+    response.on("finish", () => {
+      if (config.nodeEnv !== "production") return;
+      console.log(
+        JSON.stringify({
+          type: "http_request",
+          requestId,
+          method: request.method,
+          path: request.path,
+          status: response.statusCode,
+          durationMs: Math.round((performance.now() - startedAt) * 100) / 100,
+          revision: config.revision
+        })
+      );
+    });
+    next();
+  });
+
   app.get("/api/v1/health", (_request, response) => {
-    response.json({ status: "ok", timestamp: new Date().toISOString() });
+    response.json({ status: "ok", revision: config.revision, timestamp: new Date().toISOString() });
+  });
+
+  app.get("/api/v1/version", (_request, response) => {
+    response.set("cache-control", "no-store").json({ revision: config.revision });
   });
 
   app.get("/api/v1/config/public", (_request, response) => {
@@ -137,7 +191,7 @@ export function createApp(dependencies: AppDependencies) {
       secure: config.nodeEnv === "production",
       sameSite: config.nodeEnv === "production" ? "none" : "lax",
       maxAge: 10 * 60 * 1000,
-      path: "/api/v1/auth/hive"
+      path: loginCookiePath
     });
 
     const loginUrl =
@@ -148,7 +202,7 @@ export function createApp(dependencies: AppDependencies) {
     response.set("cache-control", "no-store").json({ loginUrl });
   });
 
-  app.get("/api/v1/auth/hive/mock/complete", (request, response) => {
+  app.get("/api/v1/auth/hive/mock/complete", async (request, response) => {
     if (config.hive.mode !== "mock") {
       sendAuthBridgePage(response, config.gameOrigin, {
         type: "HIVE_AUTH_ERROR",
@@ -166,14 +220,15 @@ export function createApp(dependencies: AppDependencies) {
       return;
     }
 
-    response.clearCookie(loginCookieName, { path: "/api/v1/auth/hive" });
-    const session = sessions.create({
+    response.clearCookie(loginCookieName, { path: loginCookiePath });
+    const session = await sessions.create({
       subject: "mock-hive:local-player",
       provider: "mock-hive",
       playerId: "local-player",
       idpIndex: 1,
       idpUserId: "local-player"
     });
+    setSessionCookie(response, config, session.token);
 
     sendAuthBridgePage(response, config.gameOrigin, {
       type: "HIVE_AUTH_SUCCESS",
@@ -181,7 +236,7 @@ export function createApp(dependencies: AppDependencies) {
     });
   });
 
-  app.get("/api/v1/auth/hive/callback", async (request, response) => {
+  app.get(["/hive/cb", "/api/v1/auth/hive/callback"], async (request, response) => {
     const attempt = readCookie(request, loginCookieName);
     if (!loginAttempts.consume(attempt)) {
       sendAuthBridgePage(response, config.gameOrigin, {
@@ -197,7 +252,7 @@ export function createApp(dependencies: AppDependencies) {
       const callbackPayload = decodeHivePayload<{ code: string; state?: string }>(encodedResult);
       const verified = await hiveClient.verifyCallback(callbackPayload);
       const playerId = verified.user_info?.user_id?.toString();
-      const session = sessions.create({
+      const session = await sessions.create({
         subject: playerId ?? `${verified.idp_index}:${verified.idp_user_id}`,
         provider: "hive",
         playerId,
@@ -205,7 +260,8 @@ export function createApp(dependencies: AppDependencies) {
         idpUserId: verified.idp_user_id
       });
 
-      response.clearCookie(loginCookieName, { path: "/api/v1/auth/hive" });
+      setSessionCookie(response, config, session.token);
+      response.clearCookie(loginCookieName, { path: loginCookiePath });
       sendAuthBridgePage(response, config.gameOrigin, {
         type: "HIVE_AUTH_SUCCESS",
         sessionToken: session.token
@@ -221,7 +277,7 @@ export function createApp(dependencies: AppDependencies) {
 
   app.get(
     "/api/v1/auth/session",
-    requireSession(sessions),
+    requireGameSession,
     (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
       response.json({ session: sessionResponse(session) });
@@ -230,10 +286,11 @@ export function createApp(dependencies: AppDependencies) {
 
   app.delete(
     "/api/v1/auth/session",
-    requireSession(sessions),
-    (_request: Request, response: Response) => {
+    requireGameSession,
+    async (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
-      sessions.delete(session.token);
+      await sessions.delete(session.token);
+      clearSessionCookie(response, config);
       response.status(204).end();
     }
   );
@@ -244,7 +301,7 @@ export function createApp(dependencies: AppDependencies) {
 
   app.get(
     "/api/v1/store/me",
-    requireSession(sessions),
+    requireGameSession,
     async (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
       response.json({ inventory: await marketStore.getInventory(session.subject) });
@@ -262,7 +319,7 @@ export function createApp(dependencies: AppDependencies) {
   app.post(
     "/api/v1/store/mock-purchases",
     purchaseLimiter,
-    requireSession(sessions),
+    requireGameSession,
     async (request: Request, response: Response) => {
       if (config.store.mode !== "mock") {
         throw new HttpError(403, "실제 HIVE 웹 상점 모드에서는 mock 구매를 사용할 수 없습니다.");
@@ -321,7 +378,7 @@ export function createApp(dependencies: AppDependencies) {
   app.post(
     "/api/v1/ai/npc-reaction",
     aiLimiter,
-    requireSession(sessions),
+    requireGameSession,
     async (request, response) => {
       const input = npcReactionSchema.parse(request.body);
       const result = await aiService.createNpcReaction(input);
