@@ -27,6 +27,8 @@ public class UI_Order : UI_Base
 
     public void SetOrderText(Dictionary<FillingType, int> orders)
     {
+        slider.fillRect.gameObject.SetActive(true);
+
         //기존 텍스트 없애기
         orderText.text = null;
 
@@ -34,6 +36,13 @@ public class UI_Order : UI_Base
             orderText.text += $"{Define.FillingText[(int)order.Key]} * {order.Value}개 \n";
 
     }
+
+    public void SetMessage(string message)
+    {
+        orderText.text = message;
+        slider.fillRect.gameObject.SetActive(false);
+    }
+
 
 
 

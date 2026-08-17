@@ -33,6 +33,9 @@ public class MoldController : MonoBehaviour
         if (Managers.Game.isRunning == false || ToolController.selectedTool == null)
             return;
 
+        if (ToolController.selectedTool.CompareTag("kettle") == false)
+            return;
+
 /*        if (IsFilled == false)
         {
             

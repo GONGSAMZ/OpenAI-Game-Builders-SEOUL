@@ -38,6 +38,18 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     #region 주문 관련 변수
     bool didAcceptOrder = false;
+
+    static readonly string[] OrderNotAcceptedMessages =
+    {
+        "저 아직 주문 안 했는데요?",
+        "음… 아직 고르는 중이에요.",
+        "아직 주문을 못 했어요."
+    };
+
+    const string WrongFillingMessage = "이건 제가 주문한 맛이 아닌데요.";
+    const int WrongFillingAngryPoint = 20;
+
+    Coroutine orderNotAcceptedMessageRoutine;
     Dictionary<FillingType, int> order = new Dictionary<FillingType, int>(); //붕어빵 종류, 개수
     int numsOfFishBun; //주문하는 붕빵 개수
     public int NumOfFishBun
@@ -91,11 +103,12 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     int reactionTime = 1;
     #endregion
 
-    bool hasExited = false;
+    // 퇴장 반응이 시작된 손님은 더 이상 주문을 받거나 음식을 받을 수 없다.
+    bool isLeaving = false;
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (didAcceptOrder == true)
+        if (didAcceptOrder == true || isLeaving == true)
             return;
 
         //주문
@@ -103,6 +116,40 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         //주문 받음
         Managers.Game.acceptOrder(order);
         didAcceptOrder = true;
+    }
+
+    void ShowOrderNotAcceptedMessage()
+    {
+        int randomIndex = Random.Range(0, OrderNotAcceptedMessages.Length);
+        ShowTemporaryMessage(OrderNotAcceptedMessages[randomIndex]);
+    }
+
+    void ShowWrongFillingMessage()
+    {
+        ShowTemporaryMessage(WrongFillingMessage);
+    }
+
+    void ShowTemporaryMessage(string message)
+    {
+        if (orderNotAcceptedMessageRoutine != null)
+            StopCoroutine(orderNotAcceptedMessageRoutine);
+
+        orderNotAcceptedMessageRoutine = StartCoroutine(ShowTemporaryMessageRoutine(message));
+    }
+
+    IEnumerator ShowTemporaryMessageRoutine(string message)
+    {
+        UI_order.SetMessage(message);
+        UI_order.gameObject.SetActive(true);
+
+        yield return new WaitForSeconds(1f);
+
+        if (didAcceptOrder == true)
+            UI_order.SetOrderText(order);
+        else
+            UI_order.gameObject.SetActive(false);
+
+        orderNotAcceptedMessageRoutine = null;
     }
 
     void Awake()
@@ -124,17 +171,17 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         }
         else
-        {
-            Util.ExecuteOnce(
-                () => { StartCoroutine(Exit(true)); },
-                ref hasExited, false);
-        }
+            BeginExit(true);
 
 
     }
 
     public void InitCustomer()
     {
+        if (orderNotAcceptedMessageRoutine != null)
+            StopCoroutine(orderNotAcceptedMessageRoutine);
+
+        orderNotAcceptedMessageRoutine = null;
 
         UI_order.gameObject.SetActive(false);
         Customer.gameObject.SetActive(false);
@@ -155,6 +202,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         pay = 0;
         didAcceptOrder = false;
+        isLeaving = false;
         ++Managers.Game.numsOfCurCustomers;
     }
 
@@ -206,18 +254,38 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     }
 
-    public void Eat(FillingType filling, QualityStatus baking)
+    public bool TryEat(FillingType filling, QualityStatus baking)
     {
-        //주문 안받으면 안먹음
-        if(didAcceptOrder == false)
-             return; 
+        if (isLeaving == true)
+        {
+            ShowTemporaryMessage("손님이 퇴장 중입니다.");
+            return false;
+        }
+
+        if (didAcceptOrder == false)
+        {
+            ShowOrderNotAcceptedMessage();
+            return false;
+        }
+
+        if (order.ContainsKey(filling) == false)
+        {
+            orderAngryPoint += WrongFillingAngryPoint;
+            ShowWrongFillingMessage();
+            return false;
+        }
+
+        Eat(filling, baking);
+        return true;
+    }
+    void Eat(FillingType filling, QualityStatus baking)
+    {
 
         Managers.Game.serveOrder(order, filling);
 
         //분노Point 판정
         int perfectPoint = (100 / NumOfFishBun);
         int normalPoint = (int)(perfectPoint * 0.8);
-        int disappointPoint = 20;
 
         //1. 종류가 맞는 지 체크
         if (order.ContainsKey(filling) == true)
@@ -248,7 +316,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
                 if (order.Count == 0)
                 {
                     orderAngryPoint -= normalPoint;
-                    StartCoroutine(Exit());
+                    BeginExit();
                 }
             }
 
@@ -257,13 +325,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         }
         else
-        {
-            //다른 맛을 주면 불만 미세하게 down
-            orderAngryPoint -= disappointPoint;
-           
-            //환불해줘야 하나
-
-        }
+            return;
 
         //다시 업뎃
         UI_order.SetOrderText(order);
@@ -272,6 +334,15 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         ++Managers.Game.totalFishBunsSold;
         
 
+    }
+
+    void BeginExit(bool isAngry = false)
+    {
+        if (isLeaving == true)
+            return;
+
+        isLeaving = true;
+        StartCoroutine(Exit(isAngry));
     }
 
     IEnumerator Exit(bool isAngry = false)
@@ -301,7 +372,6 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         //손님 비활성화
         customer.gameObject.SetActive(false);
-        hasExited = false;
         --Managers.Game.numsOfCurCustomers;
         Debug.Log($" {gameObject.name} Exit 끝");
 

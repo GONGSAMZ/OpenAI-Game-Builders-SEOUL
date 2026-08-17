@@ -15,6 +15,8 @@ public class FishBunController : MonoBehaviour,
 
     public CookingState state = CookingState.bottomBatter; //초기 상태
     QualityStatus bakingStatus;
+    // 성공한 판매 뒤 Destroy가 적용되기 전 같은 드래그 종료 이벤트가 다시 들어오는 것을 막는다.
+    bool isConsumed = false;
     /*    public QualityStatus batterStatus;
     public QualityStatus fillingStatus;
     public QualityStatus warmStatus;*/
@@ -51,7 +53,7 @@ public class FishBunController : MonoBehaviour,
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        if (isDraggable == false)
+        if (isDraggable == false || isConsumed == true)
             return;
 
         Vector3 mouse = Camera.main.ScreenToWorldPoint(eventData.position);
@@ -75,8 +77,15 @@ public class FishBunController : MonoBehaviour,
                 if (hit.collider.CompareTag("customer"))
                 {
                     Debug.Log($"{hit.collider.name}에게 붕어빵 제공");
+                    if (TryServeFishBun(hit.transform.gameObject) == false)
+                    {
+                        transform.position = spawnPos;
+                        return;
+                    }
+
+                    // 성공 판매는 이 시점부터 한 번만 처리한다.
+                    isConsumed = true;
                     DisplateController.Reset(fillingType);
-                    ServeFishBun(hit.transform.gameObject);
 
                 }
 
@@ -137,12 +146,12 @@ public class FishBunController : MonoBehaviour,
 
     }
 
-    void ServeFishBun(GameObject sprite)
+    bool TryServeFishBun(GameObject sprite)
     {
         //부모 오브젝트에서 스크립트 추출
         CustomerController controller = sprite.GetComponentInParent<CustomerController>();
-        controller.Eat(fillingType, bakingStatus);
 
+        return controller.TryEat(fillingType, bakingStatus);
     }
     #region 요리 함수
     void cooking()
