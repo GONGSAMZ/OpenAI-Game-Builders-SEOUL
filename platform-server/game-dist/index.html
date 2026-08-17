@@ -53,12 +53,12 @@
       }
 
       var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/0229c077c91caf9e9452d049938f86f3.loader.js";
+      var loaderUrl = buildUrl + "/fe944eeb6731706297de0d40badd88ee.loader.js";
       var config = {
         arguments: [],
-        dataUrl: buildUrl + "/61f013c9c8932be7f666e979fad98e4d.data.unityweb",
-        frameworkUrl: buildUrl + "/60ba4316d50b7f6472817948ba0dca1c.framework.js.unityweb",
-        codeUrl: buildUrl + "/8f9229a1742fc8e515487101433dcda5.wasm.unityweb",
+        dataUrl: buildUrl + "/9291ff8609cdec01bd19bc445c472590.data.unityweb",
+        frameworkUrl: buildUrl + "/d80d650de64c169100d9f5046d5ee018.framework.js.unityweb",
+        codeUrl: buildUrl + "/c31ed408ef7900067b7ceb6e8207c31f.wasm.unityweb",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "FishBunFactory",
         productName: "ToastyFishBun",
@@ -117,6 +117,8 @@
         createUnityInstance(canvas, config, (progress) => {
           document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
               }).then((unityInstance) => {
+                window.unityInstance = unityInstance;
+                window.dispatchEvent(new Event("UNITY_INSTANCE_READY"));
                 document.querySelector("#unity-loading-bar").style.display = "none";
                 document.querySelector("#unity-fullscreen-button").onclick = () => {
                   unityInstance.SetFullscreen(1);

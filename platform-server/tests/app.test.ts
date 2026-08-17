@@ -2,6 +2,8 @@ import request from "supertest";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
+import type { HiveBillingGateway } from "../src/integrations/hive/billing-client.js";
+import { InMemoryMarketStore } from "../src/store/store.js";
 import { createTestConfig } from "./helpers.js";
 
 function extractSessionToken(html: string): string {
@@ -38,6 +40,7 @@ describe("integration API", () => {
       .expect(200, {
         hiveMode: "mock",
         storeMode: "mock",
+        storeDevTools: true,
         hiveWebShopUrl: null,
         openaiMode: "mock",
         openaiModel: "mock"
@@ -48,6 +51,8 @@ describe("integration API", () => {
     expect(page.text).not.toContain("장인 상점");
     expect(page.text).not.toContain("OPENAI LAB");
     expect(page.text).not.toContain("개발 진단 로그");
+    expect(page.text).toContain('id="store-dev-tools"');
+    expect(page.text).toContain('id="dev-grant-button"');
     expect(page.text).toContain('id="account-menu"');
     expect(page.text).toContain('id="logout-button"');
     expect(page.headers["content-security-policy"]).toContain("'unsafe-inline'");
@@ -184,6 +189,40 @@ describe("integration API", () => {
     expect(duplicate.body.inventory).toContainEqual({ itemId: "red-bean-coin", quantity: 100 });
   });
 
+  it("개발 도구 지급은 로그인 사용자 인벤토리와 게임 재화에만 반영한다", async () => {
+    const marketStore = new InMemoryMarketStore();
+    const app = createApp({ config: createTestConfig(), marketStore });
+    const token = await login(app);
+
+    const response = await request(app)
+      .post("/api/v1/store/dev-grants")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        productId: "red-bean-100",
+        idempotencyKey: "33a1454b-180b-4ae1-b92a-cae426265b87"
+      })
+      .expect(201);
+
+    expect(response.body.inventory).toContainEqual({ itemId: "red-bean-coin", quantity: 100 });
+    expect(await marketStore.getInventory("another-player")).toEqual([]);
+  });
+
+  it("비활성화된 개발 도구 지급 API를 노출하지 않는다", async () => {
+    const app = createApp({
+      config: createTestConfig({ store: { mode: "mock", dataStore: "memory", devToolsEnabled: false } })
+    });
+    const token = await login(app);
+
+    await request(app)
+      .post("/api/v1/store/dev-grants")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        productId: "red-bean-100",
+        idempotencyKey: "f4adcf39-b63d-499f-8bda-a6721bcfd654"
+      })
+      .expect(404);
+  });
+
   it("HIVE 웹 상점용 게임 사용자 정보를 반환한다", async () => {
     const app = createApp({ config: createTestConfig() });
     const response = await request(app)
@@ -193,6 +232,88 @@ describe("integration API", () => {
     expect(response.body).toEqual(
       expect.objectContaining({ result_code: 200, cs_code: 100001234 })
     );
+  });
+
+  it("검증된 HIVE 웹 상점 결제를 사용자별로 한 번만 지급하고 완료 처리한다", async () => {
+    const marketStore = new InMemoryMarketStore();
+    const deliveries: unknown[] = [];
+    const billingClient: HiveBillingGateway = {
+      async findUnconsumedPurchase() {
+        return {
+          marketId: "15",
+          marketPid: "com.gongsamz.bungeoppang.redbean100",
+          orderId: "ORDER-100",
+          serverId: "global",
+          playerId: "20000011337",
+          quantity: 1,
+          purchaseBypassInfo: "verified-bypass"
+        };
+      },
+      async verifyReceipt() {
+        return {
+          transactionId: "HS_TEST_100",
+          marketId: "15",
+          marketPid: "com.gongsamz.bungeoppang.redbean100",
+          marketTransactionId: "ORDER-100",
+          quantity: 1,
+          purchaseTest: "Y"
+        };
+      },
+      async confirmDelivery(input) {
+        deliveries.push(input);
+      }
+    };
+    const app = createApp({
+      config: createTestConfig({
+        hive: {
+          mode: "sandbox",
+          country: "KR",
+          language: "ko",
+          billingAppId: "com.gongsamz.webshop",
+          billingAuthKey: "test-key"
+        },
+        store: {
+          mode: "hive-web-shop",
+          devToolsEnabled: true,
+          dataStore: "memory"
+        }
+      }),
+      marketStore,
+      billingClient
+    });
+    const notification = {
+      type: "paid",
+      market_id: "15",
+      order_id: "ORDER-100",
+      market_pid: "com.gongsamz.bungeoppang.redbean100",
+      vid: "20000011337",
+      vid_type: "v4",
+      server_id: "global",
+      appid: "com.gongsamz.webshop",
+      quantity: "1",
+      purchase_bypass_info: "verified-bypass"
+    };
+
+    const firstNotification = await request(app)
+      .post("/api/v1/hive/web-shop/payment-notifications")
+      .send(notification)
+      .expect(200);
+    expect(firstNotification.body).toEqual(expect.objectContaining({ result: 0, duplicate: false }));
+
+    const duplicateNotification = await request(app)
+      .post("/api/v1/hive/web-shop/payment-notifications")
+      .send(notification)
+      .expect(200);
+    expect(duplicateNotification.body).toEqual(
+      expect.objectContaining({ result: 0, duplicate: true })
+    );
+
+    expect(await marketStore.getInventory("20000011337")).toContainEqual({
+      itemId: "red-bean-coin",
+      quantity: 100
+    });
+    expect(await marketStore.getInventory("20000011338")).toEqual([]);
+    expect(deliveries).toHaveLength(2);
   });
 
   it("Unity 압축 파일에 올바른 전송 헤더를 설정한다", async () => {

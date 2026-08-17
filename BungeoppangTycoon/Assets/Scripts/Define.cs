@@ -103,7 +103,7 @@ public class Define
         "재료",
         "스킬",
         "도구",
-        "홍보",
+        "팥 코인 충전",
     };
 
     public static string[] UI_Settings =

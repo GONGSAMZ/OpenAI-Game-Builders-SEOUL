@@ -17,6 +17,7 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     },
     store: {
       mode: "mock",
+      devToolsEnabled: true,
       dataStore: "memory"
     },
     openai: {

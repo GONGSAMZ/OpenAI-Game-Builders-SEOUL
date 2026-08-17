@@ -162,6 +162,37 @@
       });
     }
 
+    createDevGrant(productId = "red-bean-100", idempotencyKey = global.crypto.randomUUID()) {
+      return this.request("/api/v1/store/dev-grants", {
+        method: "POST",
+        body: JSON.stringify({ productId, idempotencyKey })
+      });
+    }
+
+    async openHiveWebShop() {
+      const popup = global.open("about:blank", "hive-web-shop", "popup,width=1180,height=820");
+      if (!popup) throw new Error("상점 팝업이 차단되었습니다.");
+      popup.document.title = "HIVE 웹 상점 준비 중";
+      try {
+        const config = await this.getPublicConfig();
+        if (!config.hiveWebShopUrl) throw new Error("HIVE 웹 상점 URL이 설정되지 않았습니다.");
+        popup.location.replace(config.hiveWebShopUrl);
+      } catch (error) {
+        popup.close();
+        throw error;
+      }
+    }
+
+    broadcastInventory(inventory) {
+      const message = { type: "PLATFORM_INVENTORY", inventory };
+      const gameFrame = global.document.getElementById("game-frame");
+      if (gameFrame?.contentWindow) {
+        gameFrame.contentWindow.postMessage(message, this.serverOrigin);
+      } else {
+        deliverInventoryToUnity(message);
+      }
+    }
+
     createNpcReaction(input) {
       return this.request("/api/v1/ai/npc-reaction", {
         method: "POST",
@@ -172,4 +203,29 @@
 
   global.GameBridgeClient = GameBridgeClient;
   global.gameBridge = new GameBridgeClient();
+
+  let pendingInventoryMessage = null;
+
+  function deliverInventoryToUnity(message) {
+    if (!Array.isArray(message?.inventory)) return;
+    if (!global.unityInstance?.SendMessage) {
+      pendingInventoryMessage = message;
+      return;
+    }
+    global.unityInstance.SendMessage(
+      "@GamePlatformClient",
+      "OnInventoryUpdated",
+      JSON.stringify({ inventory: message.inventory })
+    );
+    pendingInventoryMessage = null;
+  }
+
+  global.addEventListener("message", (event) => {
+    if (event.origin !== global.gameBridge.serverOrigin) return;
+    if (event.data?.type === "PLATFORM_INVENTORY") deliverInventoryToUnity(event.data);
+  });
+
+  global.addEventListener("UNITY_INSTANCE_READY", () => {
+    if (pendingInventoryMessage) deliverInventoryToUnity(pendingInventoryMessage);
+  });
 })(window);

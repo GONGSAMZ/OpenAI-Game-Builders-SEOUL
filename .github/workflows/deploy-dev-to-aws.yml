@@ -74,6 +74,8 @@ jobs:
       # AAA111 production Web Login credentials are stored server-side in Secrets Manager.
       HIVE_MODE: production
       STORE_MODE: ${{ vars.STORE_MODE || 'mock' }}
+      STORE_DEV_TOOLS: ${{ vars.STORE_DEV_TOOLS || 'true' }}
+      HIVE_BILLING_APP_ID: ${{ vars.HIVE_BILLING_APP_ID }}
       HIVE_WEB_SHOP_URL: ${{ vars.HIVE_WEB_SHOP_URL }}
       OPENAI_MODE: ${{ vars.OPENAI_MODE || 'mock' }}
       USE_RUNTIME_SECRETS: "true"
@@ -194,6 +196,8 @@ jobs:
               "UseRuntimeSecrets=$USE_RUNTIME_SECRETS" \
               "HiveMode=$HIVE_MODE" \
               "StoreMode=$STORE_MODE" \
+              "StoreDevTools=$STORE_DEV_TOOLS" \
+              "HiveBillingAppId=$HIVE_BILLING_APP_ID" \
               "HiveWebShopUrl=$HIVE_WEB_SHOP_URL" \
               "OpenAiMode=$OPENAI_MODE" \
               "OperationsAlertTopicArn=$OPERATIONS_ALERT_TOPIC_ARN"

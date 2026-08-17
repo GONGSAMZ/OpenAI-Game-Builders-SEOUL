@@ -221,8 +221,17 @@ button {
   opacity: 0.55;
 }
 
+.game-workspace {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  background: #000;
+}
+
 .game-stage {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   background: #000;
 }
@@ -233,6 +242,86 @@ button {
   height: 100%;
   border: 0;
   background: #000;
+}
+
+.store-dev-tools {
+  flex: 0 0 260px;
+  padding: 20px 18px;
+  border-left: 1px solid #e3e3e8;
+  color: #242429;
+  background: #fff;
+}
+
+.dev-tools-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dev-badge {
+  border-radius: 6px;
+  padding: 3px 6px;
+  color: #fff;
+  background: #8b3ff0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.dev-tools-copy,
+.dev-grant-status {
+  color: #777881;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dev-balance {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.dev-balance div {
+  display: grid;
+  gap: 3px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eeeef2;
+}
+
+.dev-balance dt {
+  color: #777881;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.dev-balance dd {
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dev-grant-button {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 11px 12px;
+  color: #fff;
+  background: #8b3ff0;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dev-grant-button:hover:not(:disabled) {
+  background: #7630d8;
+}
+
+.dev-grant-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 @media (max-width: 720px) {
@@ -255,5 +344,16 @@ button {
 
   .account-button {
     padding-right: 4px;
+  }
+
+  .store-dev-tools {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: min(260px, calc(100vw - 16px));
+    max-height: calc(100vh - 80px);
+    border: 1px solid #e3e3e8;
+    border-radius: 14px;
+    box-shadow: 0 14px 34px rgb(24 24 31 / 18%);
   }
 }

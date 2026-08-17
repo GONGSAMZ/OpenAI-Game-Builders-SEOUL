@@ -56,13 +56,25 @@ public static class WebGLBuildCommand
             throw new FileNotFoundException("WebGL index.html을 찾을 수 없습니다.", indexPath);
 
         string html = File.ReadAllText(indexPath);
-        if (html.Contains(bridgeTag))
-            return;
-
-        if (!html.Contains("</head>"))
+        if (!html.Contains(bridgeTag) && !html.Contains("</head>"))
             throw new InvalidOperationException("WebGL index.html의 </head> 태그를 찾을 수 없습니다.");
 
-        File.WriteAllText(indexPath, html.Replace("</head>", $"  {bridgeTag}{Environment.NewLine}  </head>"));
+        if (!html.Contains(bridgeTag))
+            html = html.Replace("</head>", $"  {bridgeTag}{Environment.NewLine}  </head>");
+
+        const string unityReadyMarker = "window.dispatchEvent(new Event(\"UNITY_INSTANCE_READY\"));";
+        if (!html.Contains(unityReadyMarker))
+        {
+            const string unityCallback = ".then((unityInstance) => {";
+            if (!html.Contains(unityCallback))
+                throw new InvalidOperationException("Unity 인스턴스 생성 콜백을 찾을 수 없습니다.");
+
+            html = html.Replace(
+                unityCallback,
+                $"{unityCallback}{Environment.NewLine}                window.unityInstance = unityInstance;{Environment.NewLine}                {unityReadyMarker}");
+        }
+
+        File.WriteAllText(indexPath, html);
     }
 
     private static void EnsureUrpCompatibilityMode()

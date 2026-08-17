@@ -22,5 +22,18 @@ mergeInto(LibraryManager.library, {
     window.gameBridge.logout()
       .then(function () { SendMessage(gameObject, successMethod, "ok"); })
       .catch(function (error) { SendMessage(gameObject, errorMethod, error.message || String(error)); });
+  },
+
+  GameBridge_OpenShop: function (gameObjectPointer, errorMethodPointer) {
+    var gameObject = UTF8ToString(gameObjectPointer);
+    var errorMethod = UTF8ToString(errorMethodPointer);
+
+    if (!window.gameBridge) {
+      SendMessage(gameObject, errorMethod, "window.gameBridge가 없습니다.");
+      return;
+    }
+
+    window.gameBridge.openHiveWebShop()
+      .catch(function (error) { SendMessage(gameObject, errorMethod, error.message || String(error)); });
   }
 });

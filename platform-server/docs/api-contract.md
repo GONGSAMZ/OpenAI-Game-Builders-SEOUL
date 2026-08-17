@@ -60,7 +60,7 @@ Hive 로그인 후 호출할 수 있습니다.
 
 현재 엔드포인트는 연동 검증용 예시입니다. 게임 기획이 확정되면 입력과 출력 스키마를 게임 기능에 맞춰 별도 버전으로 추가합니다.
 
-## 장인 상점
+## 사용자별 게임 재화와 웹 상점
 
 ### `GET /api/v1/store/catalog`
 
@@ -78,9 +78,29 @@ Hive 로그인 후 호출할 수 있습니다.
 { "productId": "red-bean-100", "idempotencyKey": "12e68262-ff70-42b7-ae95-18e89b7bbbd8" }
 ```
 
+### `POST /api/v1/store/dev-grants`
+
+`STORE_DEV_TOOLS=true`에서만 열리는 개발용 지급 API입니다. 로그인 사용자의 `red-bean-coin`만 지급하며 UUID 중복 호출은 한 번만 반영됩니다. 정식 배포에서는 `STORE_DEV_TOOLS=false`로 UI와 API를 함께 닫습니다.
+
+```json
+{ "productId": "red-bean-100", "idempotencyKey": "33a1454b-180b-4ae1-b92a-cae426265b87" }
+```
+
 ### `POST /api/v1/hive/web-shop/in-game-info`
 
 HIVE 관리형 웹 상점이 구매 수령 서버·캐릭터를 조회하는 서버 간 API입니다. HIVE Console의 인게임 정보 URL에 등록합니다.
+
+### `POST /api/v1/hive/web-shop/payment-notifications`
+
+HIVE 웹 상점의 결제 알림 URL입니다. `STORE_MODE=hive-web-shop`에서만 처리합니다. `paid` 알림을 받으면 다음 순서로 처리합니다.
+
+1. 알림의 AppID, Market ID 15, 상품 PID와 PlayerID를 검사합니다.
+2. 해당 PlayerID의 HIVE 미소비 주문을 조회해 주문번호·서버·상품·수량·`purchase_bypass_info`를 대조합니다.
+3. HIVE 영수증 검증 API로 거래 ID를 얻습니다.
+4. 거래 ID를 멱등성 키로 사용해 해당 PlayerID의 인벤토리에 한 번만 지급합니다.
+5. HIVE 아이템 지급 완료 API를 호출해 거래를 완료합니다.
+
+`cancelled` 알림은 현재 지급 없이 확인 응답만 합니다. 이미 소비한 재화를 회수하는 정책은 이 초기 개발 범위에 포함되지 않습니다.
 
 ## 오류 형식
 

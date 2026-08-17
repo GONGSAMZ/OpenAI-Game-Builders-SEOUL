@@ -10,6 +10,10 @@ import type { AppConfig } from "./config.js";
 import { HttpError, readCookie, requireSession, type AuthenticatedLocals } from "./http.js";
 import { AiService } from "./integrations/openai/service.js";
 import { HiveWebLoginClient } from "./integrations/hive/client.js";
+import {
+  HiveBillingClient,
+  type HiveBillingGateway
+} from "./integrations/hive/billing-client.js";
 import { decodeHivePayload } from "./integrations/hive/codec.js";
 import {
   createSessionStore,
@@ -17,7 +21,7 @@ import {
   type GameSession,
   type SessionStore
 } from "./session-store.js";
-import { findProduct, storeCatalog } from "./store/catalog.js";
+import { findProduct, findProductByMarketPid, storeCatalog } from "./store/catalog.js";
 import { createMarketStore, type MarketStore } from "./store/store.js";
 
 const publicDirectory = path.resolve(process.cwd(), "public");
@@ -41,11 +45,25 @@ const hiveWebShopProfileSchema = z.object({
   cs_code: z.coerce.number().int().positive().safe()
 });
 
+const hivePaymentNotificationSchema = z.object({
+  type: z.enum(["paid", "cancelled"]),
+  market_id: z.coerce.string().min(1).max(20),
+  order_id: z.string().trim().min(1).max(200),
+  market_pid: z.string().trim().min(1).max(300),
+  vid: z.coerce.string().regex(/^\d+$/).max(20),
+  vid_type: z.string().optional(),
+  server_id: z.string().trim().min(1).max(100),
+  appid: z.string().trim().min(1).max(300),
+  quantity: z.coerce.number().int().min(1).max(100),
+  purchase_bypass_info: z.string().min(1).max(32_000)
+});
+
 interface AppDependencies {
   config: AppConfig;
   sessions?: SessionStore;
   loginAttempts?: OneTimeAttemptStore;
   hiveClient?: HiveWebLoginClient;
+  billingClient?: HiveBillingGateway;
   aiService?: AiService;
   marketStore?: MarketStore;
 }
@@ -107,6 +125,7 @@ export function createApp(dependencies: AppDependencies) {
   const sessions = dependencies.sessions ?? createSessionStore(config);
   const loginAttempts = dependencies.loginAttempts ?? new OneTimeAttemptStore();
   const hiveClient = dependencies.hiveClient ?? new HiveWebLoginClient(config.hive);
+  const billingClient = dependencies.billingClient ?? new HiveBillingClient(config.hive);
   const aiService = dependencies.aiService ?? new AiService(config.openai);
   const marketStore = dependencies.marketStore ?? createMarketStore(config);
   const app = express();
@@ -178,6 +197,7 @@ export function createApp(dependencies: AppDependencies) {
     response.json({
       hiveMode: config.hive.mode,
       storeMode: config.store.mode,
+      storeDevTools: config.store.devToolsEnabled,
       hiveWebShopUrl: config.hive.webShopUrl ?? null,
       openaiMode: config.openai.mode,
       openaiModel: config.openai.mode === "live" ? config.openai.model : "mock"
@@ -339,6 +359,31 @@ export function createApp(dependencies: AppDependencies) {
     }
   );
 
+  app.post(
+    "/api/v1/store/dev-grants",
+    purchaseLimiter,
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      if (!config.store.devToolsEnabled) {
+        throw new HttpError(404, "개발용 재화 지급 기능이 비활성화되어 있습니다.");
+      }
+
+      const input = mockPurchaseSchema.parse(request.body);
+      const product = findProduct(input.productId);
+      if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
+      if (product.grant.itemId !== "red-bean-coin") {
+        throw new HttpError(400, "개발 도구에서는 인게임 재화만 지급할 수 있습니다.");
+      }
+
+      const { session } = response.locals as AuthenticatedLocals;
+      const result = await marketStore.grantPurchase(session.subject, product, {
+        provider: "dev-tools",
+        transactionId: input.idempotencyKey
+      });
+      response.status(result.duplicate ? 200 : 201).json(result);
+    }
+  );
+
   app.post("/api/v1/hive/web-shop/in-game-info", (request, response) => {
     const { cs_code: csCode } = hiveWebShopProfileSchema.parse(request.body);
     response.json({
@@ -364,6 +409,76 @@ export function createApp(dependencies: AppDependencies) {
           ]
         }
       ]
+    });
+  });
+
+  app.post("/api/v1/hive/web-shop/payment-notifications", async (request, response) => {
+    if (config.store.mode !== "hive-web-shop") {
+      throw new HttpError(404, "HIVE 웹 상점 결제 연동이 비활성화되어 있습니다.");
+    }
+
+    const input = hivePaymentNotificationSchema.parse(request.body);
+    if (input.type === "cancelled") {
+      response.json({ result: 0, result_msg: "cancelled payment acknowledged" });
+      return;
+    }
+    if (input.market_id !== "15") {
+      throw new HttpError(400, "HIVE 웹 PG 결제(market_id=15)가 아닙니다.");
+    }
+    if (input.appid !== config.hive.billingAppId) {
+      throw new HttpError(400, "결제 알림 AppID가 서버 설정과 일치하지 않습니다.");
+    }
+    if (input.vid_type && input.vid_type !== "v4") {
+      throw new HttpError(400, "HIVE Authentication v4 PlayerID 결제가 아닙니다.");
+    }
+
+    const product = findProductByMarketPid(input.market_pid);
+    if (!product) throw new HttpError(400, "등록되지 않은 HIVE 상품 PID입니다.");
+
+    const unconsumed = await billingClient.findUnconsumedPurchase({
+      playerId: input.vid,
+      serverId: input.server_id,
+      orderId: input.order_id
+    });
+    if (
+      unconsumed.marketId !== input.market_id ||
+      unconsumed.marketPid !== input.market_pid ||
+      unconsumed.orderId !== input.order_id ||
+      unconsumed.serverId !== input.server_id ||
+      unconsumed.playerId !== input.vid ||
+      unconsumed.quantity !== input.quantity ||
+      unconsumed.purchaseBypassInfo !== input.purchase_bypass_info
+    ) {
+      throw new HttpError(400, "HIVE 미소비 주문과 결제 알림 정보가 일치하지 않습니다.");
+    }
+
+    const verified = await billingClient.verifyReceipt(unconsumed.purchaseBypassInfo);
+    if (
+      verified.marketId !== input.market_id ||
+      verified.marketPid !== input.market_pid ||
+      (verified.marketTransactionId && verified.marketTransactionId !== input.order_id) ||
+      verified.quantity !== input.quantity
+    ) {
+      throw new HttpError(400, "HIVE 영수증과 결제 알림 정보가 일치하지 않습니다.");
+    }
+
+    const result = await marketStore.grantPurchase(input.vid, product, {
+      provider: "hive-web-shop",
+      transactionId: verified.transactionId,
+      quantity: verified.quantity
+    });
+    await billingClient.confirmDelivery({
+      transactionId: verified.transactionId,
+      playerId: input.vid,
+      itemId: product.grant.itemId,
+      itemName: product.name,
+      quantity: product.grant.quantity * verified.quantity
+    });
+
+    response.json({
+      result: 0,
+      result_msg: "success",
+      duplicate: result.duplicate
     });
   });
 

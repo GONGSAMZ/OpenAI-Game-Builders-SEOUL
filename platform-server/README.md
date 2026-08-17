@@ -9,8 +9,8 @@ Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, �
 - Hive 계정 없이 시험하는 mock 로그인
 - 외부 토큰을 브라우저에 노출하지 않는 서버 게임 세션과 DynamoDB 세션 영속화
 - OpenAI Responses API 서버 프록시와 mock 응답
-- mock 마켓, 중복 구매 방지, 메모리/DynamoDB 아이템 저장소
-- HIVE 웹 상점 연결과 인게임 정보 조회 API
+- mock/개발 지급, 중복 구매 방지, 사용자별 메모리/DynamoDB 아이템 저장소
+- HIVE 웹 상점 연결, 인게임 정보 조회, 결제 알림·미소비 주문·영수증 검증·지급 완료 API
 - `/game/` Unity WebGL 제공 및 루트 화면 iframe 임베드
 - 상단 헤더와 게임만 표시하는 최소 웹 셸
 - 브라우저용 `game-bridge.js`와 Unity 통합 API
@@ -35,7 +35,7 @@ Copy-Item .env.example .env
 pnpm dev
 ```
 
-`.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다. 루트 화면에는 상단 헤더와 Unity 게임만 표시됩니다. HIVE mock 가입·로그인, mock 구매, NPC 반응 생성 기능은 서버 API와 Unity 브리지에 유지되며 실제 게임 UI에서 호출합니다.
+`.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다. 루트 화면에는 상단 헤더와 Unity 게임이 표시됩니다. `STORE_DEV_TOOLS=true`인 개발 환경에서만 게임 바깥 오른쪽에 테스트 지급 패널이 나타납니다. 로그인 사용자가 이 버튼을 누르면 서버의 본인 인벤토리와 실행 중인 게임의 팥 코인이 동기화됩니다.
 
 ## 실제 서비스 전환
 
@@ -45,7 +45,9 @@ pnpm dev
 
 ### HIVE 웹 상점
 
-WebGL에는 모바일 HIVE SDK IAP를 억지로 넣지 않습니다. HIVE 관리형 웹 상점을 생성한 뒤 `STORE_MODE=hive-web-shop`, `HIVE_WEB_SHOP_URL=https://shop.withhive.com/...`를 설정합니다. 헤더 또는 게임 UI는 실제 구매를 HIVE 웹 상점으로 보내고 `/api/v1/hive/web-shop/in-game-info`가 수령 계정을 연결합니다. 상품·PG·아이템 지급 설정은 HIVE Console에서 별도로 완료해야 합니다.
+HIVE Unity SDK가 WebGL을 빌드 대상으로 제공하지 않으므로 WebGL 게임은 브라우저 브리지에서 HIVE Web Login과 관리형 웹 상점을 사용하고, 서버는 HIVE Billing Server API를 사용합니다. `STORE_MODE=hive-web-shop`, `HIVE_WEB_SHOP_URL`, `HIVE_BILLING_APP_ID`, `HIVE_BILLING_AUTH_KEY`를 설정합니다. 게임 상점의 `팥 코인 충전` 버튼은 HIVE 웹 상점을 열며 서버는 결제 알림을 받은 뒤 PlayerID의 미소비 주문과 영수증을 검증하고, DynamoDB에 한 번만 지급한 뒤 HIVE에 지급 완료를 전송합니다.
+
+개발 환경에서는 `STORE_DEV_TOOLS=true`를 사용합니다. 정식 배포 전에는 반드시 `STORE_DEV_TOOLS=false`로 바꿔 테스트 지급 UI와 API를 함께 비활성화합니다. 상품·PG·콜백 URL과 Billing 인증 키 설정은 [HIVE Console 체크리스트](docs/hive-console-checklist.md)를 따릅니다.
 
 ### OpenAI API
 
@@ -76,5 +78,6 @@ OpenAI 공식 문서:
 
 - 로컬 기본값에서는 세션·상점 데이터를 메모리에 저장하고, AWS `DATA_STORE=dynamodb` 환경에서는 둘 다 DynamoDB에 유지합니다.
 - AI 엔드포인트는 연동 검증용 NPC 반응 예시입니다. 기획 확정 후 게임 기능에 맞춘 입출력 계약으로 버전 관리합니다.
-- 실제 HIVE 연동은 Console Web Login AppID, 보안 키, 웹 상점/PG 설정이 준비된 뒤 Sandbox에서 검증해야 합니다.
+- 실제 HIVE 유료 결제는 Console Web Login AppID, Billing 인증 키, 웹 상점/PG/상품 설정이 준비된 뒤 Sandbox에서 최종 검증해야 합니다.
+- 결제 취소 알림은 현재 지급하지 않고 정상 응답만 하며, 이미 사용된 재화의 환불 회수 정책은 정식 출시 전 별도 설계가 필요합니다.
 - 게임 세이브·점수·랭킹 DB는 게임 기획과 데이터 소유권이 확정된 후 추가합니다.

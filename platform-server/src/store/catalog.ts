@@ -40,3 +40,7 @@ export const storeCatalog: readonly StoreProduct[] = [
 export function findProduct(productId: string): StoreProduct | undefined {
   return storeCatalog.find((product) => product.id === productId);
 }
+
+export function findProductByMarketPid(marketPid: string): StoreProduct | undefined {
+  return storeCatalog.find((product) => product.marketPid === marketPid);
+}

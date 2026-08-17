@@ -21,11 +21,14 @@ const environmentSchema = z.object({
   HIVE_APP_ID: z.string().optional(),
   HIVE_CLIENT_ID: z.string().optional(),
   HIVE_CLIENT_SECRET: z.string().optional(),
+  HIVE_BILLING_APP_ID: optionalNonEmptyString,
+  HIVE_BILLING_AUTH_KEY: optionalNonEmptyString,
   HIVE_REDIRECT_URI: z.string().url().optional(),
   HIVE_COUNTRY: z.string().length(2).default("KR"),
   HIVE_LANGUAGE: z.string().min(2).max(8).default("ko"),
   HIVE_WEB_SHOP_URL: optionalUrl,
   STORE_MODE: z.enum(["mock", "hive-web-shop"]).default("mock"),
+  STORE_DEV_TOOLS: z.stringbool().default(false),
   DATA_STORE: z.enum(["memory", "dynamodb"]).default("memory"),
   DYNAMODB_TABLE: optionalNonEmptyString,
   OPENAI_MODE: z.enum(["mock", "live"]).default("mock"),
@@ -55,9 +58,12 @@ export interface AppConfig {
     country: string;
     language: string;
     webShopUrl?: string;
+    billingAppId?: string;
+    billingAuthKey?: string;
   };
   store: {
     mode: StoreMode;
+    devToolsEnabled: boolean;
     dataStore: "memory" | "dynamodb";
     dynamodbTable?: string;
   };
@@ -91,8 +97,16 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     throw new Error("OPENAI_MODE=live이면 OPENAI_API_KEY가 필요합니다.");
   }
 
-  if (parsed.STORE_MODE === "hive-web-shop" && !parsed.HIVE_WEB_SHOP_URL) {
-    throw new Error("STORE_MODE=hive-web-shop이면 HIVE_WEB_SHOP_URL이 필요합니다.");
+  if (parsed.STORE_MODE === "hive-web-shop") {
+    if (!parsed.HIVE_WEB_SHOP_URL) {
+      throw new Error("STORE_MODE=hive-web-shop이면 HIVE_WEB_SHOP_URL이 필요합니다.");
+    }
+    if (!parsed.HIVE_BILLING_AUTH_KEY) {
+      throw new Error("STORE_MODE=hive-web-shop이면 HIVE_BILLING_AUTH_KEY가 필요합니다.");
+    }
+    if (!(parsed.HIVE_BILLING_APP_ID ?? parsed.HIVE_APP_ID)) {
+      throw new Error("STORE_MODE=hive-web-shop이면 HIVE_BILLING_APP_ID 또는 HIVE_APP_ID가 필요합니다.");
+    }
   }
 
   if (parsed.DATA_STORE === "dynamodb" && !parsed.DYNAMODB_TABLE) {
@@ -115,10 +129,13 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
       redirectUri: parsed.HIVE_REDIRECT_URI,
       country: parsed.HIVE_COUNTRY.toUpperCase(),
       language: parsed.HIVE_LANGUAGE,
-      webShopUrl: parsed.HIVE_WEB_SHOP_URL
+      webShopUrl: parsed.HIVE_WEB_SHOP_URL,
+      billingAppId: parsed.HIVE_BILLING_APP_ID ?? parsed.HIVE_APP_ID,
+      billingAuthKey: parsed.HIVE_BILLING_AUTH_KEY
     },
     store: {
       mode: parsed.STORE_MODE,
+      devToolsEnabled: parsed.STORE_DEV_TOOLS,
       dataStore: parsed.DATA_STORE,
       dynamodbTable: parsed.DYNAMODB_TABLE
     },

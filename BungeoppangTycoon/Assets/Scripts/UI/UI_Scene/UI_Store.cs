@@ -1,3 +1,4 @@
+using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 
@@ -40,11 +41,23 @@ public class UI_Store : UI_Base
         MoneyNum.text = Managers.Game.Money.ToString("N0")+" 원";
 
         AddEvent(NextDayButton.gameObject, Managers.Game.StartNextDay);
+        AddEvent(GetButton((int)Btns.MarketingButton).gameObject, OpenHiveShop);
 
     }
 
     void Fuc()
     {
         
+    }
+
+    void OpenHiveShop()
+    {
+        if (GamePlatformClient.Instance == null)
+        {
+            Debug.LogError("GamePlatformClient가 초기화되지 않았습니다.");
+            return;
+        }
+
+        GamePlatformClient.Instance.OpenHiveWebShop();
     }
 }

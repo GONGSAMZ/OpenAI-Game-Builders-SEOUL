@@ -19,7 +19,7 @@ export interface InventoryEntry {
 
 export interface StorePurchase {
   purchaseId: string;
-  provider: "mock";
+  provider: "mock" | "dev-tools" | "hive-web-shop";
   productId: string;
   itemId: string;
   quantity: number;
@@ -39,6 +39,17 @@ export interface MarketStore {
     product: StoreProduct,
     idempotencyKey: string
   ): Promise<GrantResult>;
+  grantPurchase(
+    subject: string,
+    product: StoreProduct,
+    input: GrantPurchaseInput
+  ): Promise<GrantResult>;
+}
+
+export interface GrantPurchaseInput {
+  provider: StorePurchase["provider"];
+  transactionId: string;
+  quantity?: number;
 }
 
 function sortedInventory(entries: Iterable<InventoryEntry>): InventoryEntry[] {
@@ -58,10 +69,26 @@ export class InMemoryMarketStore implements MarketStore {
     product: StoreProduct,
     idempotencyKey: string
   ): Promise<GrantResult> {
-    const existing = this.purchases.get(idempotencyKey);
+    return this.grantPurchase(subject, product, {
+      provider: "mock",
+      transactionId: idempotencyKey
+    });
+  }
+
+  public async grantPurchase(
+    subject: string,
+    product: StoreProduct,
+    input: GrantPurchaseInput
+  ): Promise<GrantResult> {
+    const receiptKey = `${input.provider}:${input.transactionId}`;
+    const existing = this.purchases.get(receiptKey);
     if (existing) {
-      if (existing.subject !== subject || existing.purchase.productId !== product.id) {
-        throw new Error("이미 다른 구매에 사용된 idempotencyKey입니다.");
+      if (
+        existing.subject !== subject ||
+        existing.purchase.productId !== product.id ||
+        existing.purchase.quantity !== product.grant.quantity * (input.quantity ?? 1)
+      ) {
+        throw new Error("이미 다른 구매에 사용된 transactionId입니다.");
       }
       return {
         purchase: existing.purchase,
@@ -74,19 +101,19 @@ export class InMemoryMarketStore implements MarketStore {
     const current = inventory.get(product.grant.itemId);
     inventory.set(product.grant.itemId, {
       itemId: product.grant.itemId,
-      quantity: (current?.quantity ?? 0) + product.grant.quantity
+      quantity: (current?.quantity ?? 0) + product.grant.quantity * (input.quantity ?? 1)
     });
     this.inventories.set(subject, inventory);
 
     const purchase: StorePurchase = {
       purchaseId: randomUUID(),
-      provider: "mock",
+      provider: input.provider,
       productId: product.id,
       itemId: product.grant.itemId,
-      quantity: product.grant.quantity,
+      quantity: product.grant.quantity * (input.quantity ?? 1),
       createdAt: new Date().toISOString()
     };
-    this.purchases.set(idempotencyKey, { subject, purchase });
+    this.purchases.set(receiptKey, { subject, purchase });
 
     return { purchase, inventory: await this.getInventory(subject), duplicate: false };
   }
@@ -136,16 +163,27 @@ export class DynamoDbMarketStore implements MarketStore {
     product: StoreProduct,
     idempotencyKey: string
   ): Promise<GrantResult> {
-    const receiptKey = `RECEIPT#MOCK#${idempotencyKey}`;
+    return this.grantPurchase(subject, product, {
+      provider: "mock",
+      transactionId: idempotencyKey
+    });
+  }
+
+  public async grantPurchase(
+    subject: string,
+    product: StoreProduct,
+    input: GrantPurchaseInput
+  ): Promise<GrantResult> {
+    const receiptKey = `RECEIPT#${input.provider.toUpperCase()}#${input.transactionId}`;
     const existing = await this.readReceipt(receiptKey);
-    if (existing) return this.duplicateResult(existing, subject, product);
+    if (existing) return this.duplicateResult(existing, subject, product, input.quantity ?? 1);
 
     const purchase: StorePurchase = {
       purchaseId: randomUUID(),
-      provider: "mock",
+      provider: input.provider,
       productId: product.id,
       itemId: product.grant.itemId,
-      quantity: product.grant.quantity,
+      quantity: product.grant.quantity * (input.quantity ?? 1),
       createdAt: new Date().toISOString()
     };
 
@@ -169,7 +207,7 @@ export class DynamoDbMarketStore implements MarketStore {
                 ExpressionAttributeValues: {
                   ":itemId": product.grant.itemId,
                   ":updatedAt": purchase.createdAt,
-                  ":quantity": product.grant.quantity
+                  ":quantity": purchase.quantity
                 }
               }
             }
@@ -178,7 +216,9 @@ export class DynamoDbMarketStore implements MarketStore {
       );
     } catch (error) {
       const racedReceipt = await this.readReceipt(receiptKey);
-      if (racedReceipt) return this.duplicateResult(racedReceipt, subject, product);
+      if (racedReceipt) {
+        return this.duplicateResult(racedReceipt, subject, product, input.quantity ?? 1);
+      }
       throw error;
     }
 
@@ -199,10 +239,15 @@ export class DynamoDbMarketStore implements MarketStore {
   private async duplicateResult(
     existing: DynamoReceiptItem,
     subject: string,
-    product: StoreProduct
+    product: StoreProduct,
+    quantity: number
   ): Promise<GrantResult> {
-    if (existing.subject !== subject || existing.productId !== product.id) {
-      throw new Error("이미 다른 구매에 사용된 idempotencyKey입니다.");
+    if (
+      existing.subject !== subject ||
+      existing.productId !== product.id ||
+      existing.quantity !== product.grant.quantity * quantity
+    ) {
+      throw new Error("이미 다른 구매에 사용된 transactionId입니다.");
     }
 
     const { PK: _pk, SK: _sk, subject: _subject, ...purchase } = existing;

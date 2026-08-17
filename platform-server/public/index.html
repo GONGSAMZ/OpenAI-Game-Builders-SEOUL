@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/styles.css" />
     <script src="/game-bridge.js" defer></script>
     <script src="/header.js" defer></script>
+    <script src="/dev-tools.js" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -56,14 +57,40 @@
       </div>
     </header>
 
-    <main class="game-stage">
-      <iframe
-        id="game-frame"
-        title="붕어빵 타이쿤 Unity WebGL 게임"
-        src="/game/index.html?v=20260816-csp2"
-        allow="fullscreen; autoplay"
-        loading="eager"
-      ></iframe>
-    </main>
+    <div class="game-workspace">
+      <main class="game-stage">
+        <iframe
+          id="game-frame"
+          title="붕어빵 타이쿤 Unity WebGL 게임"
+          src="/game/index.html?v=20260817-store-dev"
+          allow="fullscreen; autoplay"
+          loading="eager"
+        ></iframe>
+      </main>
+
+      <aside id="store-dev-tools" class="store-dev-tools" aria-label="개발용 재화 도구" hidden>
+        <div class="dev-tools-heading">
+          <span class="dev-badge">DEV</span>
+          <strong>재화 테스트</strong>
+        </div>
+        <p class="dev-tools-copy">로그인한 HIVE 사용자에게만 저장됩니다.</p>
+        <dl class="dev-balance">
+          <div>
+            <dt>사용자</dt>
+            <dd id="dev-player-id">로그인 필요</dd>
+          </div>
+          <div>
+            <dt>팥 코인</dt>
+            <dd id="dev-currency-balance">0</dd>
+          </div>
+        </dl>
+        <button id="dev-grant-button" class="dev-grant-button" type="button" disabled>
+          +100 팥 코인 테스트 지급
+        </button>
+        <p id="dev-grant-status" class="dev-grant-status" role="status" aria-live="polite">
+          HIVE 로그인 후 사용할 수 있습니다.
+        </p>
+      </aside>
+    </div>
   </body>
 </html>

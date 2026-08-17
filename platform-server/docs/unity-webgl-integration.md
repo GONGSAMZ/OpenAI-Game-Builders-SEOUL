@@ -13,10 +13,11 @@
 <script src="https://YOUR-SERVER/game-bridge.js"></script>
 ```
 
-4. 빈 GameObject에 `GamePlatformClient`를 붙이고, 서버 주소를 HTTPS 배포 주소로 설정합니다.
-5. 로그인 버튼에서 `LoginWithHive()`를 호출합니다.
-6. `LoginSucceeded` 이벤트 이후 AI나 저장 API를 호출합니다.
+4. `GamePlatformClient`는 WebGL 시작 시 `@GamePlatformClient` GameObject로 자동 생성되어 씬을 이동해도 유지됩니다.
+5. 로그인 버튼에서 `LoginWithHive()`를, 인게임 상점의 충전 버튼에서 `OpenHiveWebShop()`을 호출합니다.
+6. 로그인 성공 후 서버 인벤토리를 5초 간격으로 조회하고, 웹 패널이나 HIVE 결제로 바뀐 `red-bean-coin` 잔액을 `Managers.Game.Money`에 차이만큼 반영합니다.
+7. 부모 웹 페이지가 테스트 지급 직후 `PLATFORM_INVENTORY` 메시지를 보내므로 폴링을 기다리지 않고 실행 중인 Unity에도 즉시 반영됩니다.
 
 서버와 WebGL을 동일한 Origin에서 제공하는 구성이 쿠키·CORS·팝업 연동을 가장 단순하게 만듭니다. 별도 도메인으로 배포할 경우 `.env`의 `GAME_ORIGIN`을 정확한 WebGL Origin으로 설정해야 합니다.
 
-현재 어댑터는 어느 Scene에도 자동으로 연결하지 않아 기존 플레이에는 영향을 주지 않습니다. 실제 로그인 UI를 붙일 때 빈 GameObject에 `GamePlatformClient`를 추가하고 게임의 씬 관리 방식에 맞춰 호출합니다.
+HIVE Unity SDK의 현재 배포 대상에는 WebGL이 없으므로 이 프로젝트의 WebGL 빌드는 HIVE Web Login·Web Shop과 HIVE Server API를 브라우저/서버 경계에서 사용합니다. Android·iOS·Windows 네이티브 빌드로 확장할 때는 같은 `GamePlatformClient` 인터페이스 뒤에 HIVE Unity SDK 구현을 추가합니다.

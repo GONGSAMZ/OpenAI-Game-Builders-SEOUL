@@ -25,6 +25,13 @@ Parameters:
     Type: String
     AllowedValues: [mock, hive-web-shop]
     Default: mock
+  StoreDevTools:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+  HiveBillingAppId:
+    Type: String
+    Default: ""
   HiveWebShopUrl:
     Type: String
     Default: ""
@@ -43,6 +50,9 @@ Conditions:
   HasOpenAiRuntimeSecrets: !And
     - !Equals [!Ref UseRuntimeSecrets, "true"]
     - !Equals [!Ref OpenAiMode, live]
+  HasHiveBillingSecret: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Equals [!Ref StoreMode, hive-web-shop]
   HasOperationsAlertTopic: !Not [!Equals [!Ref OperationsAlertTopicArn, ""]]
 
 Resources:
@@ -238,8 +248,12 @@ Resources:
               Value: !Sub https://${Distribution.DomainName}/hive/cb
             - Name: HIVE_WEB_SHOP_URL
               Value: !Ref HiveWebShopUrl
+            - Name: HIVE_BILLING_APP_ID
+              Value: !Ref HiveBillingAppId
             - Name: STORE_MODE
               Value: !Ref StoreMode
+            - Name: STORE_DEV_TOOLS
+              Value: !Ref StoreDevTools
             - Name: DATA_STORE
               Value: dynamodb
             - Name: DYNAMODB_TABLE
@@ -266,6 +280,11 @@ Resources:
               - HasOpenAiRuntimeSecrets
               - Name: OPENAI_API_KEY
                 ValueFrom: !Sub "${RuntimeSecretArn}:OPENAI_API_KEY::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasHiveBillingSecret
+              - Name: HIVE_BILLING_AUTH_KEY
+                ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_BILLING_AUTH_KEY::"
               - !Ref AWS::NoValue
           LogConfiguration:
             LogDriver: awslogs

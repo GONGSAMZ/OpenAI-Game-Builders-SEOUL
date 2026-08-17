@@ -30,6 +30,9 @@
     accountPlayerId.textContent = playerName || "-";
     accountProvider.textContent = nextSession?.provider === "hive" ? "HIVE 계정" : "연결된 계정";
     setMenuOpen(false);
+    window.dispatchEvent(
+      new CustomEvent("GAME_SESSION_CHANGED", { detail: { session: nextSession } })
+    );
   }
 
   async function restoreSession() {
