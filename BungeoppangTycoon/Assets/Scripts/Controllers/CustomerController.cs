@@ -103,11 +103,12 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     int reactionTime = 1;
     #endregion
 
-    bool hasExited = false;
+    // 퇴장 반응이 시작된 손님은 더 이상 주문을 받거나 음식을 받을 수 없다.
+    bool isLeaving = false;
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (didAcceptOrder == true)
+        if (didAcceptOrder == true || isLeaving == true)
             return;
 
         //주문
@@ -170,11 +171,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         }
         else
-        {
-            Util.ExecuteOnce(
-                () => { StartCoroutine(Exit(true)); },
-                ref hasExited, false);
-        }
+            BeginExit(true);
 
 
     }
@@ -205,6 +202,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         pay = 0;
         didAcceptOrder = false;
+        isLeaving = false;
         ++Managers.Game.numsOfCurCustomers;
     }
 
@@ -258,6 +256,12 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     public bool TryEat(FillingType filling, QualityStatus baking)
     {
+        if (isLeaving == true)
+        {
+            ShowTemporaryMessage("손님이 퇴장 중입니다.");
+            return false;
+        }
+
         if (didAcceptOrder == false)
         {
             ShowOrderNotAcceptedMessage();
@@ -312,7 +316,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
                 if (order.Count == 0)
                 {
                     orderAngryPoint -= normalPoint;
-                    StartCoroutine(Exit());
+                    BeginExit();
                 }
             }
 
@@ -330,6 +334,15 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         ++Managers.Game.totalFishBunsSold;
         
 
+    }
+
+    void BeginExit(bool isAngry = false)
+    {
+        if (isLeaving == true)
+            return;
+
+        isLeaving = true;
+        StartCoroutine(Exit(isAngry));
     }
 
     IEnumerator Exit(bool isAngry = false)
@@ -359,7 +372,6 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         //손님 비활성화
         customer.gameObject.SetActive(false);
-        hasExited = false;
         --Managers.Game.numsOfCurCustomers;
         Debug.Log($" {gameObject.name} Exit 끝");
 

@@ -15,6 +15,8 @@ public class FishBunController : MonoBehaviour,
 
     public CookingState state = CookingState.bottomBatter; //초기 상태
     QualityStatus bakingStatus;
+    // 성공한 판매 뒤 Destroy가 적용되기 전 같은 드래그 종료 이벤트가 다시 들어오는 것을 막는다.
+    bool isConsumed = false;
     /*    public QualityStatus batterStatus;
     public QualityStatus fillingStatus;
     public QualityStatus warmStatus;*/
@@ -51,7 +53,7 @@ public class FishBunController : MonoBehaviour,
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        if (isDraggable == false)
+        if (isDraggable == false || isConsumed == true)
             return;
 
         Vector3 mouse = Camera.main.ScreenToWorldPoint(eventData.position);
@@ -81,6 +83,8 @@ public class FishBunController : MonoBehaviour,
                         return;
                     }
 
+                    // 성공 판매는 이 시점부터 한 번만 처리한다.
+                    isConsumed = true;
                     DisplateController.Reset(fillingType);
 
                 }
