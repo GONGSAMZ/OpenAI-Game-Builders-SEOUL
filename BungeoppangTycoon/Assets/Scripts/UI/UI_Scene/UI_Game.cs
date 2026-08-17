@@ -15,6 +15,7 @@ public class UI_Game : UI_Base
     enum Btns {
         settingsButton,
         toggleViewButton,
+        inAppMarketButton,
     }
 
     static GameObject ordersPanel;
@@ -40,6 +41,7 @@ public class UI_Game : UI_Base
         GetTMP((int)TMP.moneyText).text = $"{Managers.Game.Money.ToString("N0")} 원";
         GetButton((int)Btns.toggleViewButton).gameObject.AddEvent(CameraController.toggleCameraAction);
         GetButton((int)Btns.settingsButton).gameObject.AddEvent(settingsBtnFunc);
+        GetButton((int)Btns.inAppMarketButton).gameObject.AddEvent(inAppMarketBtnFunc);
 
         //이벤트 구독
 
@@ -65,6 +67,11 @@ public class UI_Game : UI_Base
         //Managers.Game.
         Managers.UI.CloseUI();
         Managers.UI.ShowUI<UI_Settings>();
+    }
+
+    void inAppMarketBtnFunc()
+    {
+        Managers.UI.ShowUI<UI_InAppMarket>(false);
     }
 
     static void orderUpdate()
