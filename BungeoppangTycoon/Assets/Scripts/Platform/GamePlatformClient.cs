@@ -60,6 +60,11 @@ public sealed class GamePlatformClient : MonoBehaviour
         yield return SendJson("GET", "/api/v1/auth/session", null, onSuccess);
     }
 
+    public IEnumerator GetPublicConfig(Action<string> onSuccess)
+    {
+        yield return SendJson("GET", "/api/v1/config/public", null, onSuccess);
+    }
+
     public IEnumerator CreateNpcReaction(
         string situation,
         string playerAction,
