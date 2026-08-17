@@ -120,12 +120,7 @@ public class GameManagerEx
     #endregion
 
     #region 엔딩 관련 변수
-    int clearCondition = 40000;
-    int endingDay = 5;
-    
-    bool isEndingDay { get { return Day >= endingDay;  } }
     bool isOver { get { return Money <= 0;  } }
-    bool isClear { get { return Money > clearCondition; } }
     #endregion
 
     bool hasFinalizedDaily;
@@ -309,31 +304,12 @@ public class GameManagerEx
     {
         Debug.Log("IsEnding 진입");
 
-        if (isOver == true)
-        {
-            Managers.UI.CloseUI();
-            Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Over);
-            return true;
-        }
-        else
-        {
-            Debug.Log($"{Day} VS {endingDay}");
+        if (isOver == false)
+            return false;
 
-            if (isEndingDay == false)
-                return false;
-
-            Debug.Log("5일차다");
-
-            Managers.UI.CloseUI();
-
-            if (isClear == true)
-                Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Clear);
-            else
-                Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Normal);
-
-            return true;
-        }
-
+        Managers.UI.CloseUI();
+        Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Over);
+        return true;
     }
 
     #endregion
