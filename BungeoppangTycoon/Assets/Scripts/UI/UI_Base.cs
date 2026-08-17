@@ -44,13 +44,16 @@ public abstract class UI_Base : MonoBehaviour
         string[] names = Enum.GetNames(enumT);
 
         //임시 배열 생성
-        int arrSize = name.Length; 
+        int arrSize = names.Length;
         UnityEngine.Object[] objs = new UnityEngine.Object[arrSize];
 
         //배열 채우기
         for (int i = 0; i < names.Length; ++i)
         {
             objs[i] = Util.Find<T>(gameObject, names[i]);
+
+            if (objs[i] == null)
+                Debug.LogError($"[{GetType().Name}] '{names[i]}' {typeof(T).Name} 연결을 찾지 못했습니다.", gameObject);
         }
 
         //전역에 있는 딕셔너리에 값(타입-컴포넌트 배열) 채우기
@@ -116,9 +119,19 @@ public abstract class UI_Base : MonoBehaviour
             if (typeof(parentT) == typeof(GameObject))
                 parent = dic[typeof(GameObject)][i] as GameObject;
             else
-                parent = (dic[typeof(parentT)][i] as Component).gameObject; 
+            {
+                Component parentComponent = dic[typeof(parentT)][i] as Component;
+                parent = parentComponent != null ? parentComponent.gameObject : null;
+            }
 
-            Util.checkNull(parent);
+            if (parent == null)
+            {
+                string parentName = Enum.GetNames(parentEnum)[i];
+                Debug.LogError(
+                    $"[{GetType().Name}] '{parentName}' 부모가 없어 '{childName}' 자식을 연결할 수 없습니다.",
+                    gameObject);
+                continue;
+            }
             //Debug.LogWarning($"{parent.name}");
 
             childT child;
