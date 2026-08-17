@@ -281,6 +281,7 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:DeleteMetricFilter
                   - logs:DescribeLogGroups
+                  - logs:DescribeMetricFilters
                   - logs:DeleteLogGroup
                   - logs:PutMetricFilter
                   - logs:PutRetentionPolicy
