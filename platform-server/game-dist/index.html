@@ -1,136 +1,202 @@
-<!DOCTYPE html>
-<html lang="en-us">
+<!doctype html>
+<html lang="ko">
   <head>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity Web Player | ToastyFishBun</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
-    <link rel="stylesheet" href="TemplateData/style.css">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, viewport-fit=cover">
+    <title>ToastyFishBun</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        background: #18120d;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #18120d;
+      }
+
+      #unity-container {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        background: #18120d;
+      }
+
+      #unity-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        outline: none;
+        background: #18120d;
+      }
+
+      #unity-loading {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        gap: 16px;
+        padding: 24px;
+        text-align: center;
+        background: rgba(24, 18, 13, 0.94);
+        transition: opacity 180ms ease;
+      }
+
+      #unity-loading.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      #unity-loading-title {
+        margin: 0;
+        font: 700 clamp(20px, 2.2vw, 32px) / 1.2 sans-serif;
+      }
+
+      #unity-progress-track {
+        width: min(360px, 72vw);
+        height: 10px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 239, 199, 0.65);
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.25);
+      }
+
+      #unity-progress-fill {
+        width: 0;
+        height: 100%;
+        border-radius: inherit;
+        background: #f6c65d;
+        transition: width 80ms linear;
+      }
+
+      #unity-warning {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        z-index: 2;
+        display: grid;
+        width: min(560px, calc(100% - 32px));
+        gap: 8px;
+        transform: translateX(-50%);
+      }
+
+      .unity-message {
+        padding: 10px 14px;
+        border-radius: 8px;
+        color: #251a10;
+        font: 600 14px / 1.4 sans-serif;
+        text-align: left;
+        background: #f6c65d;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+      }
+
+      .unity-message.is-error {
+        color: #fff;
+        background: #9d2f28;
+      }
+
+      #unity-fullscreen-button {
+        position: absolute;
+        right: 16px;
+        bottom: 16px;
+        z-index: 2;
+        display: grid;
+        width: 44px;
+        height: 44px;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        border-radius: 8px;
+        color: #fff;
+        font: 700 19px / 1 sans-serif;
+        background: rgba(0, 0, 0, 0.38);
+        cursor: pointer;
+      }
+
+      #unity-fullscreen-button:hover,
+      #unity-fullscreen-button:focus-visible {
+        background: rgba(0, 0, 0, 0.64);
+      }
+
+      @media (max-width: 1366px), (max-height: 768px) {
+        #unity-fullscreen-button {
+          right: 10px;
+          bottom: 10px;
+          width: 40px;
+          height: 40px;
+        }
+      }
+    </style>
     <script src="/game-bridge.js"></script>
   </head>
   <body>
-    <div id="unity-container" class="unity-desktop">
-      <canvas id="unity-canvas" width=960 height=600 tabindex="-1"></canvas>
-      <div id="unity-loading-bar">
-        <div id="unity-logo"></div>
-        <div id="unity-progress-bar-empty">
-          <div id="unity-progress-bar-full"></div>
+    <main id="unity-container">
+      <canvas id="unity-canvas" width="1920" height="1080" tabindex="-1" aria-label="ToastyFishBun 게임 화면"></canvas>
+      <div id="unity-warning" aria-live="polite"></div>
+      <div id="unity-loading" role="status" aria-live="polite">
+        <p id="unity-loading-title">게임을 불러오는 중입니다</p>
+        <div id="unity-progress-track" aria-hidden="true">
+          <div id="unity-progress-fill"></div>
         </div>
       </div>
-      <div id="unity-warning"> </div>
-      <div id="unity-footer">
-        <div id="unity-logo-title-footer"></div>
-        <div id="unity-fullscreen-button"></div>
-        <div id="unity-build-title">ToastyFishBun</div>
-      </div>
-    </div>
-    <script>
-      var canvas = document.querySelector("#unity-canvas");
+      <button id="unity-fullscreen-button" type="button" aria-label="전체 화면으로 보기" title="전체 화면으로 보기">⛶</button>
+    </main>
 
-      // Shows a temporary message banner/ribbon for a few seconds, or
-      // a permanent error message on top of the canvas if type=='error'.
-      // If type=='warning', a yellow highlight color is used.
-      // Modify or remove this function to customize the visually presented
-      // way that non-critical warnings and error messages are presented to the
-      // user.
-      function unityShowBanner(msg, type) {
-        var warningBanner = document.querySelector("#unity-warning");
-        function updateBannerVisibility() {
-          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+    <script>
+      const canvas = document.querySelector("#unity-canvas");
+      const loading = document.querySelector("#unity-loading");
+      const progressFill = document.querySelector("#unity-progress-fill");
+      const fullscreenButton = document.querySelector("#unity-fullscreen-button");
+
+      function unityShowBanner(message, type) {
+        const warning = document.querySelector("#unity-warning");
+        const item = document.createElement("div");
+        item.className = `unity-message${type === "error" ? " is-error" : ""}`;
+        item.textContent = message;
+        warning.appendChild(item);
+
+        if (type !== "error") {
+          window.setTimeout(() => item.remove(), 5000);
         }
-        var div = document.createElement('div');
-        div.innerHTML = msg;
-        warningBanner.appendChild(div);
-        if (type == 'error') div.style = 'background: red; padding: 10px;';
-        else {
-          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
-          setTimeout(function() {
-            warningBanner.removeChild(div);
-            updateBannerVisibility();
-          }, 5000);
-        }
-        updateBannerVisibility();
       }
 
-      var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/fe944eeb6731706297de0d40badd88ee.loader.js";
-      var config = {
+      const buildUrl = "Build";
+      const config = {
         arguments: [],
-        dataUrl: buildUrl + "/9291ff8609cdec01bd19bc445c472590.data.unityweb",
-        frameworkUrl: buildUrl + "/d80d650de64c169100d9f5046d5ee018.framework.js.unityweb",
-        codeUrl: buildUrl + "/c31ed408ef7900067b7ceb6e8207c31f.wasm.unityweb",
+        dataUrl: `${buildUrl}/b9d8ab404036c134a00edb4e79ceaed1.data.unityweb`,
+        frameworkUrl: `${buildUrl}/d80d650de64c169100d9f5046d5ee018.framework.js.unityweb`,
+        codeUrl: `${buildUrl}/3706f77558ab1d736149c89d119dffdb.wasm.unityweb`,
         streamingAssetsUrl: "StreamingAssets",
         companyName: "FishBunFactory",
         productName: "ToastyFishBun",
         productVersion: "1.0",
         showBanner: unityShowBanner,
-        // errorHandler: function(err, url, line) {
-        //    alert("error " + err + " occurred at line " + line);
-        //    // Return 'true' if you handled this error and don't want Unity
-        //    // to process it further, 'false' otherwise.
-        //    return true;
-        // },
+        devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2)
       };
 
-      // By default, Unity keeps WebGL canvas render target size matched with
-      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-      // Set this to false if you want to decouple this synchronization from
-      // happening inside the engine, and you would instead like to size up
-      // the canvas DOM size and WebGL render target sizes yourself.
-      // config.matchWebGLToCanvasSize = false;
-
-      // If you would like all file writes inside Unity Application.persistentDataPath
-      // directory to automatically persist so that the contents are remembered when
-      // the user revisits the site the next time, uncomment the following line:
-      // config.autoSyncPersistentDataPath = true;
-      // This autosyncing is currently not the default behavior to avoid regressing
-      // existing user projects that might rely on the earlier manual
-      // JS_FileSystem_Sync() behavior, but in future Unity version, this will be
-      // expected to change.
-
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Mobile device style: fill the whole browser client area with the game canvas:
-
-        var meta = document.createElement('meta');
-        meta.name = 'viewport';
-        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
-        document.getElementsByTagName('head')[0].appendChild(meta);
-        document.querySelector("#unity-container").className = "unity-mobile";
-        canvas.className = "unity-mobile";
-
-        // To lower canvas resolution on mobile devices to gain some
-        // performance, uncomment the following line:
-        // config.devicePixelRatio = 1;
-
-
-      } else {
-        // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
-        canvas.style.width = "960px";
-        canvas.style.height = "600px";
-      }
-
-      document.querySelector("#unity-loading-bar").style.display = "block";
-
-      var script = document.createElement("script");
-      script.src = loaderUrl;
-      script.onload = () => {
+      const loaderScript = document.createElement("script");
+      loaderScript.src = `${buildUrl}/3a99ddcf869b2b68a04603d4c5c18138.loader.js`;
+      loaderScript.onload = () => {
         createUnityInstance(canvas, config, (progress) => {
-          document.querySelector("#unity-progress-bar-full").style.width = 100 * progress + "%";
-              }).then((unityInstance) => {
+          progressFill.style.width = `${Math.round(progress * 100)}%`;
+        }).then((unityInstance) => {
                 window.unityInstance = unityInstance;
                 window.dispatchEvent(new Event("UNITY_INSTANCE_READY"));
-                document.querySelector("#unity-loading-bar").style.display = "none";
-                document.querySelector("#unity-fullscreen-button").onclick = () => {
-                  unityInstance.SetFullscreen(1);
-                };
-
-              }).catch((message) => {
-                alert(message);
-              });
-            };
-
-      document.body.appendChild(script);
-
+          loading.classList.add("is-hidden");
+          window.setTimeout(() => loading.remove(), 200);
+          fullscreenButton.addEventListener("click", () => unityInstance.SetFullscreen(1));
+        }).catch((message) => {
+          unityShowBanner(message, "error");
+          loading.querySelector("#unity-loading-title").textContent = "게임을 불러오지 못했습니다";
+        });
+      };
+      loaderScript.onerror = () => {
+        unityShowBanner("게임 파일을 불러오지 못했습니다.", "error");
+      };
+      document.body.appendChild(loaderScript);
     </script>
   </body>
 </html>
