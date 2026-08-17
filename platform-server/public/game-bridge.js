@@ -181,10 +181,18 @@
         popup.close();
         throw error;
       }
+
+      await new Promise((resolve) => {
+        const closedWatcher = global.setInterval(() => {
+          if (!popup.closed) return;
+          global.clearInterval(closedWatcher);
+          resolve();
+        }, 500);
+      });
     }
 
-    broadcastInventory(inventory) {
-      const message = { type: "PLATFORM_INVENTORY", inventory };
+    broadcastInventory(inventory, equipment = null) {
+      const message = { type: "PLATFORM_INVENTORY", inventory, equipment };
       const gameFrame = global.document.getElementById("game-frame");
       if (gameFrame?.contentWindow) {
         gameFrame.contentWindow.postMessage(message, this.serverOrigin);
@@ -215,7 +223,7 @@
     global.unityInstance.SendMessage(
       "@GamePlatformClient",
       "OnInventoryUpdated",
-      JSON.stringify({ inventory: message.inventory })
+      JSON.stringify({ inventory: message.inventory, equipment: message.equipment ?? null })
     );
     pendingInventoryMessage = null;
   }

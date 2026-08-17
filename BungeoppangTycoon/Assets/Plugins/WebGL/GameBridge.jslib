@@ -24,8 +24,9 @@ mergeInto(LibraryManager.library, {
       .catch(function (error) { SendMessage(gameObject, errorMethod, error.message || String(error)); });
   },
 
-  GameBridge_OpenShop: function (gameObjectPointer, errorMethodPointer) {
+  GameBridge_OpenShop: function (gameObjectPointer, successMethodPointer, errorMethodPointer) {
     var gameObject = UTF8ToString(gameObjectPointer);
+    var successMethod = UTF8ToString(successMethodPointer);
     var errorMethod = UTF8ToString(errorMethodPointer);
 
     if (!window.gameBridge) {
@@ -34,6 +35,7 @@ mergeInto(LibraryManager.library, {
     }
 
     window.gameBridge.openHiveWebShop()
+      .then(function () { SendMessage(gameObject, successMethod, "closed"); })
       .catch(function (error) { SendMessage(gameObject, errorMethod, error.message || String(error)); });
   }
 });

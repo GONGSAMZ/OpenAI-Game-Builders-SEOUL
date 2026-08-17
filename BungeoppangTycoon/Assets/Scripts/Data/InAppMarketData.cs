@@ -46,12 +46,14 @@ public sealed class InAppMarketGrant
 public sealed class InAppMarketInventoryResponse
 {
     public InAppMarketInventoryEntry[] inventory;
+    public InAppMarketEquipment equipment;
 }
 
 [Serializable]
 public sealed class InAppMarketPurchaseResponse
 {
     public InAppMarketInventoryEntry[] inventory;
+    public InAppMarketEquipment equipment;
     public bool duplicate;
 }
 
@@ -60,4 +62,10 @@ public sealed class InAppMarketInventoryEntry
 {
     public string itemId;
     public int quantity;
+}
+
+[Serializable]
+public sealed class InAppMarketEquipment
+{
+    public string moldSkin;
 }

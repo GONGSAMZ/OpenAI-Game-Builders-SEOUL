@@ -166,9 +166,9 @@
       const buildUrl = "Build";
       const config = {
         arguments: [],
-        dataUrl: `${buildUrl}/b9d8ab404036c134a00edb4e79ceaed1.data.unityweb`,
-        frameworkUrl: `${buildUrl}/d80d650de64c169100d9f5046d5ee018.framework.js.unityweb`,
-        codeUrl: `${buildUrl}/3706f77558ab1d736149c89d119dffdb.wasm.unityweb`,
+        dataUrl: `${buildUrl}/567f03f36a60c351f3ce2f320bf70a3f.data.unityweb`,
+        frameworkUrl: `${buildUrl}/d786cc2d88d702b0e14d8f9cc9d4d5aa.framework.js.unityweb`,
+        codeUrl: `${buildUrl}/6d03593a070f768ff374dab4f48dee66.wasm.unityweb`,
         streamingAssetsUrl: "StreamingAssets",
         companyName: "FishBunFactory",
         productName: "ToastyFishBun",
@@ -178,7 +178,7 @@
       };
 
       const loaderScript = document.createElement("script");
-      loaderScript.src = `${buildUrl}/3a99ddcf869b2b68a04603d4c5c18138.loader.js`;
+      loaderScript.src = `${buildUrl}/360b0e5718d4b33100422fba196894c9.loader.js`;
       loaderScript.onload = () => {
         createUnityInstance(canvas, config, (progress) => {
           progressFill.style.width = `${Math.round(progress * 100)}%`;

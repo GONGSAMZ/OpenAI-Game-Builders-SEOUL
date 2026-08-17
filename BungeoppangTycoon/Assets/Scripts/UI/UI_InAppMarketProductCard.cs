@@ -10,6 +10,7 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
     [SerializeField] private TextMeshProUGUI priceText;
     [SerializeField] private TextMeshProUGUI ownedText;
     [SerializeField] private TextMeshProUGUI buttonText;
+    [SerializeField] private Image productImage;
     [SerializeField] private Button purchaseButton;
 
     private InAppMarketProduct product;
@@ -24,6 +25,7 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
         TextMeshProUGUI price,
         TextMeshProUGUI owned,
         TextMeshProUGUI purchaseLabel,
+        Image icon,
         Button purchase)
     {
         productNameText = productName;
@@ -31,6 +33,7 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
         priceText = price;
         ownedText = owned;
         buttonText = purchaseLabel;
+        productImage = icon;
         purchaseButton = purchase;
     }
 
@@ -39,9 +42,15 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
         int ownedQuantity,
         bool isLoggedIn,
         bool opensWebShop,
-        Action<InAppMarketProduct> onPurchase)
+        bool isEquipped,
+        Action<InAppMarketProduct> onPurchase,
+        Action<InAppMarketProduct, bool> onEquipmentChanged)
     {
         product = value;
+        Sprite icon = Resources.Load<Sprite>($"Sprites/StoreProducts/{product.id}") ??
+            Resources.Load<Sprite>("Sprites/UI/coin");
+        productImage.sprite = icon;
+        productImage.preserveAspect = true;
         productNameText.text = string.IsNullOrWhiteSpace(product.name) ? "이름 없는 상품" : product.name;
         descriptionText.text = string.IsNullOrWhiteSpace(product.description)
             ? "상품 설명이 없습니다."
@@ -51,13 +60,16 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
 
         bool alreadyOwnsPermanentItem = product.IsPermanent && ownedQuantity > 0;
         purchaseButton.onClick.RemoveAllListeners();
-        purchaseButton.interactable = !alreadyOwnsPermanentItem;
 
         if (alreadyOwnsPermanentItem)
         {
-            idleButtonText = "보유 중";
-            baseInteractable = false;
+            bool isGoldenPan = product.grant.itemId == "golden-pan";
+            idleButtonText = isGoldenPan ? (isEquipped ? "장착 해제" : "장착") : "보유 중";
+            baseInteractable = isGoldenPan && isLoggedIn;
+            purchaseButton.interactable = baseInteractable;
             buttonText.text = idleButtonText;
+            if (baseInteractable)
+                purchaseButton.onClick.AddListener(() => onEquipmentChanged?.Invoke(product, !isEquipped));
             return;
         }
 
@@ -67,6 +79,7 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
             idleButtonText = opensWebShop ? "웹 상점 열기" : "데모 구매";
 
         baseInteractable = true;
+        purchaseButton.interactable = true;
         buttonText.text = idleButtonText;
         purchaseButton.onClick.AddListener(() => onPurchase?.Invoke(product));
     }

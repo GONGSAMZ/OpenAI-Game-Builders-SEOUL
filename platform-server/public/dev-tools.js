@@ -24,10 +24,10 @@
     }
   }
 
-  function renderInventory(inventory, message) {
+  function renderInventory(inventory, message, equipment = null) {
     balance.textContent = currencyFromInventory(inventory).toLocaleString("ko-KR");
     status.textContent = message;
-    window.gameBridge.broadcastInventory(inventory);
+    window.gameBridge.broadcastInventory(inventory, equipment);
   }
 
   async function syncInventory(message = "게임과 자동 동기화됩니다.") {
@@ -35,7 +35,7 @@
     syncing = true;
     try {
       const result = await window.gameBridge.getInventory();
-      renderInventory(result.inventory, message);
+      renderInventory(result.inventory, message, result.equipment);
     } catch (error) {
       status.textContent = error instanceof Error ? error.message : "재화 조회에 실패했습니다.";
     } finally {
@@ -50,7 +50,8 @@
       const result = await window.gameBridge.createDevGrant();
       renderInventory(
         result.inventory,
-        result.duplicate ? "이미 처리된 요청입니다." : "+100 팥 코인을 게임에 반영했습니다."
+        result.duplicate ? "이미 처리된 요청입니다." : "+100 팥 코인을 게임에 반영했습니다.",
+        result.equipment
       );
     } catch (error) {
       status.textContent = error instanceof Error ? error.message : "테스트 지급에 실패했습니다.";

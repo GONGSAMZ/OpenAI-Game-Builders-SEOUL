@@ -41,6 +41,10 @@ const mockPurchaseSchema = z.object({
   idempotencyKey: z.string().uuid()
 });
 
+const moldEquipmentSchema = z.object({
+  itemId: z.literal("golden-pan").nullable()
+});
+
 const hiveWebShopProfileSchema = z.object({
   cs_code: z.coerce.number().int().positive().safe()
 });
@@ -324,7 +328,26 @@ export function createApp(dependencies: AppDependencies) {
     requireGameSession,
     async (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
-      response.json({ inventory: await marketStore.getInventory(session.subject) });
+      response.json(await marketStore.getPlayerState(session.subject));
+    }
+  );
+
+  app.put(
+    "/api/v1/store/equipment/mold",
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const input = moldEquipmentSchema.parse(request.body);
+      const { session } = response.locals as AuthenticatedLocals;
+
+      if (input.itemId) {
+        const inventory = await marketStore.getInventory(session.subject);
+        const ownsItem = inventory.some(
+          (entry) => entry.itemId === input.itemId && entry.quantity > 0
+        );
+        if (!ownsItem) throw new HttpError(409, "보유하지 않은 황금 붕어빵 틀입니다.");
+      }
+
+      response.json(await marketStore.setMoldSkin(session.subject, input.itemId));
     }
   );
 
@@ -355,7 +378,10 @@ export function createApp(dependencies: AppDependencies) {
         product,
         input.idempotencyKey
       );
-      response.status(result.duplicate ? 200 : 201).json(result);
+      response.status(result.duplicate ? 200 : 201).json({
+        ...result,
+        equipment: await marketStore.getEquipment(session.subject)
+      });
     }
   );
 
@@ -380,7 +406,10 @@ export function createApp(dependencies: AppDependencies) {
         provider: "dev-tools",
         transactionId: input.idempotencyKey
       });
-      response.status(result.duplicate ? 200 : 201).json(result);
+      response.status(result.duplicate ? 200 : 201).json({
+        ...result,
+        equipment: await marketStore.getEquipment(session.subject)
+      });
     }
   );
 

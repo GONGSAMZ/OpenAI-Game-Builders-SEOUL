@@ -6,6 +6,7 @@ import {
 import {
   DynamoDBDocumentClient,
   GetCommand,
+  PutCommand,
   QueryCommand,
   TransactWriteCommand
 } from "@aws-sdk/lib-dynamodb";
@@ -15,6 +16,15 @@ import type { StoreProduct } from "./catalog.js";
 export interface InventoryEntry {
   itemId: string;
   quantity: number;
+}
+
+export interface StoreEquipment {
+  moldSkin: "golden-pan" | null;
+}
+
+export interface PlayerStoreState {
+  inventory: InventoryEntry[];
+  equipment: StoreEquipment;
 }
 
 export interface StorePurchase {
@@ -34,6 +44,9 @@ export interface GrantResult {
 
 export interface MarketStore {
   getInventory(subject: string): Promise<InventoryEntry[]>;
+  getEquipment(subject: string): Promise<StoreEquipment>;
+  getPlayerState(subject: string): Promise<PlayerStoreState>;
+  setMoldSkin(subject: string, itemId: StoreEquipment["moldSkin"]): Promise<PlayerStoreState>;
   grantMockPurchase(
     subject: string,
     product: StoreProduct,
@@ -58,10 +71,30 @@ function sortedInventory(entries: Iterable<InventoryEntry>): InventoryEntry[] {
 
 export class InMemoryMarketStore implements MarketStore {
   private readonly inventories = new Map<string, Map<string, InventoryEntry>>();
+  private readonly equipment = new Map<string, StoreEquipment>();
   private readonly purchases = new Map<string, { subject: string; purchase: StorePurchase }>();
 
   public async getInventory(subject: string): Promise<InventoryEntry[]> {
     return sortedInventory(this.inventories.get(subject)?.values() ?? []);
+  }
+
+  public async getEquipment(subject: string): Promise<StoreEquipment> {
+    return this.equipment.get(subject) ?? { moldSkin: null };
+  }
+
+  public async getPlayerState(subject: string): Promise<PlayerStoreState> {
+    return {
+      inventory: await this.getInventory(subject),
+      equipment: await this.getEquipment(subject)
+    };
+  }
+
+  public async setMoldSkin(
+    subject: string,
+    itemId: StoreEquipment["moldSkin"]
+  ): Promise<PlayerStoreState> {
+    this.equipment.set(subject, { moldSkin: itemId });
+    return this.getPlayerState(subject);
   }
 
   public async grantMockPurchase(
@@ -156,6 +189,45 @@ export class DynamoDbMarketStore implements MarketStore {
         quantity: Number(item.quantity)
       }))
     );
+  }
+
+  public async getEquipment(subject: string): Promise<StoreEquipment> {
+    const result = await this.client.send(
+      new GetCommand({
+        TableName: this.tableName,
+        Key: { PK: `PLAYER#${subject}`, SK: "EQUIPMENT#MOLD" },
+        ConsistentRead: true
+      })
+    );
+    return {
+      moldSkin: result.Item?.itemId === "golden-pan" ? "golden-pan" : null
+    };
+  }
+
+  public async getPlayerState(subject: string): Promise<PlayerStoreState> {
+    const [inventory, equipment] = await Promise.all([
+      this.getInventory(subject),
+      this.getEquipment(subject)
+    ]);
+    return { inventory, equipment };
+  }
+
+  public async setMoldSkin(
+    subject: string,
+    itemId: StoreEquipment["moldSkin"]
+  ): Promise<PlayerStoreState> {
+    await this.client.send(
+      new PutCommand({
+        TableName: this.tableName,
+        Item: {
+          PK: `PLAYER#${subject}`,
+          SK: "EQUIPMENT#MOLD",
+          itemId,
+          updatedAt: new Date().toISOString()
+        }
+      })
+    );
+    return this.getPlayerState(subject);
   }
 
   public async grantMockPurchase(

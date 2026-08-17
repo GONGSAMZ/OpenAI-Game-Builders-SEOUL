@@ -10,12 +10,14 @@ Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, �
 - 외부 토큰을 브라우저에 노출하지 않는 서버 게임 세션과 DynamoDB 세션 영속화
 - OpenAI Responses API 서버 프록시와 mock 응답
 - mock/개발 지급, 중복 구매 방지, 사용자별 메모리/DynamoDB 아이템 저장소
+- 일반 게임 돈과 분리된 팥 코인 및 사용자별 황금 틀 장착 상태
 - HIVE 웹 상점 연결, 인게임 정보 조회, 결제 알림·미소비 주문·영수증 검증·지급 완료 API
 - `/game/` Unity WebGL 제공 및 루트 화면 iframe 임베드
 - 상단 헤더와 게임만 표시하는 최소 웹 셸
 - 브라우저용 `game-bridge.js`와 Unity 통합 API
 - Unity 프로젝트에 적용된 WebGL `.jslib`/C# 어댑터
 - Docker 및 GitHub Actions 기본 설정
+- Unity 6.3 WebGL 소스/산출물 SHA-256 매니페스트 검증
 - 배포 revision API, smoke test, ECS 자동 롤백과 수동 immutable 이미지 롤백
 
 ## 로컬 실행

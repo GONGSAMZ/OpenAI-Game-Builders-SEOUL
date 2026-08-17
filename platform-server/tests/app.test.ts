@@ -179,6 +179,7 @@ describe("integration API", () => {
       .expect(201);
     expect(first.body).toEqual(expect.objectContaining({ duplicate: false }));
     expect(first.body.inventory).toContainEqual({ itemId: "red-bean-coin", quantity: 100 });
+    expect(first.body.equipment).toEqual({ moldSkin: null });
 
     const duplicate = await request(app)
       .post("/api/v1/store/mock-purchases")
@@ -187,6 +188,59 @@ describe("integration API", () => {
       .expect(200);
     expect(duplicate.body).toEqual(expect.objectContaining({ duplicate: true }));
     expect(duplicate.body.inventory).toContainEqual({ itemId: "red-bean-coin", quantity: 100 });
+  });
+
+  it("황금 틀 장착 상태를 로그인 사용자별로 저장하고 해제한다", async () => {
+    const marketStore = new InMemoryMarketStore();
+    const app = createApp({ config: createTestConfig(), marketStore });
+    const token = await login(app);
+
+    await request(app)
+      .put("/api/v1/store/equipment/mold")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ itemId: "golden-pan" })
+      .expect(409);
+
+    await request(app)
+      .post("/api/v1/store/mock-purchases")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        productId: "golden-pan",
+        idempotencyKey: "a6d36fc4-c6dd-4a0c-9002-5a64051e1c32"
+      })
+      .expect(201);
+
+    const equipped = await request(app)
+      .put("/api/v1/store/equipment/mold")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ itemId: "golden-pan" })
+      .expect(200);
+    expect(equipped.body.inventory).toContainEqual({ itemId: "golden-pan", quantity: 1 });
+    expect(equipped.body.equipment).toEqual({ moldSkin: "golden-pan" });
+
+    const restored = await request(app)
+      .get("/api/v1/store/me")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(restored.body.equipment).toEqual({ moldSkin: "golden-pan" });
+    expect(await marketStore.getEquipment("another-player")).toEqual({ moldSkin: null });
+
+    const unequipped = await request(app)
+      .put("/api/v1/store/equipment/mold")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ itemId: null })
+      .expect(200);
+    expect(unequipped.body.equipment).toEqual({ moldSkin: null });
+
+    await request(app)
+      .put("/api/v1/store/equipment/mold")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ itemId: "unsupported-pan" })
+      .expect(400);
+    await request(app)
+      .put("/api/v1/store/equipment/mold")
+      .send({ itemId: null })
+      .expect(401);
   });
 
   it("개발 도구 지급은 로그인 사용자 인벤토리와 게임 재화에만 반영한다", async () => {
@@ -204,6 +258,7 @@ describe("integration API", () => {
       .expect(201);
 
     expect(response.body.inventory).toContainEqual({ itemId: "red-bean-coin", quantity: 100 });
+    expect(response.body.equipment).toEqual({ moldSkin: null });
     expect(await marketStore.getInventory("another-player")).toEqual([]);
   });
 

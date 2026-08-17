@@ -17,6 +17,7 @@ public class UI_Store : UI_Base
     TextMeshProUGUI MoneyNum;
     TextMeshProUGUI MoneyText;
     TextMeshProUGUI TitleText;
+    TextMeshProUGUI RedBeanCoinNum;
 
     #endregion
 
@@ -30,6 +31,7 @@ public class UI_Store : UI_Base
         MoneyNum = Util.Find<TextMeshProUGUI>(gameObject, "MoneyNum");
         TitleText = Util.Find<TextMeshProUGUI>(gameObject, "TitleText");
         MoneyText = Util.Find<TextMeshProUGUI>(gameObject, "MoneyText");
+        RedBeanCoinNum = Util.Find<TextMeshProUGUI>(gameObject, "RedBeanCoinNum");
 
         
         for(int i = 0; i < Define.UI_StoreText.Length; ++i)
@@ -39,6 +41,10 @@ public class UI_Store : UI_Base
         MoneyText.text = "돈";
         TitleText.text = "상점";
         MoneyNum.text = Managers.Game.Money.ToString("N0")+" 원";
+
+        if (GamePlatformClient.Instance != null)
+            GamePlatformClient.Instance.StoreStateChanged += RefreshPlatformCurrency;
+        RefreshPlatformCurrency();
 
         AddEvent(NextDayButton.gameObject, Managers.Game.StartNextDay);
         AddEvent(GetButton((int)Btns.MarketingButton).gameObject, OpenHiveShop);
@@ -50,6 +56,12 @@ public class UI_Store : UI_Base
         
     }
 
+    private void OnDestroy()
+    {
+        if (GamePlatformClient.Instance != null)
+            GamePlatformClient.Instance.StoreStateChanged -= RefreshPlatformCurrency;
+    }
+
     void OpenHiveShop()
     {
         if (GamePlatformClient.Instance == null)
@@ -59,5 +71,15 @@ public class UI_Store : UI_Base
         }
 
         GamePlatformClient.Instance.OpenHiveWebShop();
+    }
+
+    void RefreshPlatformCurrency()
+    {
+        if (RedBeanCoinNum == null)
+            return;
+        GamePlatformClient client = GamePlatformClient.Instance;
+        RedBeanCoinNum.text = client != null && client.IsLoggedIn
+            ? $"{client.RedBeanCoinBalance:N0}개"
+            : "—";
     }
 }

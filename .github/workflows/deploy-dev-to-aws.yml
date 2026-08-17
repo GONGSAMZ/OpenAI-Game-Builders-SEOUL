@@ -81,6 +81,14 @@ jobs:
       USE_RUNTIME_SECRETS: "true"
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: platform-server/pnpm-lock.yaml
 
       - name: Build Unity 6.3 WebGL
         if: vars.UNITY_CI_ENABLED == 'true'
@@ -98,27 +106,18 @@ jobs:
       - name: Stage Unity build in the server image
         if: vars.UNITY_CI_ENABLED == 'true'
         shell: bash
-        run: |
-          test -f BungeoppangTycoon/Builds/WebGL/index.html
-          grep -q '/game-bridge.js' BungeoppangTycoon/Builds/WebGL/index.html
-          find platform-server/game-dist -mindepth 1 -maxdepth 1 ! -name README.md -exec rm -rf {} +
-          cp -R BungeoppangTycoon/Builds/WebGL/. platform-server/game-dist/
+        run: node platform-server/scripts/unity-build-manifest.mjs stage
 
       - name: Validate tracked Unity WebGL build
         if: vars.UNITY_CI_ENABLED != 'true'
         shell: bash
-        run: |
-          test -f platform-server/game-dist/index.html
-          grep -q '/game-bridge.js' platform-server/game-dist/index.html
+        run: node platform-server/scripts/unity-build-manifest.mjs verify
 
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 11.19.0
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: platform-server/pnpm-lock.yaml
+      - name: Validate rebuilt Unity WebGL build
+        if: vars.UNITY_CI_ENABLED == 'true'
+        shell: bash
+        run: node platform-server/scripts/unity-build-manifest.mjs verify
+
       - name: Verify platform server
         working-directory: platform-server
         run: |
