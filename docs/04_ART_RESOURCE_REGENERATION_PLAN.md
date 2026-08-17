@@ -1,5 +1,7 @@
 # 따끈따끈 붕어빵 아트 리소스 재생성 계획
 
+> 붕어빵 몸체, 굽기 5구간, 맛 8종, 특별 영혼 8종과 PC 조리 UI의 최신 시각 기준은 [`08_BUNGEOPPANG_ART_AND_COOKING_SYSTEM.md`](./08_BUNGEOPPANG_ART_AND_COOKING_SYSTEM.md)를 따른다.
+
 > **목적:** 현재 Unity 프로젝트의 아트 리소스를 한 가지 시각 언어로 정리하고, 다시 생성해야 할 파일과 그대로 유지할 파일을 구분한다.  
 > **결론:** 모든 이미지를 다시 만들 필요는 없다. 먼저 **조리 도구 → 손님 → 붕어빵 상태 → 일부 UI** 순서로 교체하면 적은 작업으로 가장 큰 통일성 개선을 얻을 수 있다.
 
@@ -60,7 +62,7 @@
 | --- | --- | --- |
 | 재질 표현이 서로 다름 | 조리판·진열판·집게는 사진 또는 거친 스캔 질감, 주전자·재료는 수채화 | 한 화면에서 서로 다른 게임의 이미지처럼 보임 |
 | 외곽선 규칙이 없음 | `fishMold.png`는 굵은 검정 만화선, `mold.png`는 연필선, 다른 소품은 부드러운 색면 | 같은 금속 도구끼리도 한 묶음으로 보이지 않음 |
-| 손님 비율과 크롭이 다름 | 하영 380×700, 정현 338×580, 미주 340×700 프레임 | 등장할 때 키·눈높이·몸 비율이 흔들림 |
+| 손님 비율과 크롭이 다름 | 하진 구버전(기존 하영) 380×700, 정현 338×580, 미주 340×700 프레임 | 등장할 때 키·눈높이·몸 비율이 흔들림 |
 | 조리 상태와 틀이 한 시트에 섞임 | 활성 틀이 `FishBunState_proto_0`을 회색으로 칠해 사용됨 | 빈 틀과 음식 상태를 독립적으로 수정하기 어려움 |
 | 전체 화면 비율이 섞임 | 주요 배경은 1536×1024(3:2), 주 UI는 1920×1080(16:9), 일부 UI 프리팹은 800×600(4:3) | 화면마다 늘어남·잘림·여백 차이가 생길 수 있음 |
 | UI 제작 규칙이 섞임 | 수채화 버튼, 매끈한 금화, 그라데이션 말풍선, 굵은 만화 로고가 공존 | 기능은 읽히지만 하나의 UI 세트로 느껴지지 않음 |
@@ -137,11 +139,11 @@ photorealism, photographic grain, charcoal noise, cropped edges, signature
 
 대상 파일:
 
-- `Sprites/Customers/HaYoung.png`
+- `Sprites/Customers/HaYoung.png` — 현재 파일명. 하진 아트로 교체한 뒤 Unity 에디터에서 `HaJin.png`로 변경 검토
 - `Sprites/Customers/JeongHyun.png`
 - `Sprites/Customers/MiJu.png`
 
-현재 세 캐릭터는 모두 수채화 계열이지만, 정현은 허리 위 구도이고 하영은 전신, 미주는 무릎 위 구도라 화면에서 교체될 때 비율이 흔들린다. 표정의 변화 폭도 캐릭터마다 다르다.
+현재 세 캐릭터는 모두 수채화 계열이지만, 정현은 허리 위 구도이고 하진의 구버전 이미지는 전신, 미주는 무릎 위 구도라 화면에서 교체될 때 비율이 흔들린다. 하진은 이름·나이·이야기가 모두 바뀌었으므로 기존 하영 이미지를 유지하지 않고 중학생 영화감독 지망생 아트로 다시 만든다.
 
 #### 통일 규격
 
@@ -349,7 +351,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | `Materials/steam.png` | 유지 | — | 현재 증기 효과 유지 |
 | `Sprites/cookingPlate.png` | 재생성 | P0 | 수채화 청회색 조리판 |
-| `Sprites/Customers/HaYoung.png` | 패밀리 재생성 | P1 | 동일 프레임·눈높이·3상태 |
+| `Sprites/Customers/HaYoung.png` → `HaJin.png` | 설정 변경 재생성 | P1 | 중학교 교복·카메라·스토리보드, 동일 프레임·눈높이·3상태 |
 | `Sprites/Customers/JeongHyun.png` | 패밀리 재생성 | P1 | 전신 비율과 크롭 통일 |
 | `Sprites/Customers/MiJu.png` | 패밀리 재생성 + 연결 수정 | P1/P0 | 새 3상태와 `MiJu.asset` 연결 |
 | `Sprites/displayPlate.png` | 재생성 | P0 | 조리판과 같은 시점·광원 |
@@ -386,7 +388,7 @@ flowchart LR
 2. `displayPlate.png`
 3. 활성 빈 조리 틀 (`fishMold.png`를 새 기준 파일로 사용 권장)
 4. `tongs.png`
-5. `HaYoung.png`
+5. `HaJin.png` — 기존 `HaYoung.png` 연결을 안전하게 이전
 6. `JeongHyun.png`
 7. `MiJu.png`
 8. `FishBunState_proto.png`
