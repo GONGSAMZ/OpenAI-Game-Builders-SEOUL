@@ -45,6 +45,11 @@ public enum CustomerType
     JeongHyun,
     HaYoung,
     MiJu,
+    Sunja,
+    Geonwoo,
+    Taesu,
+    Nari,
+    Junho,
 }
 
 public enum EndingType

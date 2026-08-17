@@ -8,6 +8,9 @@ public class CustomerData : ScriptableObject
     private CustomerType _customer; //손님 종류
     public CustomerType _Customer { get { return _customer; } }
 
+    [SerializeField]
+    private string spriteSheetPath;
+
 /*    [SerializeField]
     private Sprite image; //기본 외형 스프라이트
     public Sprite Image { 
@@ -15,6 +18,9 @@ public class CustomerData : ScriptableObject
     
     public Sprite GetImage(int index = 0)
     {
+        if (string.IsNullOrEmpty(spriteSheetPath) == false)
+            return Managers.Resource.LoadSprite(spriteSheetPath, index);
+
         return Managers.Resource.LoadSprite($"Customers/Revised/{_Customer}-uniform-v4", index);
     }
 /*    [SerializeField]
