@@ -83,10 +83,43 @@
             <dt>팥 코인</dt>
             <dd id="dev-currency-balance">0</dd>
           </div>
+          <div>
+            <dt>테스트 포인트</dt>
+            <dd id="dev-test-point-balance">0 P</dd>
+          </div>
         </dl>
-        <button id="dev-grant-button" class="dev-grant-button" type="button" disabled>
-          +100 팥 코인 테스트 지급
+        <button id="dev-test-point-button" class="dev-grant-button" type="button" disabled>
+          +10,000 테스트 포인트 충전
         </button>
+        <div class="dev-purchase-list" aria-label="테스트 상품 결제">
+          <button
+            class="dev-purchase-button"
+            type="button"
+            data-dev-product-id="red-bean-100"
+            data-product-name="팥 코인 100개"
+            disabled
+          >
+            <span>팥 코인 100개</span><strong>1,100 P</strong>
+          </button>
+          <button
+            class="dev-purchase-button"
+            type="button"
+            data-dev-product-id="red-bean-550"
+            data-product-name="팥 코인 550개"
+            disabled
+          >
+            <span>팥 코인 550개</span><strong>5,500 P</strong>
+          </button>
+          <button
+            class="dev-purchase-button"
+            type="button"
+            data-dev-product-id="golden-pan"
+            data-product-name="황금 붕어빵 틀"
+            disabled
+          >
+            <span>황금 붕어빵 틀</span><strong>3,300 P</strong>
+          </button>
+        </div>
         <p id="dev-grant-status" class="dev-grant-status" role="status" aria-live="polite">
           HIVE 로그인 후 사용할 수 있습니다.
         </p>

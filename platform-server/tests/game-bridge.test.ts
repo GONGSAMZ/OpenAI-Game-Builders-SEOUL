@@ -38,10 +38,11 @@ describe("game bridge", () => {
       { itemId: "golden-pan", quantity: 1 }
     ];
     const equipment = { moldSkin: "golden-pan" };
+    const wallet = { testPoints: 6700 };
     for (const listener of listeners.get("message") ?? []) {
       listener({
         origin: "http://localhost:3000",
-        data: { type: "PLATFORM_INVENTORY", inventory, equipment }
+        data: { type: "PLATFORM_INVENTORY", inventory, equipment, wallet }
       });
     }
 
@@ -49,7 +50,7 @@ describe("game bridge", () => {
     expect(sentMessages[0]).toEqual({
       gameObject: "@GamePlatformClient",
       method: "OnInventoryUpdated",
-      payload: JSON.stringify({ inventory, equipment })
+      payload: JSON.stringify({ inventory, equipment, wallet })
     });
   });
 });

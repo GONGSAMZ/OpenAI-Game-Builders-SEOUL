@@ -55,7 +55,9 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
         descriptionText.text = string.IsNullOrWhiteSpace(product.description)
             ? "상품 설명이 없습니다."
             : product.description;
-        priceText.text = string.IsNullOrWhiteSpace(product.priceLabel) ? "가격 확인 필요" : product.priceLabel;
+        priceText.text = opensWebShop
+            ? (string.IsNullOrWhiteSpace(product.priceLabel) ? "가격 확인 필요" : product.priceLabel)
+            : $"{product.testPointPrice:N0} P";
         RefreshOwned(ownedQuantity);
 
         bool alreadyOwnsPermanentItem = product.IsPermanent && ownedQuantity > 0;
@@ -76,7 +78,7 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
         if (!isLoggedIn)
             idleButtonText = "로그인 후 구매";
         else
-            idleButtonText = opensWebShop ? "웹 상점 열기" : "데모 구매";
+            idleButtonText = opensWebShop ? "웹 상점 열기" : "포인트 결제";
 
         baseInteractable = true;
         purchaseButton.interactable = true;

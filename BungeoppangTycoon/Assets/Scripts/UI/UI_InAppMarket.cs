@@ -364,7 +364,9 @@ public sealed class UI_InAppMarket : UI_Base
             return;
 
         loginStatusText.text = platformClient.IsLoggedIn
-            ? $"HIVE 로그인됨 · 팥 코인 {platformClient.RedBeanCoinBalance:N0}개"
+            ? (string.Equals(catalogMode, "mock", StringComparison.OrdinalIgnoreCase)
+                ? $"HIVE 로그인됨 · 테스트 {platformClient.TestPointBalance:N0}P · 팥 코인 {platformClient.RedBeanCoinBalance:N0}개"
+                : $"HIVE 로그인됨 · 팥 코인 {platformClient.RedBeanCoinBalance:N0}개")
             : "로그인하지 않음 · 팥 코인 —";
         loginButtonText.text = platformClient.IsLoggedIn ? "보유품 새로고침" : "HIVE 로그인";
     }

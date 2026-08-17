@@ -21,6 +21,7 @@ public sealed class InAppMarketProduct
     public string name;
     public string description;
     public string priceLabel;
+    public int testPointPrice;
     public string marketPid;
     public InAppMarketGrant grant;
 
@@ -47,6 +48,7 @@ public sealed class InAppMarketInventoryResponse
 {
     public InAppMarketInventoryEntry[] inventory;
     public InAppMarketEquipment equipment;
+    public InAppMarketWallet wallet;
 }
 
 [Serializable]
@@ -54,6 +56,7 @@ public sealed class InAppMarketPurchaseResponse
 {
     public InAppMarketInventoryEntry[] inventory;
     public InAppMarketEquipment equipment;
+    public InAppMarketWallet wallet;
     public bool duplicate;
 }
 
@@ -68,4 +71,10 @@ public sealed class InAppMarketInventoryEntry
 public sealed class InAppMarketEquipment
 {
     public string moldSkin;
+}
+
+[Serializable]
+public sealed class InAppMarketWallet
+{
+    public int testPoints;
 }

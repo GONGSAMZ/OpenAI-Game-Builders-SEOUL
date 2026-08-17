@@ -4,7 +4,10 @@
   const panel = document.getElementById("store-dev-tools");
   const playerId = document.getElementById("dev-player-id");
   const balance = document.getElementById("dev-currency-balance");
-  const grantButton = document.getElementById("dev-grant-button");
+  const pointBalance = document.getElementById("dev-test-point-balance");
+  const pointButton = document.getElementById("dev-test-point-button");
+  const purchaseButtons = [...document.querySelectorAll("[data-dev-product-id]")];
+  const actionButtons = [pointButton, ...purchaseButtons];
   const status = document.getElementById("dev-grant-status");
   let session = null;
   let syncing = false;
@@ -17,17 +20,19 @@
     session = nextSession;
     const subject = nextSession?.playerId || nextSession?.subject;
     playerId.textContent = subject || "로그인 필요";
-    grantButton.disabled = !subject;
+    actionButtons.forEach((button) => { button.disabled = !subject; });
     if (!subject) {
       balance.textContent = "0";
+      pointBalance.textContent = "0 P";
       status.textContent = "HIVE 로그인 후 사용할 수 있습니다.";
     }
   }
 
-  function renderInventory(inventory, message, equipment = null) {
+  function renderState(inventory, wallet, message, equipment = null) {
     balance.textContent = currencyFromInventory(inventory).toLocaleString("ko-KR");
+    pointBalance.textContent = `${(wallet?.testPoints ?? 0).toLocaleString("ko-KR")} P`;
     status.textContent = message;
-    window.gameBridge.broadcastInventory(inventory, equipment);
+    window.gameBridge.broadcastInventory(inventory, equipment, wallet);
   }
 
   async function syncInventory(message = "게임과 자동 동기화됩니다.") {
@@ -35,7 +40,7 @@
     syncing = true;
     try {
       const result = await window.gameBridge.getInventory();
-      renderInventory(result.inventory, message, result.equipment);
+      renderState(result.inventory, result.wallet, message, result.equipment);
     } catch (error) {
       status.textContent = error instanceof Error ? error.message : "재화 조회에 실패했습니다.";
     } finally {
@@ -43,21 +48,42 @@
     }
   }
 
-  grantButton.addEventListener("click", async () => {
-    grantButton.disabled = true;
-    status.textContent = "테스트 재화를 지급하고 있습니다…";
+  pointButton.addEventListener("click", async () => {
+    actionButtons.forEach((button) => { button.disabled = true; });
+    status.textContent = "테스트 포인트를 충전하고 있습니다…";
     try {
-      const result = await window.gameBridge.createDevGrant();
-      renderInventory(
+      const result = await window.gameBridge.creditDevTestPoints();
+      renderState(
         result.inventory,
-        result.duplicate ? "이미 처리된 요청입니다." : "+100 팥 코인을 게임에 반영했습니다.",
+        result.wallet,
+        result.duplicate ? "이미 처리된 충전 요청입니다." : "+10,000 테스트 포인트를 충전했습니다.",
         result.equipment
       );
     } catch (error) {
-      status.textContent = error instanceof Error ? error.message : "테스트 지급에 실패했습니다.";
+      status.textContent = error instanceof Error ? error.message : "테스트 포인트 충전에 실패했습니다.";
     } finally {
-      grantButton.disabled = !session;
+      actionButtons.forEach((button) => { button.disabled = !session; });
     }
+  });
+
+  purchaseButtons.forEach((button) => {
+    button.addEventListener("click", async () => {
+      actionButtons.forEach((action) => { action.disabled = true; });
+      status.textContent = `${button.dataset.productName || "상품"} 테스트 결제를 처리하고 있습니다…`;
+      try {
+        const result = await window.gameBridge.createMockPurchase(button.dataset.devProductId);
+        renderState(
+          result.inventory,
+          result.wallet,
+          result.duplicate ? "이미 처리된 결제 요청입니다." : "테스트 결제가 게임 계정에 반영됐습니다.",
+          result.equipment
+        );
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : "테스트 결제에 실패했습니다.";
+      } finally {
+        actionButtons.forEach((action) => { action.disabled = !session; });
+      }
+    });
   });
 
   window.addEventListener("GAME_SESSION_CHANGED", (event) => {

@@ -23,6 +23,7 @@ public sealed class GamePlatformClient : MonoBehaviour
     private readonly Dictionary<string, int> inventory = new();
 
     public int RedBeanCoinBalance => GetItemQuantity(PlatformCurrencyItemId);
+    public int TestPointBalance { get; private set; }
     public bool OwnsGoldenPan => GetItemQuantity("golden-pan") > 0;
     public bool IsGoldenPanEquipped { get; private set; }
     public float BakingTimeMultiplier => IsGoldenPanEquipped ? 0.8f : 1f;
@@ -231,6 +232,8 @@ public sealed class GamePlatformClient : MonoBehaviour
                 IsGoldenPanEquipped = envelope.equipment.moldSkin == "golden-pan" && OwnsGoldenPan;
             else if (!OwnsGoldenPan)
                 IsGoldenPanEquipped = false;
+            if (envelope?.wallet != null)
+                TestPointBalance = Mathf.Max(0, envelope.wallet.testPoints);
             StoreStateChanged?.Invoke();
         }
         catch (Exception error)
@@ -321,6 +324,7 @@ public sealed class GamePlatformClient : MonoBehaviour
     private void ClearStoreState()
     {
         inventory.Clear();
+        TestPointBalance = 0;
         IsGoldenPanEquipped = false;
         StoreStateChanged?.Invoke();
     }
@@ -345,6 +349,7 @@ public sealed class GamePlatformClient : MonoBehaviour
     {
         public InventoryEntry[] inventory;
         public StoreEquipment equipment;
+        public StoreWallet wallet;
     }
 
     [Serializable]
@@ -358,5 +363,11 @@ public sealed class GamePlatformClient : MonoBehaviour
     private sealed class StoreEquipment
     {
         public string moldSkin;
+    }
+
+    [Serializable]
+    private sealed class StoreWallet
+    {
+        public int testPoints;
     }
 }

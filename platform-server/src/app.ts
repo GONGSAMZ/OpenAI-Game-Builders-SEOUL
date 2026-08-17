@@ -22,7 +22,11 @@ import {
   type SessionStore
 } from "./session-store.js";
 import { findProduct, findProductByMarketPid, storeCatalog } from "./store/catalog.js";
-import { createMarketStore, type MarketStore } from "./store/store.js";
+import {
+  createMarketStore,
+  InsufficientTestPointsError,
+  type MarketStore
+} from "./store/store.js";
 
 const publicDirectory = path.resolve(process.cwd(), "public");
 const loginCookieName = "hive_login_attempt";
@@ -38,6 +42,11 @@ const npcReactionSchema = z.object({
 
 const mockPurchaseSchema = z.object({
   productId: z.string().trim().min(1).max(100),
+  idempotencyKey: z.string().uuid()
+});
+
+const devTestPointCreditSchema = z.object({
+  amount: z.number().int().min(1).max(100_000),
   idempotencyKey: z.string().uuid()
 });
 
@@ -373,13 +382,45 @@ export function createApp(dependencies: AppDependencies) {
       if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
 
       const { session } = response.locals as AuthenticatedLocals;
-      const result = await marketStore.grantMockPurchase(
+      let result;
+      try {
+        result = await marketStore.grantMockPurchase(
+          session.subject,
+          product,
+          input.idempotencyKey
+        );
+      } catch (error) {
+        if (error instanceof InsufficientTestPointsError) {
+          throw new HttpError(409, error.message);
+        }
+        throw error;
+      }
+      response.status(result.duplicate ? 200 : 201).json({
+        ...result,
+        equipment: await marketStore.getEquipment(session.subject)
+      });
+    }
+  );
+
+  app.post(
+    "/api/v1/store/dev-test-points",
+    purchaseLimiter,
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      if (!config.store.devToolsEnabled) {
+        throw new HttpError(404, "개발용 테스트 포인트 기능이 비활성화되어 있습니다.");
+      }
+
+      const input = devTestPointCreditSchema.parse(request.body);
+      const { session } = response.locals as AuthenticatedLocals;
+      const result = await marketStore.creditTestPoints(
         session.subject,
-        product,
+        input.amount,
         input.idempotencyKey
       );
       response.status(result.duplicate ? 200 : 201).json({
         ...result,
+        inventory: await marketStore.getInventory(session.subject),
         equipment: await marketStore.getEquipment(session.subject)
       });
     }
