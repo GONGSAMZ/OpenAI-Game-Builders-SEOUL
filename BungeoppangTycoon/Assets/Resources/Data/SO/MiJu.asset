@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: MiJu
   m_EditorClassIdentifier: 
   _customer: 2
-  image: {fileID: 0}
+  image: {fileID: -1005629479, guid: 3e90a31df14f4f7ca24d9693c86a94a7, type: 3}
   flavor: 2
   greetingText:
   - "\uBD95\uC5B4\uBE75 \uB0C4\uC0C8\uAC00 \uC88B\uB124\uC694"

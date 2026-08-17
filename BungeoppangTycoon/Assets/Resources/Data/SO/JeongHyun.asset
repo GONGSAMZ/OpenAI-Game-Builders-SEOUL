@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: JeongHyun
   m_EditorClassIdentifier: 
   _customer: 0
-  image: {fileID: 868292160, guid: c95401f72b8d8454dbc07ea7b86d96dc, type: 3}
+  image: {fileID: 868292160, guid: 2e3ae326ffc349a1bd042257417ad7d2, type: 3}
   flavor: 0
   greetingText:
   - "\uBD95\uC5B4\uBE75 \uD55C \uBC88"
