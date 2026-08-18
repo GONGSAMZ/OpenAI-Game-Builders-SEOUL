@@ -77,7 +77,8 @@ export function sendNicePayResultPage(
     .send(`<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>NICEPAY 테스트 결제 결과</title>
 <style nonce="${nonce}">body{font-family:system-ui,sans-serif;padding:30px;text-align:center}</style></head>
 <body><p>${result.success ? "테스트 결제가 완료됐습니다. 게임으로 돌아갑니다." : "테스트 결제를 완료하지 못했습니다. 창을 닫고 다시 시도해 주세요."}</p>
+<p><a href="${origin}">게임으로 돌아가기</a></p>
 <script nonce="${nonce}">const payload=${jsonForScript(payload)};const origin=${jsonForScript(origin)};
 function notify(){if(window.opener&&!window.opener.closed)window.opener.postMessage(payload,origin)}
-notify();setInterval(notify,250);setTimeout(()=>window.close(),1500);</script></body></html>`);
+notify();setInterval(notify,250);setTimeout(()=>{window.close();setTimeout(()=>window.location.replace(origin),200)},1500);</script></body></html>`);
 }

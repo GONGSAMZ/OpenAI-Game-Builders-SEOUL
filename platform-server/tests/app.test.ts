@@ -262,6 +262,8 @@ describe("integration API", () => {
       .send(callback)
       .expect(200);
     expect(first.text).toContain("NICEPAY_PAYMENT_SUCCESS");
+    expect(first.text).toContain('href="http://localhost:3000"');
+    expect(first.text).toContain("window.location.replace(origin)");
 
     const duplicate = await request(app)
       .post("/api/v1/store/nicepay/callback")
