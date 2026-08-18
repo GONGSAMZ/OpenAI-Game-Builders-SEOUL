@@ -174,6 +174,7 @@ export function createApp(dependencies: AppDependencies) {
   const marketStore = dependencies.marketStore ?? createMarketStore(config);
   const app = express();
   const requireGameSession = requireSession(sessions, sessionCookieName);
+  const nicePayCallbackPath = "/api/v1/store/nicepay/callback";
 
   app.disable("x-powered-by");
   app.use(
@@ -193,19 +194,28 @@ export function createApp(dependencies: AppDependencies) {
       }
     })
   );
-  app.use(
-    cors({
-      origin(origin, callback) {
-        const serverOrigin = new URL(config.publicBaseUrl).origin;
-        if (!origin || origin === config.gameOrigin || origin === serverOrigin) {
-          callback(null, true);
-          return;
-        }
-        callback(new HttpError(403, "허용되지 않은 웹게임 Origin입니다."));
-      },
-      credentials: true
-    })
-  );
+  const gameCors = cors({
+    origin(origin, callback) {
+      const serverOrigin = new URL(config.publicBaseUrl).origin;
+      if (!origin || origin === config.gameOrigin || origin === serverOrigin) {
+        callback(null, true);
+        return;
+      }
+      callback(new HttpError(403, "허용되지 않은 웹게임 Origin입니다."));
+    },
+    credentials: true
+  });
+  app.use((request, response, next) => {
+    // NICEPAY posts the authenticated payment result from its own origin. The
+    // callback is protected by order, amount, client-id, and signature checks,
+    // so it must reach the route without being treated as a game-browser CORS
+    // request. Keep the bypass limited to this exact POST endpoint.
+    if (request.method === "POST" && request.path === nicePayCallbackPath) {
+      next();
+      return;
+    }
+    gameCors(request, response, next);
+  });
   app.use(express.json({ limit: "32kb" }));
   app.use(express.urlencoded({ extended: false, limit: "16kb" }));
 
@@ -445,7 +455,7 @@ export function createApp(dependencies: AppDependencies) {
     });
   });
 
-  app.post("/api/v1/store/nicepay/callback", purchaseLimiter, async (request, response) => {
+  app.post(nicePayCallbackPath, purchaseLimiter, async (request, response) => {
     const resultOrigin = new URL(config.publicBaseUrl).origin;
     try {
       if (config.store.mode !== "nicepay-test" || !config.nicepay.clientId || !config.nicepay.secretKey) {

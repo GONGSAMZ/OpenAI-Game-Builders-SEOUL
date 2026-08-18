@@ -257,6 +257,7 @@ describe("integration API", () => {
     };
     const first = await request(app)
       .post("/api/v1/store/nicepay/callback")
+      .set("Origin", "https://web.nicepay.co.kr")
       .type("form")
       .send(callback)
       .expect(200);
@@ -299,6 +300,15 @@ describe("integration API", () => {
     });
     expect(playerInventory).toContainEqual({ itemId: "golden-pan", quantity: 1 });
     expect(await marketStore.getInventory("another-player")).toEqual([]);
+  });
+
+  it("NICEPAY 외부 Origin 콜백만 허용하고 일반 웹게임 요청은 계속 차단한다", async () => {
+    const app = createApp({ config: createTestConfig() });
+
+    await request(app)
+      .get("/api/v1/store/catalog")
+      .set("Origin", "https://untrusted.example")
+      .expect(403);
   });
 
   it("NICEPAY 콜백 금액이나 서명이 주문과 다르면 승인·지급하지 않는다", async () => {
