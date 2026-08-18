@@ -18,10 +18,13 @@ public class CustomerData : ScriptableObject
     
     public Sprite GetImage(int index = 0)
     {
-        if (string.IsNullOrEmpty(spriteSheetPath) == false)
-            return Managers.Resource.LoadSprite(spriteSheetPath, index);
+        if (string.IsNullOrWhiteSpace(spriteSheetPath))
+        {
+            Debug.LogError($"{name}({_Customer})의 손님 스프라이트 경로가 비어 있습니다.", this);
+            return null;
+        }
 
-        return Managers.Resource.LoadSprite($"Customers/Revised/{_Customer}-uniform-v4", index);
+        return Managers.Resource.LoadSprite(spriteSheetPath, index);
     }
 /*    [SerializeField]
     private Sprite image; //외형 스프라이트

@@ -66,6 +66,10 @@ public class GameManagerEx
     bool didAlertClosingTime = false; // 가게 운영종료 알려줬는지
     public bool isRunning = true; //가게 운영 중인지(정지 여부 포함)
 
+    // 튜토리얼 안내를 읽는 동안에는 영업 시계와 손님 대기 게이지만 멈춘다.
+    // 조리 입력은 isRunning을 유지하므로 계속 받을 수 있다.
+    public bool IsTutorialClockPaused { get; set; }
+
     public int numsOfCurCustomers = 0;
     public bool isAllExited
     {
@@ -135,6 +139,20 @@ public class GameManagerEx
 
     public event Action InitAction;
 
+    /// <summary>
+    /// 같은 GameScene을 새 게임으로 다시 불러오기 전에 이전 씬 오브젝트의 구독을 정리한다.
+    /// 새 씬의 Awake에서 현재 오브젝트들이 다시 등록된다.
+    /// </summary>
+    public void PrepareForSceneReload()
+    {
+        InitAction = null;
+        parentGo = null;
+        order.Clear();
+        numsOfCurCustomers = 0;
+        IsTutorialClockPaused = false;
+        isRunning = false;
+    }
+
     //게임 생성 시 초기화 메서드
     public void InitGame()
     {
@@ -151,6 +169,7 @@ public class GameManagerEx
         CurData.money = Managers.Instance.money;
 
         isRunning = true;
+        IsTutorialClockPaused = false;
         dayState = DayState.Opening;
         hasFinalizedDaily = false;
 
@@ -174,8 +193,9 @@ public class GameManagerEx
 
             case DayState.Running:
 
-                //시간 측정
-                delta += Time.deltaTime * GameSpeed;
+                //시간 측정: 튜토리얼 안내 중에는 클릭 입력은 유지하고 시계만 멈춘다.
+                if (IsTutorialClockPaused == false)
+                    delta += Time.deltaTime * GameSpeed;
 
                 if(isClosingTime == true)
                 {
@@ -270,6 +290,7 @@ public class GameManagerEx
         hasFinalizedDaily = true;
         Debug.Log("2. 하루 끝 & 엔딩 체크");
         isRunning = false;
+        IsTutorialClockPaused = false;
         order.Clear();
 
         //정산

@@ -13,4 +13,4 @@ MonoBehaviour:
   m_Name: Geonwoo
   m_EditorClassIdentifier:
   _customer: 4
-  spriteSheetPath: Customers/Figma8/05_Geonwoo
+  spriteSheetPath: Customers/05_Geonwoo

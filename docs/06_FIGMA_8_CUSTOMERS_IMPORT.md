@@ -2,8 +2,8 @@
 
 ## 결과
 
-- 기존 캐릭터 원본 `JeongHyun.png`, `HaYoung.png`, `MiJu.png`는 변경하지 않는다.
-- Figma에서 추출한 8명은 `Assets/Resources/Sprites/Customers/Figma8`에 별도 추가한다.
+- Figma에서 추출한 8명은 `Assets/Resources/Sprites/Customers` 바로 아래에 둔다.
+- 중복 이미지 폴더였던 `Revised`와 임시 분류 폴더였던 `Figma8`은 사용하지 않는다.
 - 모든 파일은 `1536×1024` RGBA PNG이며, 한 파일에 표정 3개가 들어 있다.
 - 표정 순서는 `기본 / 기쁨 / 실망`이다.
 
@@ -38,6 +38,6 @@
 
 ## 사용 경로
 
-예: `Resources.LoadAll<Sprite>("Sprites/Customers/Figma8/04_Sunja")`
+예: `Resources.LoadAll<Sprite>("Sprites/Customers/04_Sunja")`
 
-이번 작업은 이미지와 Unity 가져오기 설정만 추가한다. 실제 손님 생성 데이터, `CustomerType`, 프리팹 및 게임 장면 연결은 별도 구현 대상으로 남긴다.
+8개의 `CustomerData`는 `Customers/01_JeongHyun`부터 `Customers/08_Junho`까지 각 스프라이트 시트를 명시적으로 불러온다.

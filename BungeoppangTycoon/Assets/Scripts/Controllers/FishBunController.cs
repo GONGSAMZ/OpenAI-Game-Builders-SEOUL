@@ -71,6 +71,7 @@ public class FishBunController : MonoBehaviour,
                 //spawnPos = DisplateController.SetPos(fillingType);
                 DisplateController.Set(gameObject);
                 transform.position = spawnPos;
+                TutorialSignals.Raise(TutorialEvent.FishBunDisplayed, gameObject);
 
 
             }
@@ -88,6 +89,7 @@ public class FishBunController : MonoBehaviour,
                     // 성공 판매는 이 시점부터 한 번만 처리한다.
                     isConsumed = true;
                     DisplateController.Reset(fillingType);
+                    TutorialSignals.Raise(TutorialEvent.FishBunServed, gameObject);
 
                 }
 
@@ -186,7 +188,7 @@ public class FishBunController : MonoBehaviour,
 
     void addFilling()
     {
-        if (ToolController.selectedTool.CompareTag("filling") == false)
+        if (ToolController.selectedTool == null || ToolController.selectedTool.CompareTag("filling") == false)
             return;
 
         filling.SetActive(true);
@@ -196,6 +198,7 @@ public class FishBunController : MonoBehaviour,
 
 
         ++state;
+        TutorialSignals.Raise(TutorialEvent.FillingAdded, gameObject);
 
         //재료 비용 통계
         Managers.Game.IngredientCost += (int) (Define.FillingPrice[(int)fillingType] * Define.FillingCostRate);
@@ -204,7 +207,7 @@ public class FishBunController : MonoBehaviour,
 
     void addBatter()
     {
-        if (ToolController.selectedTool.CompareTag("kettle") == false)
+        if (ToolController.selectedTool == null || ToolController.selectedTool.CompareTag("kettle") == false)
             return;
 
         
@@ -225,6 +228,7 @@ public class FishBunController : MonoBehaviour,
         sr.color = color;*/
 
         ++state;
+        TutorialSignals.Raise(TutorialEvent.TopBatterAdded, gameObject);
         
     }
 
@@ -233,7 +237,10 @@ public class FishBunController : MonoBehaviour,
         endDelta = Managers.Game.delta; //1단계 굽기 측정 종료
 
         if (nextState() == true)
+        {
             startDelta = endDelta; //2단계 굽기 측정 시작
+            TutorialSignals.Raise(TutorialEvent.BakeStageAdvanced, gameObject);
+        }
 
 
     }
@@ -241,7 +248,8 @@ public class FishBunController : MonoBehaviour,
     void cooked()
     {
         endDelta = Managers.Game.delta; //2단계 굽기 측정 종료
-        nextState();
+        if (nextState())
+            TutorialSignals.Raise(TutorialEvent.Cooked, gameObject);
 
     }
 

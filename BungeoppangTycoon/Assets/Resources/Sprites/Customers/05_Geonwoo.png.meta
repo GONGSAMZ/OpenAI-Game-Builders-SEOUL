@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 2e3ae326ffc349a1bd042257417ad7d2
+guid: e0b1753626ebb37a3fb81bca61461b9b
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -67,7 +67,7 @@ TextureImporter:
   swizzle: 50462976
   cookieLightType: 0
   platformSettings:
-  - serializedVersion: 3
+  - serializedVersion: 4
     buildTarget: DefaultTexturePlatform
     maxTextureSize: 2048
     resizeAlgorithm: 0
@@ -80,7 +80,7 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 3
+  - serializedVersion: 4
     buildTarget: Standalone
     maxTextureSize: 2048
     resizeAlgorithm: 0
@@ -93,8 +93,21 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 3
-    buildTarget: iPhone
+  - serializedVersion: 4
+    buildTarget: iOS
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
@@ -110,84 +123,90 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: jeongHyun_0
+      name: Geonwoo_Default
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 512
-        height: 1024
+        x: 97
+        y: 300
+        width: 418
+        height: 700
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 599b8a9c1e4ef0c4fad310633d5d2b46
-      internalID: 868292160
+      spriteID: de7d6f83df69da2fe44abc13ddad3617
+      internalID: -422561471
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: jeongHyun_1
+      name: Geonwoo_Joy
       rect:
         serializedVersion: 2
         x: 512
-        y: 0
+        y: 300
         width: 512
-        height: 1024
+        height: 700
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: ba6218c687bf0294386857014139d5ef
-      internalID: -1542887844
+      spriteID: 5843ea78e1a1acbac24c2ec8c2284ae9
+      internalID: 1071964652
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: jeongHyun_2
+      name: Geonwoo_Disappointed
       rect:
         serializedVersion: 2
         x: 1024
-        y: 0
-        width: 512
-        height: 1024
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+        y: 300
+        width: 431
+        height: 700
+      alignment: 9
+      pivot: {x: 0.4731049, y: 0.48509}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 64f5013cea308fa43a90b4091a061bb8
-      internalID: 1954367494
+      spriteID: 0bf24a10e43ae94a375471b19cd7cc58
+      internalID: -276423852
       vertices: []
       indices: 
       edges: []
       weights: []
     outline: []
+    customData: 
     physicsShape: []
     bones: []
-    spriteID: 5e97eb03825dee720800000000000000
+    spriteID: db004c1cb704c001daf5caf964310b3f
     internalID: 0
     vertices: []
     indices: 
     edges: []
     weights: []
     secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
     nameFileIdTable:
-      jeongHyun_0: 868292160
-      jeongHyun_1: -1542887844
-      jeongHyun_2: 1954367494
+      Geonwoo_Default: -422561471
+      Geonwoo_Disappointed: -276423852
+      Geonwoo_Joy: 1071964652
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
-  userData: 
+  userData: Figma source Yrun8rClSF4bLDLSsDDjuQ
   assetBundleName: 
   assetBundleVariant: 

@@ -55,6 +55,10 @@ public class UI_Game : UI_Base
 
         ordersPanel = Util.FindObject(gameObject, "ordersPanel");
 
+        // 첫 플레이에서만 게임 위에 조리 튜토리얼을 띄운다.
+        if (UI_Tutorial.ShouldShow())
+            Managers.UI.ShowUI<UI_Tutorial>(false);
+
     }
 
     private void OnDestroy()

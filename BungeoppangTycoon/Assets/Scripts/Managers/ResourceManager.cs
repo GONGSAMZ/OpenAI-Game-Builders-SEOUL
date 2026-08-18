@@ -39,9 +39,19 @@ public class ResourceManager
             Sprite[] sprites = Resources.LoadAll<Sprite>($"Sprites/{path}");
 
             if (sprites == null || sprites.Length == 0)
-                Debug.Log($"스프라이트시트 X");
+            {
+                Debug.LogError($"스프라이트 시트를 찾을 수 없습니다: Sprites/{path}");
+                return null;
+            }
 
-            return sprites[(int)index];
+            int spriteIndex = (int)index;
+            if (spriteIndex < 0 || spriteIndex >= sprites.Length)
+            {
+                Debug.LogError($"스프라이트 인덱스가 범위를 벗어났습니다: Sprites/{path}, index={spriteIndex}, count={sprites.Length}");
+                return null;
+            }
+
+            return sprites[spriteIndex];
         }
         
     }

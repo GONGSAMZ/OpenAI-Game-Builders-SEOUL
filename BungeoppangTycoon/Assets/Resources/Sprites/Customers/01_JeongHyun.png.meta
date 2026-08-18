@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 15fdeec5f4f64e8e8a1c3ec32649603b
+guid: 2f92c271b110154d720166ac7a84c249
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
@@ -67,7 +67,7 @@ TextureImporter:
   swizzle: 50462976
   cookieLightType: 0
   platformSettings:
-  - serializedVersion: 3
+  - serializedVersion: 4
     buildTarget: DefaultTexturePlatform
     maxTextureSize: 2048
     resizeAlgorithm: 0
@@ -80,7 +80,7 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 3
+  - serializedVersion: 4
     buildTarget: Standalone
     maxTextureSize: 2048
     resizeAlgorithm: 0
@@ -93,8 +93,21 @@ TextureImporter:
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 3
-    buildTarget: iPhone
+  - serializedVersion: 4
+    buildTarget: iOS
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
@@ -110,84 +123,90 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: HaYoung_0
+      name: JeongHyun_Default
       rect:
         serializedVersion: 2
         x: 0
-        y: 0
+        y: 250
         width: 512
-        height: 1024
+        height: 750
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 28c6eb3afc678d847985f61743a79cb9
-      internalID: -569492294
+      spriteID: f04da553067928d82549c10038134000
+      internalID: 1669446355
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: HaYoung_1
+      name: JeongHyun_Joy
       rect:
         serializedVersion: 2
         x: 512
-        y: 0
+        y: 250
         width: 512
-        height: 1024
+        height: 750
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: cf924276c458e744aa34146e5dd6aca0
-      internalID: 561342967
+      spriteID: e86471197a5175b81c9390c9cc01ceb1
+      internalID: 326094694
       vertices: []
       indices: 
       edges: []
       weights: []
     - serializedVersion: 2
-      name: HaYoung_2
+      name: JeongHyun_Disappointed
       rect:
         serializedVersion: 2
         x: 1024
-        y: 0
+        y: 250
         width: 512
-        height: 1024
+        height: 750
       alignment: 0
-      pivot: {x: 0, y: 0}
+      pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
       outline: []
       physicsShape: []
       tessellationDetail: 0
       bones: []
-      spriteID: 86420f2bc52d0b043852d0a8794d0f71
-      internalID: -418361140
+      spriteID: 68c58aad358356b1be54c7707c350769
+      internalID: -1799271250
       vertices: []
       indices: 
       edges: []
       weights: []
     outline: []
+    customData: 
     physicsShape: []
     bones: []
-    spriteID: 5e97eb03825dee720800000000000000
+    spriteID: fef220f75b4633d253c5c6b428337d19
     internalID: 0
     vertices: []
     indices: 
     edges: []
     weights: []
     secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
     nameFileIdTable:
-      HaYoung_0: -569492294
-      HaYoung_1: 561342967
-      HaYoung_2: -418361140
+      JeongHyun_Default: 1669446355
+      JeongHyun_Disappointed: -1799271250
+      JeongHyun_Joy: 326094694
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
-  userData: 
+  userData: Figma source Yrun8rClSF4bLDLSsDDjuQ
   assetBundleName: 
   assetBundleVariant: 

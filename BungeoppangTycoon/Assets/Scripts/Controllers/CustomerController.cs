@@ -116,6 +116,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         //주문 받음
         Managers.Game.acceptOrder(order);
         didAcceptOrder = true;
+        TutorialSignals.Raise(TutorialEvent.CustomerOrderAccepted, Customer);
     }
 
     void ShowOrderNotAcceptedMessage()
@@ -211,6 +212,16 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         //주문 내역 비우기
         order.Clear();
+
+        // 첫 튜토리얼에서만 결과가 흔들리지 않도록 팥붕어빵 1개로 고정한다.
+        if (UI_Tutorial.TryConsumeForcedRedBeanOrder())
+        {
+            NumOfFishBun = 1;
+            order.Add(FillingType.redBean, 1);
+            UI_order.SetOrderText(order);
+            UI_order.gameObject.SetActive(true);
+            return;
+        }
 
         //맛 중복 방지를 위한 범위 리스트
         List<int> orderableFillingType = new List<int>();
@@ -405,6 +416,10 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         //Debug.Log($"2. {spawnDelayTime} 초 후 생성");
 
         yield return new WaitForSeconds(spawnDelayTime);
+
+        // 튜토리얼 선택/환영 패널이 열려 있으면 첫 손님은 아직 화면에 등장하지 않는다.
+        while (UI_Tutorial.IsBlockingFirstCustomer)
+            yield return null;
 
         customer.gameObject.SetActive(true);
 
