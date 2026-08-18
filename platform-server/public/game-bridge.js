@@ -169,6 +169,13 @@
       });
     }
 
+    creditDevTestPoints(amount = 10000, idempotencyKey = global.crypto.randomUUID()) {
+      return this.request("/api/v1/store/dev-test-points", {
+        method: "POST",
+        body: JSON.stringify({ amount, idempotencyKey })
+      });
+    }
+
     async openHiveWebShop() {
       const popup = global.open("about:blank", "hive-web-shop", "popup,width=1180,height=820");
       if (!popup) throw new Error("상점 팝업이 차단되었습니다.");
@@ -181,10 +188,18 @@
         popup.close();
         throw error;
       }
+
+      await new Promise((resolve) => {
+        const closedWatcher = global.setInterval(() => {
+          if (!popup.closed) return;
+          global.clearInterval(closedWatcher);
+          resolve();
+        }, 500);
+      });
     }
 
-    broadcastInventory(inventory) {
-      const message = { type: "PLATFORM_INVENTORY", inventory };
+    broadcastInventory(inventory, equipment = null, wallet = null) {
+      const message = { type: "PLATFORM_INVENTORY", inventory, equipment, wallet };
       const gameFrame = global.document.getElementById("game-frame");
       if (gameFrame?.contentWindow) {
         gameFrame.contentWindow.postMessage(message, this.serverOrigin);
@@ -215,7 +230,11 @@
     global.unityInstance.SendMessage(
       "@GamePlatformClient",
       "OnInventoryUpdated",
-      JSON.stringify({ inventory: message.inventory })
+      JSON.stringify({
+        inventory: message.inventory,
+        equipment: message.equipment ?? null,
+        wallet: message.wallet ?? null
+      })
     );
     pendingInventoryMessage = null;
   }

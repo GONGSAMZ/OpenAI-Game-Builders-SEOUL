@@ -246,6 +246,7 @@ button {
 
 .store-dev-tools {
   flex: 0 0 260px;
+  overflow-y: auto;
   padding: 20px 18px;
   border-left: 1px solid #e3e3e8;
   color: #242429;
@@ -320,6 +321,44 @@ button {
 }
 
 .dev-grant-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.dev-purchase-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.dev-purchase-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid #e4e1e9;
+  border-radius: 10px;
+  padding: 10px 11px;
+  color: #343039;
+  background: #faf9fc;
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+
+.dev-purchase-button strong {
+  flex: 0 0 auto;
+  color: #7630d8;
+  font-size: 11px;
+}
+
+.dev-purchase-button:hover:not(:disabled) {
+  border-color: #b99add;
+  background: #f4effa;
+}
+
+.dev-purchase-button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }

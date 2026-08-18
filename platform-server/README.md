@@ -9,13 +9,15 @@ Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, �
 - Hive 계정 없이 시험하는 mock 로그인
 - 외부 토큰을 브라우저에 노출하지 않는 서버 게임 세션과 DynamoDB 세션 영속화
 - OpenAI Responses API 서버 프록시와 mock 응답
-- mock/개발 지급, 중복 구매 방지, 사용자별 메모리/DynamoDB 아이템 저장소
+- 사용자별 테스트 포인트 mock 결제·충전, 중복 차감 방지, 메모리/DynamoDB 아이템 저장소
+- 일반 게임 돈과 분리된 팥 코인 및 사용자별 황금 틀 장착 상태
 - HIVE 웹 상점 연결, 인게임 정보 조회, 결제 알림·미소비 주문·영수증 검증·지급 완료 API
 - `/game/` Unity WebGL 제공 및 루트 화면 iframe 임베드
 - 상단 헤더와 게임만 표시하는 최소 웹 셸
 - 브라우저용 `game-bridge.js`와 Unity 통합 API
 - Unity 프로젝트에 적용된 WebGL `.jslib`/C# 어댑터
 - Docker 및 GitHub Actions 기본 설정
+- Unity 6.3 WebGL 소스/산출물 SHA-256 매니페스트 검증
 - 배포 revision API, smoke test, ECS 자동 롤백과 수동 immutable 이미지 롤백
 
 ## 로컬 실행
@@ -35,7 +37,7 @@ Copy-Item .env.example .env
 pnpm dev
 ```
 
-`.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다. 루트 화면에는 상단 헤더와 Unity 게임이 표시됩니다. `STORE_DEV_TOOLS=true`인 개발 환경에서만 게임 바깥 오른쪽에 테스트 지급 패널이 나타납니다. 로그인 사용자가 이 버튼을 누르면 서버의 본인 인벤토리와 실행 중인 게임의 팥 코인이 동기화됩니다.
+`.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다. 루트 화면에는 상단 헤더와 Unity 게임이 표시됩니다. `STORE_DEV_TOOLS=true`인 개발 환경에서만 게임 바깥 오른쪽에 테스트 결제 패널이 나타납니다. 로그인 사용자는 10,000P로 시작하고, 개발용 충전 또는 1,100P·5,500P·3,300P 상품 결제를 실행할 수 있습니다. 서버의 사용자별 잔액·인벤토리는 실행 중인 게임과 즉시 동기화됩니다.
 
 ## 실제 서비스 전환
 

@@ -32,8 +32,10 @@ public class FishBunController : MonoBehaviour,
     float bakingTime 
         { get { return endDelta - startDelta; } }
 
-    static float requiredTime = 6; //perfect하게 구워지는 데 걸리는 초
-    static float burntingTime = 15; //타버리는 데 걸리는 초
+    const float BaseRequiredTime = 6f; //perfect하게 구워지는 데 걸리는 초
+    const float BaseBurntingTime = 15f; //타버리는 데 걸리는 초
+    float requiredTime = BaseRequiredTime;
+    float burntingTime = BaseBurntingTime;
 
     #endregion
 
@@ -209,6 +211,9 @@ public class FishBunController : MonoBehaviour,
             return;
 
         
+        float speedMultiplier = GamePlatformClient.Instance?.BakingTimeMultiplier ?? 1f;
+        requiredTime = BaseRequiredTime * speedMultiplier;
+        burntingTime = BaseBurntingTime * speedMultiplier;
         startDelta = Managers.Game.delta; //1단계 굽기 측정 시작
 
         GetComponent<SpriteRenderer>().sprite =

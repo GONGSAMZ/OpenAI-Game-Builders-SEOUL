@@ -52,7 +52,7 @@ describe("integration API", () => {
     expect(page.text).not.toContain("OPENAI LAB");
     expect(page.text).not.toContain("개발 진단 로그");
     expect(page.text).toContain('id="store-dev-tools"');
-    expect(page.text).toContain('id="dev-grant-button"');
+    expect(page.text).toContain('id="dev-test-point-button"');
     expect(page.text).toContain('id="account-menu"');
     expect(page.text).toContain('id="logout-button"');
     expect(page.headers["content-security-policy"]).toContain("'unsafe-inline'");
@@ -179,6 +179,8 @@ describe("integration API", () => {
       .expect(201);
     expect(first.body).toEqual(expect.objectContaining({ duplicate: false }));
     expect(first.body.inventory).toContainEqual({ itemId: "red-bean-coin", quantity: 100 });
+    expect(first.body.equipment).toEqual({ moldSkin: null });
+    expect(first.body.wallet).toEqual({ testPoints: 8900 });
 
     const duplicate = await request(app)
       .post("/api/v1/store/mock-purchases")
@@ -187,6 +189,91 @@ describe("integration API", () => {
       .expect(200);
     expect(duplicate.body).toEqual(expect.objectContaining({ duplicate: true }));
     expect(duplicate.body.inventory).toContainEqual({ itemId: "red-bean-coin", quantity: 100 });
+    expect(duplicate.body.wallet).toEqual({ testPoints: 8900 });
+  });
+
+  it("mock 결제는 사용자별 테스트 포인트를 차감하고 부족하면 지급하지 않는다", async () => {
+    const marketStore = new InMemoryMarketStore();
+    const app = createApp({ config: createTestConfig(), marketStore });
+    const token = await login(app);
+
+    const first = await request(app)
+      .post("/api/v1/store/mock-purchases")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        productId: "red-bean-550",
+        idempotencyKey: "51258ebc-5c6d-4264-b546-cf06c9b2e78e"
+      })
+      .expect(201);
+    expect(first.body.wallet).toEqual({ testPoints: 4500 });
+
+    await request(app)
+      .post("/api/v1/store/mock-purchases")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        productId: "red-bean-550",
+        idempotencyKey: "6bf48fc0-00c3-45b7-b07c-ea87245b9852"
+      })
+      .expect(409);
+
+    expect(await marketStore.getInventory("mock-hive:local-player")).toContainEqual({
+      itemId: "red-bean-coin",
+      quantity: 550
+    });
+    expect(await marketStore.getWallet("another-player")).toEqual({ testPoints: 10000 });
+  });
+
+  it("황금 틀 장착 상태를 로그인 사용자별로 저장하고 해제한다", async () => {
+    const marketStore = new InMemoryMarketStore();
+    const app = createApp({ config: createTestConfig(), marketStore });
+    const token = await login(app);
+
+    await request(app)
+      .put("/api/v1/store/equipment/mold")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ itemId: "golden-pan" })
+      .expect(409);
+
+    await request(app)
+      .post("/api/v1/store/mock-purchases")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        productId: "golden-pan",
+        idempotencyKey: "a6d36fc4-c6dd-4a0c-9002-5a64051e1c32"
+      })
+      .expect(201);
+
+    const equipped = await request(app)
+      .put("/api/v1/store/equipment/mold")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ itemId: "golden-pan" })
+      .expect(200);
+    expect(equipped.body.inventory).toContainEqual({ itemId: "golden-pan", quantity: 1 });
+    expect(equipped.body.equipment).toEqual({ moldSkin: "golden-pan" });
+
+    const restored = await request(app)
+      .get("/api/v1/store/me")
+      .set("Authorization", `Bearer ${token}`)
+      .expect(200);
+    expect(restored.body.equipment).toEqual({ moldSkin: "golden-pan" });
+    expect(await marketStore.getEquipment("another-player")).toEqual({ moldSkin: null });
+
+    const unequipped = await request(app)
+      .put("/api/v1/store/equipment/mold")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ itemId: null })
+      .expect(200);
+    expect(unequipped.body.equipment).toEqual({ moldSkin: null });
+
+    await request(app)
+      .put("/api/v1/store/equipment/mold")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ itemId: "unsupported-pan" })
+      .expect(400);
+    await request(app)
+      .put("/api/v1/store/equipment/mold")
+      .send({ itemId: null })
+      .expect(401);
   });
 
   it("개발 도구 지급은 로그인 사용자 인벤토리와 게임 재화에만 반영한다", async () => {
@@ -204,7 +291,35 @@ describe("integration API", () => {
       .expect(201);
 
     expect(response.body.inventory).toContainEqual({ itemId: "red-bean-coin", quantity: 100 });
+    expect(response.body.equipment).toEqual({ moldSkin: null });
     expect(await marketStore.getInventory("another-player")).toEqual([]);
+  });
+
+  it("개발 도구 테스트 포인트 충전은 사용자별로 한 번만 반영한다", async () => {
+    const marketStore = new InMemoryMarketStore();
+    const app = createApp({ config: createTestConfig(), marketStore });
+    const token = await login(app);
+    const body = {
+      amount: 10000,
+      idempotencyKey: "86031de5-0cf2-45e9-b0f4-a2e00defc307"
+    };
+
+    const first = await request(app)
+      .post("/api/v1/store/dev-test-points")
+      .set("Authorization", `Bearer ${token}`)
+      .send(body)
+      .expect(201);
+    expect(first.body.wallet).toEqual({ testPoints: 20000 });
+
+    const duplicate = await request(app)
+      .post("/api/v1/store/dev-test-points")
+      .set("Authorization", `Bearer ${token}`)
+      .send(body)
+      .expect(200);
+    expect(duplicate.body).toEqual(
+      expect.objectContaining({ duplicate: true, wallet: { testPoints: 20000 } })
+    );
+    expect(await marketStore.getWallet("another-player")).toEqual({ testPoints: 10000 });
   });
 
   it("비활성화된 개발 도구 지급 API를 노출하지 않는다", async () => {
@@ -219,6 +334,14 @@ describe("integration API", () => {
       .send({
         productId: "red-bean-100",
         idempotencyKey: "f4adcf39-b63d-499f-8bda-a6721bcfd654"
+      })
+      .expect(404);
+    await request(app)
+      .post("/api/v1/store/dev-test-points")
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        amount: 10000,
+        idempotencyKey: "5bd82299-d664-4470-9c8a-4d1c612e002e"
       })
       .expect(404);
   });

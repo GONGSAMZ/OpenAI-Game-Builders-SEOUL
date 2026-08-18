@@ -19,12 +19,9 @@ public sealed class UI_InAppMarket : UI_Base
     private GameObject productCardTemplate;
 
     private readonly List<UI_InAppMarketProductCard> cards = new();
-    private readonly Dictionary<string, int> inventory = new();
-
     private GamePlatformClient platformClient;
     private InAppMarketProduct[] products = Array.Empty<InAppMarketProduct>();
     private string catalogMode = "mock";
-    private string hiveWebShopUrl;
     private bool wasGameRunning;
     private bool didPauseGame;
     private bool isClosing;
@@ -62,6 +59,7 @@ public sealed class UI_InAppMarket : UI_Base
 
         platformClient.LoginSucceeded += OnLoginSucceeded;
         platformClient.RequestFailed += OnRequestFailed;
+        platformClient.StoreStateChanged += OnStoreStateChanged;
 
         closeButton.onClick.AddListener(Close);
         loginButton.onClick.AddListener(LoginOrRefresh);
@@ -84,6 +82,7 @@ public sealed class UI_InAppMarket : UI_Base
         {
             platformClient.LoginSucceeded -= OnLoginSucceeded;
             platformClient.RequestFailed -= OnRequestFailed;
+            platformClient.StoreStateChanged -= OnStoreStateChanged;
         }
 
         if (didPauseGame)
@@ -123,11 +122,7 @@ public sealed class UI_InAppMarket : UI_Base
         if (platformClient.IsLoggedIn)
         {
             bool inventoryReceived = false;
-            yield return platformClient.GetInventory(json =>
-            {
-                inventoryReceived = true;
-                ParseInventory(json);
-            });
+            yield return platformClient.GetInventory(_ => inventoryReceived = true);
             if (!inventoryReceived)
             {
                 RenderProducts();
@@ -164,11 +159,7 @@ public sealed class UI_InAppMarket : UI_Base
         SetCardsBusy(true);
         SetStatus("보유 아이템을 확인하는 중입니다…", false);
         bool inventoryReceived = false;
-        yield return platformClient.GetInventory(json =>
-        {
-            inventoryReceived = true;
-            ParseInventory(json);
-        });
+        yield return platformClient.GetInventory(_ => inventoryReceived = true);
         if (!inventoryReceived)
         {
             SetCardsBusy(false);
@@ -182,6 +173,15 @@ public sealed class UI_InAppMarket : UI_Base
     {
         RefreshLoginState();
         StartCoroutine(RefreshInventory());
+    }
+
+    private void OnStoreStateChanged()
+    {
+        if (isClosing || platformClient == null)
+            return;
+        RefreshLoginState();
+        if (products != null && products.Length > 0)
+            RenderProducts();
     }
 
     private void OnRequestFailed(string message)
@@ -200,7 +200,6 @@ public sealed class UI_InAppMarket : UI_Base
 
         if (!string.IsNullOrWhiteSpace(config.storeMode))
             catalogMode = config.storeMode;
-        hiveWebShopUrl = config.hiveWebShopUrl;
     }
 
     private void ParseCatalog(string json)
@@ -212,24 +211,6 @@ public sealed class UI_InAppMarket : UI_Base
         if (!string.IsNullOrWhiteSpace(catalog.mode))
             catalogMode = catalog.mode;
         products = catalog.products ?? Array.Empty<InAppMarketProduct>();
-    }
-
-    private void ParseInventory(string json)
-    {
-        InAppMarketInventoryResponse response = ParseJson<InAppMarketInventoryResponse>(json);
-        ApplyInventory(response?.inventory);
-    }
-
-    private void ParsePurchase(string json)
-    {
-        InAppMarketPurchaseResponse response = ParseJson<InAppMarketPurchaseResponse>(json);
-        if (response == null)
-            return;
-        ApplyInventory(response?.inventory);
-        RenderProducts();
-        SetStatus(response != null && response.duplicate
-            ? "이미 처리된 구매입니다. 보유 수량을 다시 확인했습니다."
-            : "상품이 계정 보유 아이템에 지급됐습니다.", false);
     }
 
     private T ParseJson<T>(string json) where T : class
@@ -249,20 +230,6 @@ public sealed class UI_InAppMarket : UI_Base
             Debug.LogException(exception);
             SetStatus("상점 응답을 읽지 못했습니다.", true);
             return null;
-        }
-    }
-
-    private void ApplyInventory(InAppMarketInventoryEntry[] entries)
-    {
-        inventory.Clear();
-        if (entries == null)
-            return;
-
-        foreach (InAppMarketInventoryEntry entry in entries)
-        {
-            if (entry == null || string.IsNullOrWhiteSpace(entry.itemId))
-                continue;
-            inventory[entry.itemId] = Mathf.Max(0, entry.quantity);
         }
     }
 
@@ -296,9 +263,17 @@ public sealed class UI_InAppMarket : UI_Base
             UI_InAppMarketProductCard card = cardObject.GetComponent<UI_InAppMarketProductCard>();
             int ownedQuantity = 0;
             if (product.grant != null && !string.IsNullOrWhiteSpace(product.grant.itemId))
-                inventory.TryGetValue(product.grant.itemId, out ownedQuantity);
+                ownedQuantity = platformClient.GetItemQuantity(product.grant.itemId);
 
-            card.SetData(product, ownedQuantity, platformClient.IsLoggedIn, opensWebShop, Purchase);
+            bool isEquipped = product.grant?.itemId == "golden-pan" && platformClient.IsGoldenPanEquipped;
+            card.SetData(
+                product,
+                ownedQuantity,
+                platformClient.IsLoggedIn,
+                opensWebShop,
+                isEquipped,
+                Purchase,
+                ChangeEquipment);
             cards.Add(card);
         }
 
@@ -319,13 +294,7 @@ public sealed class UI_InAppMarket : UI_Base
         bool opensWebShop = string.Equals(catalogMode, "hive-web-shop", StringComparison.OrdinalIgnoreCase);
         if (opensWebShop)
         {
-            if (string.IsNullOrWhiteSpace(hiveWebShopUrl))
-            {
-                SetStatus("HIVE 웹 상점 주소가 설정되지 않았습니다.", true);
-                return;
-            }
-
-            Application.OpenURL(hiveWebShopUrl);
+            platformClient.OpenHiveWebShop();
             SetStatus("HIVE 웹 상점을 새 창에서 열었습니다.", false);
             return;
         }
@@ -338,14 +307,49 @@ public sealed class UI_InAppMarket : UI_Base
         SetCardsBusy(true);
         SetStatus($"{product.name} 구매를 처리하는 중입니다…", false);
         bool purchaseReceived = false;
+        bool duplicate = false;
         yield return platformClient.CreateMockPurchase(product.id, json =>
         {
             purchaseReceived = true;
-            ParsePurchase(json);
+            InAppMarketPurchaseResponse response = ParseJson<InAppMarketPurchaseResponse>(json);
+            duplicate = response != null && response.duplicate;
         });
-        SetCardsBusy(false);
         if (!purchaseReceived)
+        {
+            SetCardsBusy(false);
             yield break;
+        }
+
+        bool stateReceived = false;
+        yield return platformClient.GetInventory(_ => stateReceived = true);
+        SetCardsBusy(false);
+        if (!stateReceived)
+            yield break;
+
+        RenderProducts();
+        SetStatus(duplicate
+            ? "이미 처리된 구매입니다. 보유 수량을 다시 확인했습니다."
+            : "상품이 계정 보유 아이템에 지급됐습니다.", false);
+    }
+
+    private void ChangeEquipment(InAppMarketProduct product, bool equip)
+    {
+        if (product?.grant?.itemId != "golden-pan" || !platformClient.IsLoggedIn)
+            return;
+        StartCoroutine(ChangeEquipmentRoutine(equip));
+    }
+
+    private IEnumerator ChangeEquipmentRoutine(bool equip)
+    {
+        SetCardsBusy(true);
+        SetStatus(equip ? "황금 붕어빵 틀을 장착하는 중입니다…" : "황금 붕어빵 틀을 해제하는 중입니다…", false);
+        bool updated = false;
+        yield return platformClient.SetMoldSkin(equip, _ => updated = true);
+        SetCardsBusy(false);
+        if (!updated)
+            yield break;
+        RenderProducts();
+        SetStatus(equip ? "황금 붕어빵 틀을 장착했습니다." : "기본 붕어빵 틀로 돌아왔습니다.", false);
     }
 
     private void SetCardsBusy(bool isBusy)
@@ -359,7 +363,11 @@ public sealed class UI_InAppMarket : UI_Base
         if (platformClient == null)
             return;
 
-        loginStatusText.text = platformClient.IsLoggedIn ? "HIVE 로그인됨" : "로그인하지 않음";
+        loginStatusText.text = platformClient.IsLoggedIn
+            ? (string.Equals(catalogMode, "mock", StringComparison.OrdinalIgnoreCase)
+                ? $"HIVE 로그인됨 · 테스트 {platformClient.TestPointBalance:N0}P · 팥 코인 {platformClient.RedBeanCoinBalance:N0}개"
+                : $"HIVE 로그인됨 · 팥 코인 {platformClient.RedBeanCoinBalance:N0}개")
+            : "로그인하지 않음 · 팥 코인 —";
         loginButtonText.text = platformClient.IsLoggedIn ? "보유품 새로고침" : "HIVE 로그인";
     }
 

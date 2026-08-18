@@ -68,14 +68,47 @@ Hive 로그인 후 호출할 수 있습니다.
 
 ### `GET /api/v1/store/me`
 
-로그인한 사용자의 서버 보유 아이템을 반환합니다.
+로그인한 사용자의 서버 보유 아이템, 장착 상태와 개발용 테스트 포인트 지갑을 반환합니다. `red-bean-coin`은 일반 게임 돈 및 테스트 포인트와 분리된 계정 재화입니다.
+
+```json
+{
+  "inventory": [
+    { "itemId": "red-bean-coin", "quantity": 650 },
+    { "itemId": "golden-pan", "quantity": 1 }
+  ],
+  "equipment": {
+    "moldSkin": "golden-pan"
+  },
+  "wallet": {
+    "testPoints": 6700
+  }
+}
+```
+
+### `PUT /api/v1/store/equipment/mold`
+
+인증 세션의 사용자에게만 황금 틀 장착 상태를 저장합니다. 요청에서 PlayerID를 받지 않습니다.
+
+```json
+{ "itemId": "golden-pan" }
+```
+
+장착 해제는 `{ "itemId": null }`을 보냅니다. 응답은 `GET /api/v1/store/me`와 같은 최신 `inventory`·`equipment`입니다. 세션 없음은 `401`, 지원하지 않는 아이템은 `400`, 미보유 장착은 `409`를 반환합니다.
 
 ### `POST /api/v1/store/mock-purchases`
 
-`STORE_MODE=mock` 전용 데모 지급 API입니다. 같은 UUID `idempotencyKey`는 한 번만 지급됩니다.
+`STORE_MODE=mock` 전용 테스트 결제 API입니다. 상품의 `testPointPrice`를 로그인 사용자의 테스트 포인트에서 차감한 뒤 아이템을 지급합니다. 같은 UUID `idempotencyKey`는 한 번만 차감·지급되며 잔액 부족은 `409`를 반환합니다.
 
 ```json
 { "productId": "red-bean-100", "idempotencyKey": "12e68262-ff70-42b7-ae95-18e89b7bbbd8" }
+```
+
+### `POST /api/v1/store/dev-test-points`
+
+`STORE_DEV_TOOLS=true`에서만 열리는 개발용 테스트 포인트 충전 API입니다. 로그인 사용자에게만 적용되며 같은 UUID는 한 번만 반영됩니다.
+
+```json
+{ "amount": 10000, "idempotencyKey": "86031de5-0cf2-45e9-b0f4-a2e00defc307" }
 ```
 
 ### `POST /api/v1/store/dev-grants`
@@ -101,6 +134,8 @@ HIVE 웹 상점의 결제 알림 URL입니다. `STORE_MODE=hive-web-shop`에서�
 5. HIVE 아이템 지급 완료 API를 호출해 거래를 완료합니다.
 
 `cancelled` 알림은 현재 지급 없이 확인 응답만 합니다. 이미 소비한 재화를 회수하는 정책은 이 초기 개발 범위에 포함되지 않습니다.
+
+황금 틀 장착 상태는 DynamoDB에서 `PLAYER#<subject> / EQUIPMENT#MOLD`, 테스트 포인트는 `PLAYER#<subject> / WALLET#TEST_POINTS` 레코드로 사용자별 저장됩니다. 팥 코인 소비 API는 현재 범위에 포함되지 않습니다.
 
 ## 오류 형식
 

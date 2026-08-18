@@ -10,6 +10,7 @@ public class UI_Game : UI_Base
         dayText,
         timeText,
         moneyText,
+        redBeanCoinText,
     }
 
     enum Btns {
@@ -43,6 +44,10 @@ public class UI_Game : UI_Base
         GetButton((int)Btns.settingsButton).gameObject.AddEvent(settingsBtnFunc);
         GetButton((int)Btns.inAppMarketButton).gameObject.AddEvent(inAppMarketBtnFunc);
 
+        if (GamePlatformClient.Instance != null)
+            GamePlatformClient.Instance.StoreStateChanged += RefreshPlatformCurrency;
+        RefreshPlatformCurrency();
+
         //이벤트 구독
 
         orderUpdateAction -= orderUpdate;
@@ -54,6 +59,12 @@ public class UI_Game : UI_Base
         if (UI_Tutorial.ShouldShow())
             Managers.UI.ShowUI<UI_Tutorial>(false);
 
+    }
+
+    private void OnDestroy()
+    {
+        if (GamePlatformClient.Instance != null)
+            GamePlatformClient.Instance.StoreStateChanged -= RefreshPlatformCurrency;
     }
 
 
@@ -76,6 +87,14 @@ public class UI_Game : UI_Base
     void inAppMarketBtnFunc()
     {
         Managers.UI.ShowUI<UI_InAppMarket>(false);
+    }
+
+    void RefreshPlatformCurrency()
+    {
+        GamePlatformClient client = GamePlatformClient.Instance;
+        GetTMP((int)TMP.redBeanCoinText).text = client != null && client.IsLoggedIn
+            ? $"팥 코인 {client.RedBeanCoinBalance:N0}개"
+            : "팥 코인 —";
     }
 
     static void orderUpdate()

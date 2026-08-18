@@ -1,10 +1,10 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
-using UnityEngine.SceneManagement;
 
 public sealed class GamePlatformClient : MonoBehaviour
 {
@@ -15,12 +15,18 @@ public sealed class GamePlatformClient : MonoBehaviour
 
     public event Action<string> LoginSucceeded;
     public event Action<string> RequestFailed;
+    public event Action StoreStateChanged;
 
     private string sessionToken;
     private bool serverSessionAvailable;
     private Coroutine inventorySyncLoop;
-    private int pendingPlatformCurrency;
-    private int appliedPlatformCurrency;
+    private readonly Dictionary<string, int> inventory = new();
+
+    public int RedBeanCoinBalance => GetItemQuantity(PlatformCurrencyItemId);
+    public int TestPointBalance { get; private set; }
+    public bool OwnsGoldenPan => GetItemQuantity("golden-pan") > 0;
+    public bool IsGoldenPanEquipped { get; private set; }
+    public float BakingTimeMultiplier => IsGoldenPanEquipped ? 0.8f : 1f;
 
     public static GamePlatformClient Instance { get; private set; }
 
@@ -32,7 +38,7 @@ public sealed class GamePlatformClient : MonoBehaviour
     private static extern void GameBridge_Logout(string gameObject, string successMethod, string errorMethod);
 
     [DllImport("__Internal")]
-    private static extern void GameBridge_OpenShop(string gameObject, string errorMethod);
+    private static extern void GameBridge_OpenShop(string gameObject, string successMethod, string errorMethod);
 #endif
 
     public bool IsLoggedIn => serverSessionAvailable || !string.IsNullOrWhiteSpace(sessionToken);
@@ -54,7 +60,6 @@ public sealed class GamePlatformClient : MonoBehaviour
         }
         Instance = this;
         DontDestroyOnLoad(gameObject);
-        SceneManager.sceneLoaded += OnSceneLoaded;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         if (Uri.TryCreate(Application.absoluteURL, UriKind.Absolute, out Uri gameUri))
@@ -70,7 +75,6 @@ public sealed class GamePlatformClient : MonoBehaviour
     private void OnDestroy()
     {
         if (Instance != this) return;
-        SceneManager.sceneLoaded -= OnSceneLoaded;
         Instance = null;
     }
 
@@ -95,13 +99,14 @@ public sealed class GamePlatformClient : MonoBehaviour
 #else
         sessionToken = null;
         serverSessionAvailable = false;
+        ClearStoreState();
 #endif
     }
 
     public void OpenHiveWebShop()
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
-        GameBridge_OpenShop(gameObject.name, nameof(OnBridgeError));
+        GameBridge_OpenShop(gameObject.name, nameof(OnHiveShopClosed), nameof(OnBridgeError));
 #else
         OnBridgeError("HIVE 웹 상점은 WebGL 빌드에서 테스트하세요.");
 #endif
@@ -138,13 +143,36 @@ public sealed class GamePlatformClient : MonoBehaviour
 
     public IEnumerator GetInventory(Action<string> onSuccess)
     {
-        yield return SendJson("GET", "/api/v1/store/me", null, onSuccess);
+        yield return SendJson("GET", "/api/v1/store/me", null, json =>
+        {
+            ApplyStoreState(json);
+            onSuccess?.Invoke(json);
+        });
     }
 
     public void SyncInventoryNow()
     {
         if (!IsLoggedIn) return;
-        StartCoroutine(GetInventory(OnInventoryUpdated));
+        StartCoroutine(GetInventory(null));
+    }
+
+    public int GetItemQuantity(string itemId)
+    {
+        return !string.IsNullOrWhiteSpace(itemId) && inventory.TryGetValue(itemId, out int quantity)
+            ? quantity
+            : 0;
+    }
+
+    public IEnumerator SetMoldSkin(bool equip, Action<string> onSuccess)
+    {
+        string payload = equip
+            ? "{\"itemId\":\"golden-pan\"}"
+            : "{\"itemId\":null}";
+        yield return SendJson("PUT", "/api/v1/store/equipment/mold", payload, json =>
+        {
+            ApplyStoreState(json);
+            onSuccess?.Invoke(json);
+        });
     }
 
     public IEnumerator CreateMockPurchase(string productId, Action<string> onSuccess)
@@ -171,28 +199,42 @@ public sealed class GamePlatformClient : MonoBehaviour
         sessionToken = null;
         serverSessionAvailable = false;
         StopInventorySync();
+        ClearStoreState();
+    }
+
+    public void OnHiveShopClosed(string _)
+    {
+        SyncInventoryNow();
     }
 
     public void OnInventoryUpdated(string json)
     {
+        ApplyStoreState(json);
+    }
+
+    private void ApplyStoreState(string json)
+    {
         try
         {
-            InventoryEnvelope envelope = JsonUtility.FromJson<InventoryEnvelope>(json);
-            int nextCurrency = 0;
+            StoreStateEnvelope envelope = JsonUtility.FromJson<StoreStateEnvelope>(json);
+            inventory.Clear();
             if (envelope?.inventory != null)
             {
                 foreach (InventoryEntry entry in envelope.inventory)
                 {
-                    if (entry != null && entry.itemId == PlatformCurrencyItemId)
-                    {
-                        nextCurrency = Mathf.Max(0, entry.quantity);
-                        break;
-                    }
+                    if (entry == null || string.IsNullOrWhiteSpace(entry.itemId))
+                        continue;
+                    inventory[entry.itemId] = Mathf.Max(0, entry.quantity);
                 }
             }
 
-            pendingPlatformCurrency = nextCurrency;
-            ApplyPlatformCurrencyWhenReady();
+            if (envelope?.equipment != null)
+                IsGoldenPanEquipped = envelope.equipment.moldSkin == "golden-pan" && OwnsGoldenPan;
+            else if (!OwnsGoldenPan)
+                IsGoldenPanEquipped = false;
+            if (envelope?.wallet != null)
+                TestPointBalance = Mathf.Max(0, envelope.wallet.testPoints);
+            StoreStateChanged?.Invoke();
         }
         catch (Exception error)
         {
@@ -224,7 +266,8 @@ public sealed class GamePlatformClient : MonoBehaviour
 
         if (IsLoggedIn)
         {
-            request.SetRequestHeader("Authorization", "Bearer " + sessionToken);
+            if (!string.IsNullOrWhiteSpace(sessionToken))
+                request.SetRequestHeader("Authorization", "Bearer " + sessionToken);
         }
 
         yield return request.SendWebRequest();
@@ -278,29 +321,12 @@ public sealed class GamePlatformClient : MonoBehaviour
         inventorySyncLoop = null;
     }
 
-    private void OnSceneLoaded(Scene scene, LoadSceneMode _)
+    private void ClearStoreState()
     {
-        if (scene.name != "GameScene") return;
-        appliedPlatformCurrency = 0;
-        StartCoroutine(ApplyAfterGameInitialization());
-    }
-
-    private IEnumerator ApplyAfterGameInitialization()
-    {
-        while (GameObject.Find("@Managers") == null) yield return null;
-        yield return null;
-        ApplyPlatformCurrencyWhenReady();
-    }
-
-    private void ApplyPlatformCurrencyWhenReady()
-    {
-        if (GameObject.Find("@Managers") == null) return;
-        int delta = pendingPlatformCurrency - appliedPlatformCurrency;
-        if (delta == 0) return;
-
-        Managers.Game.Money += delta;
-        appliedPlatformCurrency = pendingPlatformCurrency;
-        Debug.Log($"플랫폼 재화 동기화: {delta:+#;-#;0}, 서버 잔액 {pendingPlatformCurrency}");
+        inventory.Clear();
+        TestPointBalance = 0;
+        IsGoldenPanEquipped = false;
+        StoreStateChanged?.Invoke();
     }
 
     [Serializable]
@@ -319,9 +345,11 @@ public sealed class GamePlatformClient : MonoBehaviour
     }
 
     [Serializable]
-    private sealed class InventoryEnvelope
+    private sealed class StoreStateEnvelope
     {
         public InventoryEntry[] inventory;
+        public StoreEquipment equipment;
+        public StoreWallet wallet;
     }
 
     [Serializable]
@@ -329,5 +357,17 @@ public sealed class GamePlatformClient : MonoBehaviour
     {
         public string itemId;
         public int quantity;
+    }
+
+    [Serializable]
+    private sealed class StoreEquipment
+    {
+        public string moldSkin;
+    }
+
+    [Serializable]
+    private sealed class StoreWallet
+    {
+        public int testPoints;
     }
 }

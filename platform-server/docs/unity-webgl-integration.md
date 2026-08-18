@@ -15,8 +15,21 @@
 
 4. `GamePlatformClient`는 WebGL 시작 시 `@GamePlatformClient` GameObject로 자동 생성되어 씬을 이동해도 유지됩니다.
 5. 로그인 버튼에서 `LoginWithHive()`를, 인게임 상점의 충전 버튼에서 `OpenHiveWebShop()`을 호출합니다.
-6. 로그인 성공 후 서버 인벤토리를 5초 간격으로 조회하고, 웹 패널이나 HIVE 결제로 바뀐 `red-bean-coin` 잔액을 `Managers.Game.Money`에 차이만큼 반영합니다.
-7. 부모 웹 페이지가 테스트 지급 직후 `PLATFORM_INVENTORY` 메시지를 보내므로 폴링을 기다리지 않고 실행 중인 Unity에도 즉시 반영됩니다.
+6. 로그인 성공 후 서버 인벤토리·장착 상태·테스트 포인트를 즉시 조회하고 5초 간격으로 다시 동기화합니다.
+7. `red-bean-coin`은 HUD와 하루 종료 상점에 별도 표시하며 `Managers.Game.Money`에는 더하지 않습니다.
+8. 부모 웹 페이지가 테스트 포인트 충전 또는 결제 직후 `PLATFORM_INVENTORY` 메시지를 보내므로 폴링을 기다리지 않고 실행 중인 Unity에도 즉시 반영됩니다.
+9. 황금 틀은 계정별 장착·해제가 가능하며, 장착 시 모든 조리 틀의 외형과 새로 시작하는 붕어빵의 굽기 시간 배율(0.8)을 바꿉니다.
+
+## 검증된 WebGL 패키지 갱신
+
+Unity 6000.3.22f1에서 `WebGLBuildCommand.Build`를 실행한 뒤 서버 디렉터리에서 아래 명령을 사용합니다.
+
+```bash
+pnpm unity:stage
+pnpm unity:verify
+```
+
+`unity:stage`는 `BungeoppangTycoon/Builds/WebGL`을 `platform-server/game-dist`로 옮기고 `build-manifest.json`에 Unity 버전, Unity 소스 트리 SHA-256, 각 WebGL 파일의 크기·SHA-256을 기록합니다. `unity:verify`는 소스나 산출물이 매니페스트와 다르면 실패하며 DEV AWS 배포에서도 같은 검사를 실행합니다.
 
 서버와 WebGL을 동일한 Origin에서 제공하는 구성이 쿠키·CORS·팝업 연동을 가장 단순하게 만듭니다. 별도 도메인으로 배포할 경우 `.env`의 `GAME_ORIGIN`을 정확한 WebGL Origin으로 설정해야 합니다.
 
