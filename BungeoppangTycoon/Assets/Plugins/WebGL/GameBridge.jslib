@@ -37,5 +37,21 @@ mergeInto(LibraryManager.library, {
     window.gameBridge.openHiveWebShop()
       .then(function () { SendMessage(gameObject, successMethod, "closed"); })
       .catch(function (error) { SendMessage(gameObject, errorMethod, error.message || String(error)); });
+  },
+
+  GameBridge_OpenNicePay: function (productIdPointer, gameObjectPointer, successMethodPointer, errorMethodPointer) {
+    var productId = UTF8ToString(productIdPointer);
+    var gameObject = UTF8ToString(gameObjectPointer);
+    var successMethod = UTF8ToString(successMethodPointer);
+    var errorMethod = UTF8ToString(errorMethodPointer);
+
+    if (!window.gameBridge) {
+      SendMessage(gameObject, errorMethod, "window.gameBridge가 없습니다.");
+      return;
+    }
+
+    window.gameBridge.openNicePayTestCheckout(productId)
+      .then(function () { SendMessage(gameObject, successMethod, "paid"); })
+      .catch(function (error) { SendMessage(gameObject, errorMethod, error.message || String(error)); });
   }
 });

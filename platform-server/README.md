@@ -10,6 +10,7 @@ Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, �
 - 외부 토큰을 브라우저에 노출하지 않는 서버 게임 세션과 DynamoDB 세션 영속화
 - OpenAI Responses API 서버 프록시와 mock 응답
 - 사용자별 테스트 포인트 mock 결제·충전, 중복 차감 방지, 메모리/DynamoDB 아이템 저장소
+- NICEPAY 샌드박스 테스트 결제의 주문·서명·승인 검증과 사용자별 상품 지급
 - 일반 게임 돈과 분리된 팥 코인 및 사용자별 황금 틀 장착 상태
 - HIVE 웹 상점 연결, 인게임 정보 조회, 결제 알림·미소비 주문·영수증 검증·지급 완료 API
 - `/game/` Unity WebGL 제공 및 루트 화면 iframe 임베드
@@ -39,6 +40,9 @@ pnpm dev
 
 `.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다. 루트 화면에는 상단 헤더와 Unity 게임이 표시됩니다. `STORE_DEV_TOOLS=true`인 개발 환경에서만 게임 바깥 오른쪽에 테스트 결제 패널이 나타납니다. 로그인 사용자는 10,000P로 시작하고, 개발용 충전 또는 1,100P·5,500P·3,300P 상품 결제를 실행할 수 있습니다. 서버의 사용자별 잔액·인벤토리는 실행 중인 게임과 즉시 동기화됩니다.
 
+`STORE_MODE=nicepay-test`에서는 NICEPAY 테스트용 `NICEPAY_CLIENT_ID`와
+`NICEPAY_SECRET_KEY`가 필요하며, 카드 결제창의 테스트 거래는 실제 청구 없이 승인 후 팥 코인 또는 황금 틀을 지급합니다.
+
 ## 실제 서비스 전환
 
 ### Hive Sandbox
@@ -46,6 +50,9 @@ pnpm dev
 `.env`에서 `HIVE_MODE=sandbox`로 바꾸고 HIVE Console에서 받은 네 가지 값을 채웁니다. 현재 HIVE 통합 Web Login은 OAuth Client Secret을 사용하는 `/token` 검증 방식입니다. 자세한 내용은 [HIVE Console 체크리스트](docs/hive-console-checklist.md)를 참고합니다.
 
 ### HIVE 웹 상점
+
+HIVE 전체 PG·영수증·결제 알림 검증은 현재 개발 범위에서 영구 보류합니다. 아래 설정은
+향후 재개할 때만 사용합니다.
 
 HIVE Unity SDK가 WebGL을 빌드 대상으로 제공하지 않으므로 WebGL 게임은 브라우저 브리지에서 HIVE Web Login과 관리형 웹 상점을 사용하고, 서버는 HIVE Billing Server API를 사용합니다. `STORE_MODE=hive-web-shop`, `HIVE_WEB_SHOP_URL`, `HIVE_BILLING_APP_ID`, `HIVE_BILLING_AUTH_KEY`를 설정합니다. 게임 상점의 `팥 코인 충전` 버튼은 HIVE 웹 상점을 열며 서버는 결제 알림을 받은 뒤 PlayerID의 미소비 주문과 영수증을 검증하고, DynamoDB에 한 번만 지급한 뒤 HIVE에 지급 완료를 전송합니다.
 

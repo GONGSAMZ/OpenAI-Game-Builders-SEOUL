@@ -16,6 +16,17 @@ import {
 } from "./integrations/hive/billing-client.js";
 import { decodeHivePayload } from "./integrations/hive/codec.js";
 import {
+  NicePayClient,
+  type NicePayGateway,
+  verifyNicePayApprovalSignature,
+  verifyNicePayAuthenticationSignature
+} from "./integrations/nicepay/client.js";
+import {
+  createNicePayOrderStore,
+  type NicePayOrderStore
+} from "./integrations/nicepay/order-store.js";
+import { sendNicePayCheckoutPage, sendNicePayResultPage } from "./nicepay-page.js";
+import {
   createSessionStore,
   OneTimeAttemptStore,
   type GameSession,
@@ -54,6 +65,22 @@ const moldEquipmentSchema = z.object({
   itemId: z.literal("golden-pan").nullable()
 });
 
+const nicePayOrderSchema = z.object({
+  productId: z.string().trim().min(1).max(100)
+});
+
+const nicePayCallbackSchema = z.object({
+  authResultCode: z.string().trim().min(1).max(20),
+  authResultMsg: z.string().trim().max(500).optional().default(""),
+  tid: z.string().trim().min(1).max(100),
+  clientId: z.string().trim().min(1).max(200),
+  orderId: z.string().regex(/^NP_[a-f\d]{32}$/i),
+  amount: z.coerce.number().int().positive().safe(),
+  mallReserved: z.string().max(2_000).optional(),
+  authToken: z.string().trim().min(1).max(2_000),
+  signature: z.string().regex(/^[a-f\d]{64}$/i)
+});
+
 const hiveWebShopProfileSchema = z.object({
   cs_code: z.coerce.number().int().positive().safe()
 });
@@ -77,6 +104,8 @@ interface AppDependencies {
   loginAttempts?: OneTimeAttemptStore;
   hiveClient?: HiveWebLoginClient;
   billingClient?: HiveBillingGateway;
+  nicePayGateway?: NicePayGateway;
+  nicePayOrders?: NicePayOrderStore;
   aiService?: AiService;
   marketStore?: MarketStore;
 }
@@ -139,6 +168,8 @@ export function createApp(dependencies: AppDependencies) {
   const loginAttempts = dependencies.loginAttempts ?? new OneTimeAttemptStore();
   const hiveClient = dependencies.hiveClient ?? new HiveWebLoginClient(config.hive);
   const billingClient = dependencies.billingClient ?? new HiveBillingClient(config.hive);
+  const nicePayGateway = dependencies.nicePayGateway ?? new NicePayClient(config.nicepay);
+  const nicePayOrders = dependencies.nicePayOrders ?? createNicePayOrderStore(config);
   const aiService = dependencies.aiService ?? new AiService(config.openai);
   const marketStore = dependencies.marketStore ?? createMarketStore(config);
   const app = express();
@@ -176,6 +207,7 @@ export function createApp(dependencies: AppDependencies) {
     })
   );
   app.use(express.json({ limit: "32kb" }));
+  app.use(express.urlencoded({ extended: false, limit: "16kb" }));
 
   app.use((request, response, next) => {
     const requestId = request.header("x-request-id")?.slice(0, 128) ?? randomUUID();
@@ -369,12 +401,128 @@ export function createApp(dependencies: AppDependencies) {
   });
 
   app.post(
+    "/api/v1/store/nicepay/orders",
+    purchaseLimiter,
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      if (config.store.mode !== "nicepay-test") {
+        throw new HttpError(404, "NICEPAY 테스트 결제가 비활성화되어 있습니다.");
+      }
+      const input = nicePayOrderSchema.parse(request.body);
+      const product = findProduct(input.productId);
+      if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
+      const { session } = response.locals as AuthenticatedLocals;
+      const order = await nicePayOrders.create({
+        subject: session.subject,
+        productId: product.id,
+        goodsName: product.name,
+        amount: product.priceKrw
+      });
+      response.status(201).json({
+        orderId: order.orderId,
+        amount: order.amount,
+        goodsName: order.goodsName,
+        checkoutUrl: `/api/v1/store/nicepay/checkout?orderId=${encodeURIComponent(order.orderId)}`
+      });
+    }
+  );
+
+  app.get("/api/v1/store/nicepay/checkout", async (request, response) => {
+    if (config.store.mode !== "nicepay-test" || !config.nicepay.clientId) {
+      throw new HttpError(404, "NICEPAY 테스트 결제가 비활성화되어 있습니다.");
+    }
+    const orderId = z.string().regex(/^NP_[a-f\d]{32}$/i).parse(request.query.orderId);
+    const order = await nicePayOrders.get(orderId);
+    if (!order) throw new HttpError(404, "NICEPAY 주문을 찾을 수 없습니다.");
+    if (order.status !== "pending") throw new HttpError(409, "이미 처리된 NICEPAY 주문입니다.");
+    if (order.expiresAtEpoch < Math.floor(Date.now() / 1000)) {
+      throw new HttpError(410, "NICEPAY 주문이 만료되었습니다.");
+    }
+    sendNicePayCheckoutPage(response, {
+      order,
+      clientId: config.nicepay.clientId,
+      returnUrl: `${config.publicBaseUrl}/api/v1/store/nicepay/callback`
+    });
+  });
+
+  app.post("/api/v1/store/nicepay/callback", purchaseLimiter, async (request, response) => {
+    const resultOrigin = new URL(config.publicBaseUrl).origin;
+    try {
+      if (config.store.mode !== "nicepay-test" || !config.nicepay.clientId || !config.nicepay.secretKey) {
+        throw new Error("NICEPAY 테스트 결제가 비활성화되어 있습니다.");
+      }
+      const input = nicePayCallbackSchema.parse(request.body);
+      const order = await nicePayOrders.get(input.orderId);
+      if (!order) throw new Error("NICEPAY 주문을 찾을 수 없습니다.");
+      if (order.status === "paid") {
+        sendNicePayResultPage(response, resultOrigin, {
+          success: true,
+          message: "이미 지급된 테스트 결제입니다.",
+          orderId: order.orderId
+        });
+        return;
+      }
+      if (order.expiresAtEpoch < Math.floor(Date.now() / 1000)) {
+        throw new Error("NICEPAY 주문이 만료되었습니다.");
+      }
+      if (input.authResultCode !== "0000") throw new Error("NICEPAY 테스트 결제가 취소됐습니다.");
+      if (input.clientId !== config.nicepay.clientId) throw new Error("NICEPAY Client ID가 일치하지 않습니다.");
+      if (input.amount !== order.amount) throw new Error("NICEPAY 결제 금액이 주문과 일치하지 않습니다.");
+      if (!verifyNicePayAuthenticationSignature({
+        authToken: input.authToken,
+        clientId: input.clientId,
+        amount: input.amount,
+        secretKey: config.nicepay.secretKey,
+        signature: input.signature
+      })) {
+        throw new Error("NICEPAY 인증 서명이 올바르지 않습니다.");
+      }
+
+      const approval = await nicePayGateway.approvePayment({ tid: input.tid, amount: order.amount });
+      if (
+        approval.resultCode !== "0000" ||
+        approval.status !== "paid" ||
+        approval.tid !== input.tid ||
+        approval.orderId !== order.orderId ||
+        approval.amount !== order.amount ||
+        !verifyNicePayApprovalSignature(approval, config.nicepay.secretKey)
+      ) {
+        throw new Error("NICEPAY 승인 결과가 주문과 일치하지 않습니다.");
+      }
+
+      const product = findProduct(order.productId);
+      if (!product || product.priceKrw !== order.amount) {
+        throw new Error("서버 상품 정보가 주문과 일치하지 않습니다.");
+      }
+      await marketStore.grantPurchase(order.subject, product, {
+        provider: "nicepay-test",
+        transactionId: approval.tid
+      });
+      await nicePayOrders.markPaid(order.orderId, approval.tid);
+      sendNicePayResultPage(response, resultOrigin, {
+        success: true,
+        message: "NICEPAY 테스트 결제가 계정에 지급됐습니다.",
+        orderId: order.orderId
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "NICEPAY 테스트 결제 처리에 실패했습니다.";
+      if (config.nodeEnv !== "test") {
+        console.error(JSON.stringify({ type: "nicepay_test_payment_error", message, revision: config.revision }));
+      }
+      sendNicePayResultPage(response, resultOrigin, {
+        success: false,
+        message: config.nodeEnv === "production" ? "NICEPAY 테스트 결제 처리에 실패했습니다." : message
+      });
+    }
+  });
+
+  app.post(
     "/api/v1/store/mock-purchases",
     purchaseLimiter,
     requireGameSession,
     async (request: Request, response: Response) => {
       if (config.store.mode !== "mock") {
-        throw new HttpError(403, "실제 HIVE 웹 상점 모드에서는 mock 구매를 사용할 수 없습니다.");
+        throw new HttpError(403, "현재 상점 모드에서는 mock 구매를 사용할 수 없습니다.");
       }
 
       const input = mockPurchaseSchema.parse(request.body);

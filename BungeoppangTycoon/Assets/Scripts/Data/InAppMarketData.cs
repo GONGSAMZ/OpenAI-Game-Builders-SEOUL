@@ -21,6 +21,7 @@ public sealed class InAppMarketProduct
     public string name;
     public string description;
     public string priceLabel;
+    public int priceKrw;
     public int testPointPrice;
     public string marketPid;
     public InAppMarketGrant grant;

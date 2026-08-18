@@ -492,7 +492,7 @@ public static class InAppMarketPrefabBuilder
                     sample,
                     sample.id == "golden-pan" ? 1 : 0,
                     true,
-                    false,
+                    "mock",
                     sample.id == "golden-pan",
                     _ => { },
                     (_, _) => { });

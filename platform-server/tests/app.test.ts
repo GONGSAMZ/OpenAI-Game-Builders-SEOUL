@@ -1,8 +1,10 @@
 import request from "supertest";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import type { HiveBillingGateway } from "../src/integrations/hive/billing-client.js";
+import type { NicePayGateway } from "../src/integrations/nicepay/client.js";
 import { InMemoryMarketStore } from "../src/store/store.js";
 import { createTestConfig } from "./helpers.js";
 
@@ -22,6 +24,10 @@ async function login(app: ReturnType<typeof createApp>): Promise<string> {
     .set("Cookie", cookie)
     .expect(200);
   return extractSessionToken(callback.text);
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 describe("integration API", () => {
@@ -190,6 +196,154 @@ describe("integration API", () => {
     expect(duplicate.body).toEqual(expect.objectContaining({ duplicate: true }));
     expect(duplicate.body.inventory).toContainEqual({ itemId: "red-bean-coin", quantity: 100 });
     expect(duplicate.body.wallet).toEqual({ testPoints: 8900 });
+  });
+
+  it("NICEPAY 테스트 승인 결제를 로그인 사용자에게 한 번만 지급한다", async () => {
+    const marketStore = new InMemoryMarketStore();
+    const clientId = "S2_test-client";
+    const secretKey = "test-secret";
+    let approvalCalls = 0;
+    const nicePayGateway: NicePayGateway = {
+      async approvePayment({ tid, amount }) {
+        approvalCalls += 1;
+        const ediDate = "20260819123000";
+        return {
+          resultCode: "0000",
+          status: "paid",
+          tid,
+          orderId: activeOrderId,
+          amount,
+          ediDate,
+          signature: sha256(`${tid}${amount}${ediDate}${secretKey}`)
+        };
+      }
+    };
+    let activeOrderId = "";
+    const app = createApp({
+      config: createTestConfig({
+        store: { mode: "nicepay-test", devToolsEnabled: true, dataStore: "memory" },
+        nicepay: { clientId, secretKey, apiBaseUrl: "https://sandbox-api.nicepay.co.kr" }
+      }),
+      marketStore,
+      nicePayGateway
+    });
+    const token = await login(app);
+    const created = await request(app)
+      .post("/api/v1/store/nicepay/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ productId: "red-bean-100" })
+      .expect(201);
+    activeOrderId = created.body.orderId;
+    expect(created.body).toEqual(expect.objectContaining({ amount: 1100 }));
+
+    const checkout = await request(app)
+      .get(created.body.checkoutUrl)
+      .expect(200);
+    expect(checkout.text).toContain("https://pay.nicepay.co.kr/v1/js/");
+    expect(checkout.text).toContain(activeOrderId);
+    expect(checkout.text).not.toContain(secretKey);
+
+    const tid = "nicepay-test-tid-100";
+    const authToken = "nicepay-auth-token";
+    const callback = {
+      authResultCode: "0000",
+      authResultMsg: "success",
+      tid,
+      clientId,
+      orderId: activeOrderId,
+      amount: "1100",
+      authToken,
+      signature: sha256(`${authToken}${clientId}1100${secretKey}`)
+    };
+    const first = await request(app)
+      .post("/api/v1/store/nicepay/callback")
+      .type("form")
+      .send(callback)
+      .expect(200);
+    expect(first.text).toContain("NICEPAY_PAYMENT_SUCCESS");
+
+    const duplicate = await request(app)
+      .post("/api/v1/store/nicepay/callback")
+      .type("form")
+      .send(callback)
+      .expect(200);
+    expect(duplicate.text).toContain("NICEPAY_PAYMENT_SUCCESS");
+    expect(approvalCalls).toBe(1);
+
+    const goldenOrder = await request(app)
+      .post("/api/v1/store/nicepay/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ productId: "golden-pan" })
+      .expect(201);
+    activeOrderId = goldenOrder.body.orderId;
+    const goldenTid = "nicepay-test-tid-golden";
+    const goldenAuthToken = "nicepay-golden-auth-token";
+    await request(app)
+      .post("/api/v1/store/nicepay/callback")
+      .type("form")
+      .send({
+        ...callback,
+        tid: goldenTid,
+        orderId: activeOrderId,
+        amount: "3300",
+        authToken: goldenAuthToken,
+        signature: sha256(`${goldenAuthToken}${clientId}3300${secretKey}`)
+      })
+      .expect(200);
+    expect(approvalCalls).toBe(2);
+
+    const playerInventory = await marketStore.getInventory("mock-hive:local-player");
+    expect(playerInventory).toContainEqual({
+      itemId: "red-bean-coin",
+      quantity: 100
+    });
+    expect(playerInventory).toContainEqual({ itemId: "golden-pan", quantity: 1 });
+    expect(await marketStore.getInventory("another-player")).toEqual([]);
+  });
+
+  it("NICEPAY 콜백 금액이나 서명이 주문과 다르면 승인·지급하지 않는다", async () => {
+    const marketStore = new InMemoryMarketStore();
+    let approvalCalls = 0;
+    const nicePayGateway: NicePayGateway = {
+      async approvePayment() {
+        approvalCalls += 1;
+        throw new Error("호출되면 안 됩니다.");
+      }
+    };
+    const app = createApp({
+      config: createTestConfig({
+        store: { mode: "nicepay-test", devToolsEnabled: true, dataStore: "memory" },
+        nicepay: {
+          clientId: "S2_test-client",
+          secretKey: "test-secret",
+          apiBaseUrl: "https://sandbox-api.nicepay.co.kr"
+        }
+      }),
+      marketStore,
+      nicePayGateway
+    });
+    const token = await login(app);
+    const created = await request(app)
+      .post("/api/v1/store/nicepay/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ productId: "golden-pan" })
+      .expect(201);
+    const response = await request(app)
+      .post("/api/v1/store/nicepay/callback")
+      .type("form")
+      .send({
+        authResultCode: "0000",
+        tid: "forged-tid",
+        clientId: "S2_test-client",
+        orderId: created.body.orderId,
+        amount: "1",
+        authToken: "forged-token",
+        signature: "0".repeat(64)
+      })
+      .expect(200);
+    expect(response.text).toContain("NICEPAY_PAYMENT_ERROR");
+    expect(approvalCalls).toBe(0);
+    expect(await marketStore.getInventory("mock-hive:local-player")).toEqual([]);
   });
 
   it("mock 결제는 사용자별 테스트 포인트를 차감하고 부족하면 지급하지 않는다", async () => {

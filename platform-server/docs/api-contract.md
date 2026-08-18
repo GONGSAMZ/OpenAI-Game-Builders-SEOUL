@@ -64,7 +64,16 @@ Hive 로그인 후 호출할 수 있습니다.
 
 ### `GET /api/v1/store/catalog`
 
-공개 상품 목록과 현재 `mock`/`hive-web-shop` 모드를 반환합니다.
+공개 상품 목록과 현재 `mock`/`nicepay-test`/`hive-web-shop` 모드를 반환합니다.
+
+### NICEPAY 테스트 결제
+
+- `POST /api/v1/store/nicepay/orders` — 로그인 계정과 서버 카탈로그 가격으로 일회성 주문 생성
+- `GET /api/v1/store/nicepay/checkout?orderId=...` — NICEPAY 공식 테스트 결제창 시작
+- `POST /api/v1/store/nicepay/callback` — 인증 서명·주문 금액·샌드박스 승인 결과를 검증하고 사용자별 아이템 지급
+
+지급 키는 NICEPAY `tid`이므로 동일 콜백이나 재시도에서도 한 번만 지급됩니다. HIVE 전체
+PG/영수증/결제 알림 검증은 현재 개발 범위에서 영구 보류합니다.
 
 ### `GET /api/v1/store/me`
 

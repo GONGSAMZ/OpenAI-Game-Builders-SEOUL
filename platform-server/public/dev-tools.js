@@ -11,6 +11,7 @@
   const status = document.getElementById("dev-grant-status");
   let session = null;
   let syncing = false;
+  let storeMode = "mock";
 
   function currencyFromInventory(inventory) {
     return inventory.find((entry) => entry.itemId === "red-bean-coin")?.quantity ?? 0;
@@ -71,7 +72,9 @@
       actionButtons.forEach((action) => { action.disabled = true; });
       status.textContent = `${button.dataset.productName || "상품"} 테스트 결제를 처리하고 있습니다…`;
       try {
-        const result = await window.gameBridge.createMockPurchase(button.dataset.devProductId);
+        const result = storeMode === "nicepay-test"
+          ? await window.gameBridge.openNicePayTestCheckout(button.dataset.devProductId)
+          : await window.gameBridge.createMockPurchase(button.dataset.devProductId);
         renderState(
           result.inventory,
           result.wallet,
@@ -94,6 +97,13 @@
   async function configure() {
     const config = await window.gameBridge.getPublicConfig();
     if (!config.storeDevTools) return;
+    storeMode = config.storeMode;
+    if (storeMode === "nicepay-test") {
+      purchaseButtons.forEach((button) => {
+        const price = button.querySelector("strong");
+        if (price) price.textContent = price.textContent.replace(" P", "원");
+      });
+    }
     panel.hidden = false;
 
     try {

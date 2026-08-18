@@ -23,7 +23,7 @@ Parameters:
     Default: mock
   StoreMode:
     Type: String
-    AllowedValues: [mock, hive-web-shop]
+    AllowedValues: [mock, nicepay-test, hive-web-shop]
     Default: mock
   StoreDevTools:
     Type: String
@@ -53,6 +53,9 @@ Conditions:
   HasHiveBillingSecret: !And
     - !Equals [!Ref UseRuntimeSecrets, "true"]
     - !Equals [!Ref StoreMode, hive-web-shop]
+  HasNicePayRuntimeSecrets: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Equals [!Ref StoreMode, nicepay-test]
   HasOperationsAlertTopic: !Not [!Equals [!Ref OperationsAlertTopicArn, ""]]
 
 Resources:
@@ -285,6 +288,16 @@ Resources:
               - HasHiveBillingSecret
               - Name: HIVE_BILLING_AUTH_KEY
                 ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_BILLING_AUTH_KEY::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasNicePayRuntimeSecrets
+              - Name: NICEPAY_CLIENT_ID
+                ValueFrom: !Sub "${RuntimeSecretArn}:NICEPAY_CLIENT_ID::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasNicePayRuntimeSecrets
+              - Name: NICEPAY_SECRET_KEY
+                ValueFrom: !Sub "${RuntimeSecretArn}:NICEPAY_SECRET_KEY::"
               - !Ref AWS::NoValue
           LogConfiguration:
             LogDriver: awslogs

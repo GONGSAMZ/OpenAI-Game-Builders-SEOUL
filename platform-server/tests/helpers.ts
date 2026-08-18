@@ -20,6 +20,9 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
       devToolsEnabled: true,
       dataStore: "memory"
     },
+    nicepay: {
+      apiBaseUrl: "https://sandbox-api.nicepay.co.kr"
+    },
     openai: {
       mode: "mock",
       model: "gpt-5.6-luna"
@@ -31,6 +34,7 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     ...overrides,
     hive: { ...base.hive, ...overrides.hive },
     store: { ...base.store, ...overrides.store },
+    nicepay: { ...base.nicepay, ...overrides.nicepay },
     openai: { ...base.openai, ...overrides.openai }
   };
 }

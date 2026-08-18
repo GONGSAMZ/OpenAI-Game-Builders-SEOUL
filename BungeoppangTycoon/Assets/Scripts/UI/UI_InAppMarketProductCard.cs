@@ -41,7 +41,7 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
         InAppMarketProduct value,
         int ownedQuantity,
         bool isLoggedIn,
-        bool opensWebShop,
+        string storeMode,
         bool isEquipped,
         Action<InAppMarketProduct> onPurchase,
         Action<InAppMarketProduct, bool> onEquipmentChanged)
@@ -55,7 +55,9 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
         descriptionText.text = string.IsNullOrWhiteSpace(product.description)
             ? "상품 설명이 없습니다."
             : product.description;
-        priceText.text = opensWebShop
+        bool usesExternalPayment = string.Equals(storeMode, "hive-web-shop", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(storeMode, "nicepay-test", StringComparison.OrdinalIgnoreCase);
+        priceText.text = usesExternalPayment
             ? (string.IsNullOrWhiteSpace(product.priceLabel) ? "가격 확인 필요" : product.priceLabel)
             : $"{product.testPointPrice:N0} P";
         RefreshOwned(ownedQuantity);
@@ -78,7 +80,9 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
         if (!isLoggedIn)
             idleButtonText = "로그인 후 구매";
         else
-            idleButtonText = opensWebShop ? "웹 상점 열기" : "포인트 결제";
+            idleButtonText = string.Equals(storeMode, "nicepay-test", StringComparison.OrdinalIgnoreCase)
+                ? "NICEPAY 테스트 결제"
+                : (usesExternalPayment ? "웹 상점 열기" : "포인트 결제");
 
         baseInteractable = true;
         purchaseButton.interactable = true;

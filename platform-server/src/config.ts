@@ -27,8 +27,10 @@ const environmentSchema = z.object({
   HIVE_COUNTRY: z.string().length(2).default("KR"),
   HIVE_LANGUAGE: z.string().min(2).max(8).default("ko"),
   HIVE_WEB_SHOP_URL: optionalUrl,
-  STORE_MODE: z.enum(["mock", "hive-web-shop"]).default("mock"),
+  STORE_MODE: z.enum(["mock", "nicepay-test", "hive-web-shop"]).default("mock"),
   STORE_DEV_TOOLS: z.stringbool().default(false),
+  NICEPAY_CLIENT_ID: optionalNonEmptyString,
+  NICEPAY_SECRET_KEY: optionalNonEmptyString,
   DATA_STORE: z.enum(["memory", "dynamodb"]).default("memory"),
   DYNAMODB_TABLE: optionalNonEmptyString,
   OPENAI_MODE: z.enum(["mock", "live"]).default("mock"),
@@ -39,7 +41,7 @@ const environmentSchema = z.object({
 
 export type HiveMode = "mock" | "sandbox" | "production";
 export type OpenAiMode = "mock" | "live";
-export type StoreMode = "mock" | "hive-web-shop";
+export type StoreMode = "mock" | "nicepay-test" | "hive-web-shop";
 
 export interface AppConfig {
   nodeEnv: "development" | "test" | "production";
@@ -66,6 +68,11 @@ export interface AppConfig {
     devToolsEnabled: boolean;
     dataStore: "memory" | "dynamodb";
     dynamodbTable?: string;
+  };
+  nicepay: {
+    clientId?: string;
+    secretKey?: string;
+    apiBaseUrl: string;
   };
   openai: {
     mode: OpenAiMode;
@@ -109,6 +116,14 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     }
   }
 
+  if (parsed.STORE_MODE === "nicepay-test") {
+    if (!parsed.NICEPAY_CLIENT_ID || !parsed.NICEPAY_SECRET_KEY) {
+      throw new Error(
+        "STORE_MODE=nicepay-test이면 NICEPAY_CLIENT_ID와 NICEPAY_SECRET_KEY가 필요합니다."
+      );
+    }
+  }
+
   if (parsed.DATA_STORE === "dynamodb" && !parsed.DYNAMODB_TABLE) {
     throw new Error("DATA_STORE=dynamodb이면 DYNAMODB_TABLE이 필요합니다.");
   }
@@ -138,6 +153,11 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
       devToolsEnabled: parsed.STORE_DEV_TOOLS,
       dataStore: parsed.DATA_STORE,
       dynamodbTable: parsed.DYNAMODB_TABLE
+    },
+    nicepay: {
+      clientId: parsed.NICEPAY_CLIENT_ID,
+      secretKey: parsed.NICEPAY_SECRET_KEY,
+      apiBaseUrl: "https://sandbox-api.nicepay.co.kr"
     },
     openai: {
       mode: parsed.OPENAI_MODE,

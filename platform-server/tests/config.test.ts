@@ -28,6 +28,17 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ STORE_MODE: "hive-web-shop" })).toThrow("HIVE_WEB_SHOP_URL");
   });
 
+  it("NICEPAY 테스트 모드는 샌드박스 키를 요구한다", () => {
+    expect(() => loadConfig({ STORE_MODE: "nicepay-test" })).toThrow("NICEPAY_CLIENT_ID");
+    const config = loadConfig({
+      STORE_MODE: "nicepay-test",
+      NICEPAY_CLIENT_ID: "S2_test-client",
+      NICEPAY_SECRET_KEY: "test-secret"
+    });
+    expect(config.store.mode).toBe("nicepay-test");
+    expect(config.nicepay.apiBaseUrl).toBe("https://sandbox-api.nicepay.co.kr");
+  });
+
   it("DynamoDB 저장소는 테이블 이름을 요구한다", () => {
     expect(() => loadConfig({ DATA_STORE: "dynamodb" })).toThrow("DYNAMODB_TABLE");
   });

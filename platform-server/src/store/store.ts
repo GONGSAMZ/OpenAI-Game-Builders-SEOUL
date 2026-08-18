@@ -34,7 +34,7 @@ export interface PlayerStoreState {
 
 export interface StorePurchase {
   purchaseId: string;
-  provider: "mock" | "dev-tools" | "hive-web-shop";
+  provider: "mock" | "dev-tools" | "nicepay-test" | "hive-web-shop";
   productId: string;
   itemId: string;
   quantity: number;

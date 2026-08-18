@@ -162,6 +162,56 @@
       });
     }
 
+    async openNicePayTestCheckout(productId) {
+      const popup = global.open("about:blank", "nicepay-test", "popup,width=520,height=760");
+      if (!popup) throw new Error("NICEPAY 테스트 결제 팝업이 차단되었습니다.");
+      popup.document.title = "NICEPAY 테스트 결제 준비 중";
+
+      try {
+        const order = await this.request("/api/v1/store/nicepay/orders", {
+          method: "POST",
+          body: JSON.stringify({ productId })
+        });
+        popup.location.replace(new URL(order.checkoutUrl, this.baseUrl).toString());
+      } catch (error) {
+        popup.close();
+        throw error;
+      }
+
+      await new Promise((resolve, reject) => {
+        let settled = false;
+        const finish = (callback) => {
+          if (settled) return;
+          settled = true;
+          global.removeEventListener("message", onMessage);
+          global.clearInterval(closedWatcher);
+          global.clearTimeout(timeout);
+          callback();
+        };
+        const onMessage = (event) => {
+          if (event.origin !== this.serverOrigin) return;
+          if (event.data?.type === "NICEPAY_PAYMENT_SUCCESS") {
+            finish(resolve);
+          } else if (event.data?.type === "NICEPAY_PAYMENT_ERROR") {
+            finish(() => reject(new Error(event.data.message || "NICEPAY 테스트 결제에 실패했습니다.")));
+          }
+        };
+        const closedWatcher = global.setInterval(() => {
+          if (popup.closed) finish(() => reject(new Error("NICEPAY 테스트 결제창이 닫혔습니다.")));
+        }, 500);
+        const timeout = global.setTimeout(() => {
+          popup.close();
+          finish(() => reject(new Error("NICEPAY 테스트 결제 시간이 초과되었습니다.")));
+        }, 10 * 60 * 1000);
+        global.addEventListener("message", onMessage);
+      });
+
+      if (!popup.closed) popup.close();
+      const state = await this.getInventory();
+      this.broadcastInventory(state.inventory, state.equipment, state.wallet);
+      return state;
+    }
+
     createDevGrant(productId = "red-bean-100", idempotencyKey = global.crypto.randomUUID()) {
       return this.request("/api/v1/store/dev-grants", {
         method: "POST",

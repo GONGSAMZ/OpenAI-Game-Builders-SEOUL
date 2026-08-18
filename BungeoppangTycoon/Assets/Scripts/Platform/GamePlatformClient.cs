@@ -16,6 +16,7 @@ public sealed class GamePlatformClient : MonoBehaviour
     public event Action<string> LoginSucceeded;
     public event Action<string> RequestFailed;
     public event Action StoreStateChanged;
+    public event Action PaymentSucceeded;
 
     private string sessionToken;
     private bool serverSessionAvailable;
@@ -39,6 +40,9 @@ public sealed class GamePlatformClient : MonoBehaviour
 
     [DllImport("__Internal")]
     private static extern void GameBridge_OpenShop(string gameObject, string successMethod, string errorMethod);
+
+    [DllImport("__Internal")]
+    private static extern void GameBridge_OpenNicePay(string productId, string gameObject, string successMethod, string errorMethod);
 #endif
 
     public bool IsLoggedIn => serverSessionAvailable || !string.IsNullOrWhiteSpace(sessionToken);
@@ -150,6 +154,15 @@ public sealed class GamePlatformClient : MonoBehaviour
         });
     }
 
+    public void OpenNicePayTestCheckout(string productId)
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        GameBridge_OpenNicePay(productId, gameObject.name, nameof(OnNicePayPaymentCompleted), nameof(OnBridgeError));
+#else
+        OnBridgeError("NICEPAY 테스트 결제는 WebGL 빌드에서 테스트하세요.");
+#endif
+    }
+
     public void SyncInventoryNow()
     {
         if (!IsLoggedIn) return;
@@ -205,6 +218,12 @@ public sealed class GamePlatformClient : MonoBehaviour
     public void OnHiveShopClosed(string _)
     {
         SyncInventoryNow();
+    }
+
+    public void OnNicePayPaymentCompleted(string _)
+    {
+        SyncInventoryNow();
+        PaymentSucceeded?.Invoke();
     }
 
     public void OnInventoryUpdated(string json)

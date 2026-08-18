@@ -60,6 +60,7 @@ public sealed class UI_InAppMarket : UI_Base
         platformClient.LoginSucceeded += OnLoginSucceeded;
         platformClient.RequestFailed += OnRequestFailed;
         platformClient.StoreStateChanged += OnStoreStateChanged;
+        platformClient.PaymentSucceeded += OnPaymentSucceeded;
 
         closeButton.onClick.AddListener(Close);
         loginButton.onClick.AddListener(LoginOrRefresh);
@@ -83,6 +84,7 @@ public sealed class UI_InAppMarket : UI_Base
             platformClient.LoginSucceeded -= OnLoginSucceeded;
             platformClient.RequestFailed -= OnRequestFailed;
             platformClient.StoreStateChanged -= OnStoreStateChanged;
+            platformClient.PaymentSucceeded -= OnPaymentSucceeded;
         }
 
         if (didPauseGame)
@@ -250,7 +252,6 @@ public sealed class UI_InAppMarket : UI_Base
             return;
         }
 
-        bool opensWebShop = string.Equals(catalogMode, "hive-web-shop", StringComparison.OrdinalIgnoreCase);
         foreach (InAppMarketProduct product in products)
         {
             if (product == null || string.IsNullOrWhiteSpace(product.id))
@@ -270,7 +271,7 @@ public sealed class UI_InAppMarket : UI_Base
                 product,
                 ownedQuantity,
                 platformClient.IsLoggedIn,
-                opensWebShop,
+                catalogMode,
                 isEquipped,
                 Purchase,
                 ChangeEquipment);
@@ -299,7 +300,21 @@ public sealed class UI_InAppMarket : UI_Base
             return;
         }
 
+        if (string.Equals(catalogMode, "nicepay-test", StringComparison.OrdinalIgnoreCase))
+        {
+            SetCardsBusy(true);
+            SetStatus($"{product.name} NICEPAY 테스트 결제창을 열었습니다.", false);
+            platformClient.OpenNicePayTestCheckout(product.id);
+            return;
+        }
+
         StartCoroutine(PurchaseMock(product));
+    }
+
+    private void OnPaymentSucceeded()
+    {
+        SetCardsBusy(false);
+        SetStatus("NICEPAY 테스트 결제가 계정 보유 아이템에 지급됐습니다.", false);
     }
 
     private IEnumerator PurchaseMock(InAppMarketProduct product)
