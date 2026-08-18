@@ -2804,6 +2804,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: customer3
       objectReference: {fileID: 0}
+    - target: {fileID: 2649933109947655072, guid: daf41981f7db8bd46b8a451a68d0ecf6, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: -341632398, guid: 3ac839f1b2d84409f4e087c1e28694e0, type: 3}
     - target: {fileID: 7105329617528391074, guid: daf41981f7db8bd46b8a451a68d0ecf6, type: 3}
       propertyPath: 'm_ActiveFontFeatures.Array.data[0]'
       value: 1801810542
@@ -4888,6 +4892,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: customer1
       objectReference: {fileID: 0}
+    - target: {fileID: 2649933109947655072, guid: daf41981f7db8bd46b8a451a68d0ecf6, type: 3}
+      propertyPath: m_Sprite
+      value: 
+      objectReference: {fileID: 1669446355, guid: 2f92c271b110154d720166ac7a84c249, type: 3}
     - target: {fileID: 7105329617528391074, guid: daf41981f7db8bd46b8a451a68d0ecf6, type: 3}
       propertyPath: 'm_ActiveFontFeatures.Array.data[0]'
       value: 1801810542

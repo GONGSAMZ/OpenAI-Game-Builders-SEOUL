@@ -49,6 +49,8 @@ public class ToolController : MonoBehaviour
         GetComponent<SpriteRenderer>().sortingOrder = maxSortingOrder;
         selectedTool = this;
 
+        TutorialSignals.Raise(TutorialEvent.ToolSelected, gameObject);
+
     }
 
     //객체 내려놓는 메서드

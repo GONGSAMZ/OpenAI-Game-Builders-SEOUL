@@ -13,20 +13,26 @@ public class CameraController : MonoBehaviour
     private void Start()
     {
         toggleCameraAction = toggleCamera;
-        transform.position = cameraUpPos;
+        ShowCustomerView();
     }
 
     public void toggleCamera()
     {
-        if (isUpper == true)
-        {
-            transform.position = cameraUpPos;
-            isUpper = false;
-        }
+        if (isUpper)
+            ShowCookingView();
         else
-        {
-            transform.position = cameraDownPos;
-            isUpper = true;
-        }
+            ShowCustomerView();
+    }
+
+    public void ShowCustomerView()
+    {
+        transform.position = cameraUpPos;
+        isUpper = true;
+    }
+
+    public void ShowCookingView()
+    {
+        transform.position = cameraDownPos;
+        isUpper = false;
     }
 }
