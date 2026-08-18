@@ -23,11 +23,11 @@ export function sendNicePayCheckoutPage(
       "content-security-policy": [
         "default-src 'none'",
         `script-src 'nonce-${nonce}' https://pay.nicepay.co.kr`,
-        "connect-src https://pay.nicepay.co.kr https://sandbox-api.nicepay.co.kr",
-        "frame-src https://pay.nicepay.co.kr",
+        "connect-src https:",
+        "frame-src 'self' https:",
         `style-src 'nonce-${nonce}'`,
         "img-src data: https:",
-        "form-action https://pay.nicepay.co.kr",
+        "form-action https:",
         "base-uri 'none'"
       ].join("; ")
     })
