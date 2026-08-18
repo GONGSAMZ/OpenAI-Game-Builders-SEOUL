@@ -295,12 +295,47 @@ Resources:
               - Effect: Allow
                 Action:
                   - cloudfront:CreateDistribution
+                  - cloudfront:CreateCachePolicy
+                  - cloudfront:CreateOriginAccessControl
+                  - cloudfront:DeleteCachePolicy
                   - cloudfront:GetDistribution
                   - cloudfront:GetDistributionConfig
+                  - cloudfront:GetCachePolicy
+                  - cloudfront:GetOriginAccessControl
+                  - cloudfront:ListCachePolicies
+                  - cloudfront:ListOriginAccessControls
                   - cloudfront:DeleteDistribution
+                  - cloudfront:DeleteOriginAccessControl
                   - cloudfront:TagResource
+                  - cloudfront:UpdateCachePolicy
                   - cloudfront:UpdateDistribution
+                  - cloudfront:UpdateOriginAccessControl
                 Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:DeleteBucket
+                  - s3:DeleteBucketOwnershipControls
+                  - s3:DeleteBucketPolicy
+                  - s3:DeleteBucketPublicAccessBlock
+                  - s3:GetBucketLocation
+                  - s3:GetBucketOwnershipControls
+                  - s3:GetBucketPolicy
+                  - s3:GetBucketPublicAccessBlock
+                  - s3:GetEncryptionConfiguration
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                  - s3:ListBucket
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketOwnershipControls
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutBucketVersioning
+                  - s3:PutEncryptionConfiguration
+                  - s3:PutObject
+                Resource:
+                  - arn:aws:s3:::openai-game-builders-seoul-service-*
+                  - arn:aws:s3:::openai-game-builders-seoul-service-*/*
               - Effect: Allow
                 Action: iam:PassRole
                 Resource:

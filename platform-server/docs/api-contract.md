@@ -64,7 +64,19 @@ Hive 로그인 후 호출할 수 있습니다.
 
 ### `GET /api/v1/store/catalog`
 
-공개 상품 목록과 현재 `mock`/`nicepay-test`/`hive-web-shop` 모드를 반환합니다.
+상품 목록과 현재 `mock`/`nicepay-test`/`hive-web-shop` 모드를 반환합니다. `STORE_CATALOG_SOURCE=hive`이면 로그인 PlayerID로 HIVE Web PG 상품 목록을 조회하고 5분간 캐시합니다. 로그인 전이나 초기 장애에는 기존 세 상품을 사용하며, 정상 동기화 뒤 장애가 발생하면 마지막 정상 캐시를 유지합니다.
+
+```json
+{
+  "mode": "nicepay-test",
+  "source": "hive",
+  "updatedAt": "2026-08-19T00:00:00.000Z",
+  "ignoredProductCount": 0,
+  "products": []
+}
+```
+
+새 상품 PID는 `...coin.<item-id>.<quantity>`, `...equipment.<item-id>.1`, `...item.<item-id>.<quantity>` 규칙을 사용합니다. 규칙에 맞지 않는 PID는 지급 사고 방지를 위해 제외됩니다. 상품 이미지는 CloudFront `/store-products/<marketPid>.png`에서 읽고 실패 시 Unity 기본 이미지를 사용합니다.
 
 ### NICEPAY 테스트 결제
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "HIVE 상점 카탈로그"
+  short_description: "HIVE 상품 동기화와 인게임 지급 규칙 운영"
+  default_prompt: "Use $hive-store-catalog to add or sync a HIVE store product safely."

@@ -1,7 +1,17 @@
 import path from "node:path";
 import type { AppConfig } from "../src/config.js";
 
-export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig {
+type TestConfigOverrides = Omit<
+  Partial<AppConfig>,
+  "hive" | "store" | "nicepay" | "openai"
+> & {
+  hive?: Partial<AppConfig["hive"]>;
+  store?: Partial<AppConfig["store"]>;
+  nicepay?: Partial<AppConfig["nicepay"]>;
+  openai?: Partial<AppConfig["openai"]>;
+};
+
+export function createTestConfig(overrides: TestConfigOverrides = {}): AppConfig {
   const base: AppConfig = {
     nodeEnv: "test",
     port: 3000,
@@ -17,6 +27,9 @@ export function createTestConfig(overrides: Partial<AppConfig> = {}): AppConfig 
     },
     store: {
       mode: "mock",
+      catalogSource: "static",
+      catalogCacheSeconds: 300,
+      productImageBaseUrl: "http://localhost:3000/store-products",
       devToolsEnabled: true,
       dataStore: "memory"
     },

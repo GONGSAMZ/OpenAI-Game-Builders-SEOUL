@@ -46,6 +46,7 @@ describe("integration API", () => {
       .expect(200, {
         hiveMode: "mock",
         storeMode: "mock",
+        storeCatalogSource: "static",
         storeDevTools: true,
         hiveWebShopUrl: null,
         openaiMode: "mock",

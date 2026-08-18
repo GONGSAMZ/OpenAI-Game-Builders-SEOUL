@@ -74,6 +74,7 @@ jobs:
       # AAA111 production Web Login credentials are stored server-side in Secrets Manager.
       HIVE_MODE: production
       STORE_MODE: ${{ vars.STORE_MODE || 'mock' }}
+      STORE_CATALOG_SOURCE: ${{ vars.STORE_CATALOG_SOURCE || 'hive' }}
       STORE_DEV_TOOLS: ${{ vars.STORE_DEV_TOOLS || 'true' }}
       HIVE_BILLING_APP_ID: ${{ vars.HIVE_BILLING_APP_ID }}
       HIVE_WEB_SHOP_URL: ${{ vars.HIVE_WEB_SHOP_URL }}
@@ -195,11 +196,34 @@ jobs:
               "UseRuntimeSecrets=$USE_RUNTIME_SECRETS" \
               "HiveMode=$HIVE_MODE" \
               "StoreMode=$STORE_MODE" \
+              "StoreCatalogSource=$STORE_CATALOG_SOURCE" \
               "StoreDevTools=$STORE_DEV_TOOLS" \
               "HiveBillingAppId=$HIVE_BILLING_APP_ID" \
               "HiveWebShopUrl=$HIVE_WEB_SHOP_URL" \
               "OpenAiMode=$OPENAI_MODE" \
               "OperationsAlertTopicArn=$OPERATIONS_ALERT_TOPIC_ARN"
+
+      - name: Publish default store product images
+        shell: bash
+        run: |
+          image_bucket=$(aws cloudformation describe-stacks \
+            --stack-name "$AWS_SERVICE_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='StoreProductImageBucketName'].OutputValue" \
+            --output text)
+          test -n "$image_bucket"
+
+          aws s3 cp \
+            BungeoppangTycoon/Assets/Resources/Sprites/StoreProducts/red-bean-100.png \
+            "s3://$image_bucket/com.gongsamz.bungeoppang.redbean100.png" \
+            --content-type image/png --cache-control public,max-age=300
+          aws s3 cp \
+            BungeoppangTycoon/Assets/Resources/Sprites/StoreProducts/red-bean-550.png \
+            "s3://$image_bucket/com.gongsamz.bungeoppang.redbean550.png" \
+            --content-type image/png --cache-control public,max-age=300
+          aws s3 cp \
+            BungeoppangTycoon/Assets/Resources/Sprites/StoreProducts/golden-pan.png \
+            "s3://$image_bucket/com.gongsamz.bungeoppang.goldenpan.png" \
+            --content-type image/png --cache-control public,max-age=300
 
       - name: Verify public endpoint
         shell: bash
@@ -220,6 +244,10 @@ jobs:
           grep -q '/game-bridge.js' <<< "$game_html"
           grep -q 'createUnityInstance' <<< "$game_html"
 
+          curl --fail --show-error \
+            "$public_url/store-products/com.gongsamz.bungeoppang.redbean100.png" \
+            --output /dev/null
+
           login_json=$(curl --fail --show-error "$public_url/api/v1/auth/hive/login")
           login_url=$(jq -r '.loginUrl' <<< "$login_json")
           [[ "$login_url" == https://weblogin.withhive.com/login?param=* ]]
@@ -227,4 +255,4 @@ jobs:
           echo "### 배포 완료" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL: $public_url" >> "$GITHUB_STEP_SUMMARY"
           echo "- Revision: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Smoke: health/version/portal/Unity/HIVE login URL 통과" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Smoke: health/version/portal/Unity/HIVE login URL/store image 통과" >> "$GITHUB_STEP_SUMMARY"

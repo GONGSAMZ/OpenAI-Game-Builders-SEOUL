@@ -11,6 +11,9 @@ public sealed class InAppMarketPublicConfig
 public sealed class InAppMarketCatalog
 {
     public string mode;
+    public string source;
+    public string updatedAt;
+    public int ignoredProductCount;
     public InAppMarketProduct[] products;
 }
 
@@ -24,6 +27,7 @@ public sealed class InAppMarketProduct
     public int priceKrw;
     public int testPointPrice;
     public string marketPid;
+    public string imageUrl;
     public InAppMarketGrant grant;
 
     public bool IsPermanent

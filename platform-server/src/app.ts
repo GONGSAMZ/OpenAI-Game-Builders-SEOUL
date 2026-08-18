@@ -7,7 +7,13 @@ import helmet from "helmet";
 import { z, ZodError } from "zod";
 import { sendAuthBridgePage } from "./auth-page.js";
 import type { AppConfig } from "./config.js";
-import { HttpError, readCookie, requireSession, type AuthenticatedLocals } from "./http.js";
+import {
+  getBearerToken,
+  HttpError,
+  readCookie,
+  requireSession,
+  type AuthenticatedLocals
+} from "./http.js";
 import { AiService } from "./integrations/openai/service.js";
 import { HiveWebLoginClient } from "./integrations/hive/client.js";
 import {
@@ -32,7 +38,10 @@ import {
   type GameSession,
   type SessionStore
 } from "./session-store.js";
-import { findProduct, findProductByMarketPid, storeCatalog } from "./store/catalog.js";
+import {
+  createStoreCatalogService,
+  type StoreCatalogGateway
+} from "./store/catalog-service.js";
 import {
   createMarketStore,
   InsufficientTestPointsError,
@@ -52,7 +61,7 @@ const npcReactionSchema = z.object({
 });
 
 const mockPurchaseSchema = z.object({
-  productId: z.string().trim().min(1).max(100),
+  productId: z.string().trim().min(1).max(300),
   idempotencyKey: z.string().uuid()
 });
 
@@ -66,7 +75,7 @@ const moldEquipmentSchema = z.object({
 });
 
 const nicePayOrderSchema = z.object({
-  productId: z.string().trim().min(1).max(100)
+  productId: z.string().trim().min(1).max(300)
 });
 
 const nicePayCallbackSchema = z.object({
@@ -108,6 +117,7 @@ interface AppDependencies {
   nicePayOrders?: NicePayOrderStore;
   aiService?: AiService;
   marketStore?: MarketStore;
+  storeCatalog?: StoreCatalogGateway;
 }
 
 function setUnityAssetHeaders(response: Response, filePath: string): void {
@@ -172,6 +182,7 @@ export function createApp(dependencies: AppDependencies) {
   const nicePayOrders = dependencies.nicePayOrders ?? createNicePayOrderStore(config);
   const aiService = dependencies.aiService ?? new AiService(config.openai);
   const marketStore = dependencies.marketStore ?? createMarketStore(config);
+  const storeCatalog = dependencies.storeCatalog ?? createStoreCatalogService(config);
   const app = express();
   const requireGameSession = requireSession(sessions, sessionCookieName);
   const nicePayCallbackPath = "/api/v1/store/nicepay/callback";
@@ -252,6 +263,7 @@ export function createApp(dependencies: AppDependencies) {
     response.json({
       hiveMode: config.hive.mode,
       storeMode: config.store.mode,
+      storeCatalogSource: config.store.catalogSource,
       storeDevTools: config.store.devToolsEnabled,
       hiveWebShopUrl: config.hive.webShopUrl ?? null,
       openaiMode: config.openai.mode,
@@ -370,8 +382,18 @@ export function createApp(dependencies: AppDependencies) {
     }
   );
 
-  app.get("/api/v1/store/catalog", (_request, response) => {
-    response.json({ mode: config.store.mode, products: storeCatalog });
+  app.get("/api/v1/store/catalog", async (request, response) => {
+    const token =
+      getBearerToken(request) ?? readCookie(request, sessionCookieName);
+    const session = token ? await sessions.get(token) : undefined;
+    const catalog = await storeCatalog.getCatalog(session?.playerId ?? session?.subject);
+    response.set("cache-control", "private, no-store").json({
+      mode: config.store.mode,
+      source: catalog.source,
+      updatedAt: catalog.updatedAt,
+      ignoredProductCount: catalog.ignoredProductCount,
+      products: catalog.products
+    });
   });
 
   app.get(
@@ -419,12 +441,17 @@ export function createApp(dependencies: AppDependencies) {
         throw new HttpError(404, "NICEPAY 테스트 결제가 비활성화되어 있습니다.");
       }
       const input = nicePayOrderSchema.parse(request.body);
-      const product = findProduct(input.productId);
-      if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
       const { session } = response.locals as AuthenticatedLocals;
+      const product = await storeCatalog.findById(
+        input.productId,
+        session.playerId ?? session.subject
+      );
+      if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
       const order = await nicePayOrders.create({
         subject: session.subject,
+        playerId: session.playerId,
         productId: product.id,
+        productSnapshot: product,
         goodsName: product.name,
         amount: product.priceKrw
       });
@@ -500,7 +527,9 @@ export function createApp(dependencies: AppDependencies) {
         throw new Error("NICEPAY 승인 결과가 주문과 일치하지 않습니다.");
       }
 
-      const product = findProduct(order.productId);
+      const product =
+        order.productSnapshot ??
+        (await storeCatalog.findById(order.productId, order.playerId ?? order.subject));
       if (!product || product.priceKrw !== order.amount) {
         throw new Error("서버 상품 정보가 주문과 일치하지 않습니다.");
       }
@@ -536,10 +565,12 @@ export function createApp(dependencies: AppDependencies) {
       }
 
       const input = mockPurchaseSchema.parse(request.body);
-      const product = findProduct(input.productId);
-      if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
-
       const { session } = response.locals as AuthenticatedLocals;
+      const product = await storeCatalog.findById(
+        input.productId,
+        session.playerId ?? session.subject
+      );
+      if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
       let result;
       try {
         result = await marketStore.grantMockPurchase(
@@ -594,13 +625,15 @@ export function createApp(dependencies: AppDependencies) {
       }
 
       const input = mockPurchaseSchema.parse(request.body);
-      const product = findProduct(input.productId);
+      const { session } = response.locals as AuthenticatedLocals;
+      const product = await storeCatalog.findById(
+        input.productId,
+        session.playerId ?? session.subject
+      );
       if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
       if (product.grant.itemId !== "red-bean-coin") {
         throw new HttpError(400, "개발 도구에서는 인게임 재화만 지급할 수 있습니다.");
       }
-
-      const { session } = response.locals as AuthenticatedLocals;
       const result = await marketStore.grantPurchase(session.subject, product, {
         provider: "dev-tools",
         transactionId: input.idempotencyKey
@@ -660,7 +693,7 @@ export function createApp(dependencies: AppDependencies) {
       throw new HttpError(400, "HIVE Authentication v4 PlayerID 결제가 아닙니다.");
     }
 
-    const product = findProductByMarketPid(input.market_pid);
+    const product = await storeCatalog.findByMarketPid(input.market_pid, input.vid);
     if (!product) throw new HttpError(400, "등록되지 않은 HIVE 상품 PID입니다.");
 
     const unconsumed = await billingClient.findUnconsumedPurchase({

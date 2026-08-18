@@ -25,6 +25,10 @@ Parameters:
     Type: String
     AllowedValues: [mock, nicepay-test, hive-web-shop]
     Default: mock
+  StoreCatalogSource:
+    Type: String
+    AllowedValues: [static, hive]
+    Default: static
   StoreDevTools:
     Type: String
     AllowedValues: ["true", "false"]
@@ -52,7 +56,9 @@ Conditions:
     - !Equals [!Ref OpenAiMode, live]
   HasHiveBillingSecret: !And
     - !Equals [!Ref UseRuntimeSecrets, "true"]
-    - !Equals [!Ref StoreMode, hive-web-shop]
+    - !Or
+      - !Equals [!Ref StoreMode, hive-web-shop]
+      - !Equals [!Ref StoreCatalogSource, hive]
   HasNicePayRuntimeSecrets: !And
     - !Equals [!Ref UseRuntimeSecrets, "true"]
     - !Equals [!Ref StoreMode, nicepay-test]
@@ -157,6 +163,54 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref TargetGroup
 
+  StoreProductImageBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  StoreProductImageOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${AWS::StackName}-store-product-images
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  StoreProductImageCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub ${AWS::StackName}-store-product-images
+        Comment: Short cache for HIVE product image updates
+        DefaultTTL: 300
+        MaxTTL: 3600
+        MinTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -170,6 +224,19 @@ Resources:
             CustomOriginConfig:
               HTTPPort: 80
               OriginProtocolPolicy: http-only
+          - Id: store-product-images
+            DomainName: !GetAtt StoreProductImageBucket.RegionalDomainName
+            OriginAccessControlId: !Ref StoreProductImageOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        CacheBehaviors:
+          - PathPattern: store-products/*
+            TargetOriginId: store-product-images
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: !Ref StoreProductImageCachePolicy
+            Compress: true
         DefaultCacheBehavior:
           TargetOriginId: game-alb
           ViewerProtocolPolicy: redirect-to-https
@@ -178,6 +245,23 @@ Resources:
           CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
           OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           Compress: false
+
+  StoreProductImageBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StoreProductImageBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${StoreProductImageBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}
 
   Cluster:
     Type: AWS::ECS::Cluster
@@ -255,6 +339,8 @@ Resources:
               Value: !Ref HiveBillingAppId
             - Name: STORE_MODE
               Value: !Ref StoreMode
+            - Name: STORE_CATALOG_SOURCE
+              Value: !Ref StoreCatalogSource
             - Name: STORE_DEV_TOOLS
               Value: !Ref StoreDevTools
             - Name: DATA_STORE
@@ -346,3 +432,5 @@ Outputs:
     Value: !Ref Cluster
   ServiceName:
     Value: !GetAtt Service.Name
+  StoreProductImageBucketName:
+    Value: !Ref StoreProductImageBucket

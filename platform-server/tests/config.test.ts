@@ -8,6 +8,8 @@ describe("loadConfig", () => {
     expect(config.openai.mode).toBe("mock");
     expect(config.port).toBe(3000);
     expect(config.revision).toBe("development");
+    expect(config.store.catalogSource).toBe("static");
+    expect(config.store.productImageBaseUrl).toBe("http://localhost:3000/store-products");
   });
 
   it("빈 선택 환경변수는 미설정으로 처리한다", () => {
@@ -26,6 +28,34 @@ describe("loadConfig", () => {
 
   it("HIVE 웹 상점 모드는 상점 URL을 요구한다", () => {
     expect(() => loadConfig({ STORE_MODE: "hive-web-shop" })).toThrow("HIVE_WEB_SHOP_URL");
+  });
+
+  it("HIVE 카탈로그는 Billing 설정과 실제 HIVE 모드를 요구한다", () => {
+    expect(() => loadConfig({ STORE_CATALOG_SOURCE: "hive" })).toThrow("HIVE_MODE");
+    expect(() =>
+      loadConfig({
+        STORE_CATALOG_SOURCE: "hive",
+        HIVE_MODE: "sandbox",
+        HIVE_APP_ID: "app-id",
+        HIVE_CLIENT_ID: "client-id",
+        HIVE_CLIENT_SECRET: "client-secret",
+        HIVE_REDIRECT_URI: "http://localhost:3000/hive/cb",
+        HIVE_BILLING_APP_ID: "billing-app-id"
+      })
+    ).toThrow("HIVE_BILLING_AUTH_KEY");
+
+    const config = loadConfig({
+      STORE_CATALOG_SOURCE: "hive",
+      HIVE_MODE: "sandbox",
+      HIVE_APP_ID: "app-id",
+      HIVE_CLIENT_ID: "client-id",
+      HIVE_CLIENT_SECRET: "client-secret",
+      HIVE_REDIRECT_URI: "http://localhost:3000/hive/cb",
+      HIVE_BILLING_APP_ID: "billing-app-id",
+      HIVE_BILLING_AUTH_KEY: "billing-key"
+    });
+    expect(config.store.catalogSource).toBe("hive");
+    expect(config.store.catalogCacheSeconds).toBe(300);
   });
 
   it("NICEPAY 테스트 모드는 샌드박스 키를 요구한다", () => {

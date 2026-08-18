@@ -5,6 +5,7 @@
 - `openai-game-builders-seoul-bootstrap`: GitHub OIDC 역할, immutable ECR, DynamoDB, Secrets Manager, ECS 역할, SNS 운영 알림, 월 $30 Budget을 소유합니다.
 - `openai-game-builders-seoul-service`: VPC, ALB, CloudFront, ECS Fargate, CloudWatch Logs/5xx Alarm을 소유합니다.
 - 공개 경로: CloudFront HTTPS → ALB HTTP → ECS `web:3000`
+- 상품 이미지 경로: CloudFront `/store-products/*` → 비공개 S3 버킷 (`StoreProductImageBucketName` 출력)
 - 데이터: 마켓·인벤토리·로그인 세션은 DynamoDB에 저장합니다. 세션은 `expiresAtEpoch` TTL로 만료됩니다.
 - 복구: DynamoDB PITR은 항상 켜며, 배포 전에 Actions가 PITR/TTL 상태를 검사합니다.
 

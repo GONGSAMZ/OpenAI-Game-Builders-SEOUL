@@ -7,11 +7,14 @@ import {
   UpdateCommand
 } from "@aws-sdk/lib-dynamodb";
 import type { AppConfig } from "../../config.js";
+import type { StoreProduct } from "../../store/catalog.js";
 
 export interface NicePayOrder {
   orderId: string;
   subject: string;
+  playerId?: string;
   productId: string;
+  productSnapshot?: StoreProduct;
   goodsName: string;
   amount: number;
   status: "pending" | "paid";
@@ -22,7 +25,9 @@ export interface NicePayOrder {
 
 export interface CreateNicePayOrderInput {
   subject: string;
+  playerId?: string;
   productId: string;
+  productSnapshot: StoreProduct;
   goodsName: string;
   amount: number;
 }

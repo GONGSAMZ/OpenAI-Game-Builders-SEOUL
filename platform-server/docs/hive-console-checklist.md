@@ -15,6 +15,9 @@
 - [ ] Community & Web Shop에서 사이트와 웹 상점 주소 생성
 - [ ] Billing 인증 키를 발급하고 AWS Secrets Manager의 `HIVE_BILLING_AUTH_KEY`에 저장
 - [ ] `HIVE_BILLING_APP_ID`를 웹 상점 Billing AppID로 설정
+- [ ] GitHub 변수 `STORE_CATALOG_SOURCE=hive` 설정
+- [ ] 새 Market PID를 `...coin.<item-id>.<quantity>`, `...equipment.<item-id>.1`, `...item.<item-id>.<quantity>` 규칙으로 등록
+- [ ] 서비스 스택 출력 `StoreProductImageBucketName` 버킷에 `<전체-market-pid>.png` 이름으로 512px 상품 이미지 업로드
 - [ ] Billing에서 가격표·상품·Market PID·PG사를 설정하고 Sandbox 구매 검증
 - [ ] 상품 PID `com.gongsamz.bungeoppang.redbean100`을 팥 코인 100개 상품에 연결
 - [ ] 상품 PID `com.gongsamz.bungeoppang.redbean550`을 팥 코인 550개 상품에 연결

@@ -28,6 +28,9 @@ const environmentSchema = z.object({
   HIVE_LANGUAGE: z.string().min(2).max(8).default("ko"),
   HIVE_WEB_SHOP_URL: optionalUrl,
   STORE_MODE: z.enum(["mock", "nicepay-test", "hive-web-shop"]).default("mock"),
+  STORE_CATALOG_SOURCE: z.enum(["static", "hive"]).default("static"),
+  STORE_CATALOG_CACHE_SECONDS: z.coerce.number().int().min(30).max(86_400).default(300),
+  STORE_PRODUCT_IMAGE_BASE_URL: optionalUrl,
   STORE_DEV_TOOLS: z.stringbool().default(false),
   NICEPAY_CLIENT_ID: optionalNonEmptyString,
   NICEPAY_SECRET_KEY: optionalNonEmptyString,
@@ -65,6 +68,9 @@ export interface AppConfig {
   };
   store: {
     mode: StoreMode;
+    catalogSource: "static" | "hive";
+    catalogCacheSeconds: number;
+    productImageBaseUrl: string;
     devToolsEnabled: boolean;
     dataStore: "memory" | "dynamodb";
     dynamodbTable?: string;
@@ -116,6 +122,18 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     }
   }
 
+  if (parsed.STORE_CATALOG_SOURCE === "hive") {
+    if (parsed.HIVE_MODE === "mock") {
+      throw new Error("STORE_CATALOG_SOURCE=hive이면 HIVE_MODE은 sandbox 또는 production이어야 합니다.");
+    }
+    if (!parsed.HIVE_BILLING_AUTH_KEY) {
+      throw new Error("STORE_CATALOG_SOURCE=hive이면 HIVE_BILLING_AUTH_KEY가 필요합니다.");
+    }
+    if (!(parsed.HIVE_BILLING_APP_ID ?? parsed.HIVE_APP_ID)) {
+      throw new Error("STORE_CATALOG_SOURCE=hive이면 HIVE_BILLING_APP_ID 또는 HIVE_APP_ID가 필요합니다.");
+    }
+  }
+
   if (parsed.STORE_MODE === "nicepay-test") {
     if (!parsed.NICEPAY_CLIENT_ID || !parsed.NICEPAY_SECRET_KEY) {
       throw new Error(
@@ -150,6 +168,12 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     },
     store: {
       mode: parsed.STORE_MODE,
+      catalogSource: parsed.STORE_CATALOG_SOURCE,
+      catalogCacheSeconds: parsed.STORE_CATALOG_CACHE_SECONDS,
+      productImageBaseUrl: (
+        parsed.STORE_PRODUCT_IMAGE_BASE_URL ??
+        `${parsed.PUBLIC_BASE_URL.replace(/\/$/, "")}/store-products`
+      ).replace(/\/$/, ""),
       devToolsEnabled: parsed.STORE_DEV_TOOLS,
       dataStore: parsed.DATA_STORE,
       dynamodbTable: parsed.DYNAMODB_TABLE

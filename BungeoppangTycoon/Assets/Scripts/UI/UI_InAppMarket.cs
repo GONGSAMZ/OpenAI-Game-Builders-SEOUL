@@ -174,7 +174,7 @@ public sealed class UI_InAppMarket : UI_Base
     private void OnLoginSucceeded(string _)
     {
         RefreshLoginState();
-        StartCoroutine(RefreshInventory());
+        RefreshMarket();
     }
 
     private void OnStoreStateChanged()

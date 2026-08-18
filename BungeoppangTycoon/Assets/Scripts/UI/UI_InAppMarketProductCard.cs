@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Networking;
 using UnityEngine.UI;
 
 public sealed class UI_InAppMarketProductCard : MonoBehaviour
@@ -16,6 +18,9 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
     private InAppMarketProduct product;
     private bool baseInteractable;
     private string idleButtonText;
+    private Coroutine imageLoadRoutine;
+    private Texture2D remoteTexture;
+    private Sprite remoteSprite;
 
     public Button PurchaseButton => purchaseButton;
 
@@ -47,10 +52,7 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
         Action<InAppMarketProduct, bool> onEquipmentChanged)
     {
         product = value;
-        Sprite icon = Resources.Load<Sprite>($"Sprites/StoreProducts/{product.id}") ??
-            Resources.Load<Sprite>("Sprites/UI/coin");
-        productImage.sprite = icon;
-        productImage.preserveAspect = true;
+        SetProductImage(product);
         productNameText.text = string.IsNullOrWhiteSpace(product.name) ? "이름 없는 상품" : product.name;
         descriptionText.text = string.IsNullOrWhiteSpace(product.description)
             ? "상품 설명이 없습니다."
@@ -102,5 +104,63 @@ public sealed class UI_InAppMarketProductCard : MonoBehaviour
 
         purchaseButton.interactable = !isBusy && baseInteractable;
         buttonText.text = isBusy ? "처리 중…" : idleButtonText;
+    }
+
+    private void SetProductImage(InAppMarketProduct value)
+    {
+        ClearRemoteImage();
+        Sprite fallback = Resources.Load<Sprite>($"Sprites/StoreProducts/{value.id}") ??
+            Resources.Load<Sprite>("Sprites/UI/coin");
+        productImage.sprite = fallback;
+        productImage.preserveAspect = true;
+
+        if (!string.IsNullOrWhiteSpace(value.imageUrl))
+            imageLoadRoutine = StartCoroutine(LoadRemoteImage(value.imageUrl));
+    }
+
+    private IEnumerator LoadRemoteImage(string imageUrl)
+    {
+        using UnityWebRequest request = UnityWebRequestTexture.GetTexture(imageUrl);
+        yield return request.SendWebRequest();
+        imageLoadRoutine = null;
+
+        if (request.result != UnityWebRequest.Result.Success)
+            yield break;
+
+        remoteTexture = DownloadHandlerTexture.GetContent(request);
+        if (remoteTexture == null)
+            yield break;
+
+        remoteTexture.wrapMode = TextureWrapMode.Clamp;
+        remoteSprite = Sprite.Create(
+            remoteTexture,
+            new Rect(0f, 0f, remoteTexture.width, remoteTexture.height),
+            new Vector2(0.5f, 0.5f),
+            100f);
+        productImage.sprite = remoteSprite;
+    }
+
+    private void OnDestroy()
+    {
+        ClearRemoteImage();
+    }
+
+    private void ClearRemoteImage()
+    {
+        if (imageLoadRoutine != null)
+        {
+            StopCoroutine(imageLoadRoutine);
+            imageLoadRoutine = null;
+        }
+        if (remoteSprite != null)
+        {
+            Destroy(remoteSprite);
+            remoteSprite = null;
+        }
+        if (remoteTexture != null)
+        {
+            Destroy(remoteTexture);
+            remoteTexture = null;
+        }
     }
 }
