@@ -13,4 +13,4 @@ MonoBehaviour:
   m_Name: Nari
   m_EditorClassIdentifier:
   _customer: 6
-  spriteSheetPath: Customers/Figma8/07_Nari
+  spriteSheetPath: Customers/07_Nari

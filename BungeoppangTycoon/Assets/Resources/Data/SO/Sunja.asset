@@ -13,4 +13,4 @@ MonoBehaviour:
   m_Name: Sunja
   m_EditorClassIdentifier:
   _customer: 3
-  spriteSheetPath: Customers/Figma8/04_Sunja
+  spriteSheetPath: Customers/04_Sunja

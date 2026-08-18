@@ -13,4 +13,4 @@ MonoBehaviour:
   m_Name: Taesu
   m_EditorClassIdentifier:
   _customer: 5
-  spriteSheetPath: Customers/Figma8/06_Taesu
+  spriteSheetPath: Customers/06_Taesu
