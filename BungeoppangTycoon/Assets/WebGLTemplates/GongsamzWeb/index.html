@@ -133,7 +133,7 @@
   </head>
   <body>
     <main id="unity-container">
-      <canvas id="unity-canvas" width="1920" height="1080" tabindex="-1" aria-label="{{{ PRODUCT_NAME }}} 게임 화면"></canvas>
+      <canvas id="unity-canvas" width="1920" height="1080" tabindex="0" aria-label="{{{ PRODUCT_NAME }}} 게임 화면"></canvas>
       <div id="unity-warning" aria-live="polite"></div>
       <div id="unity-loading" role="status" aria-live="polite">
         <p id="unity-loading-title">게임을 불러오는 중입니다</p>
@@ -149,6 +149,16 @@
       const loading = document.querySelector("#unity-loading");
       const progressFill = document.querySelector("#unity-progress-fill");
       const fullscreenButton = document.querySelector("#unity-fullscreen-button");
+
+      canvas.addEventListener("pointerdown", () => {
+        canvas.focus({ preventScroll: true });
+      });
+
+      window.addEventListener("keydown", (event) => {
+        if (document.activeElement === canvas && event.code === "Space") {
+          event.preventDefault();
+        }
+      }, { passive: false });
 
       function unityShowBanner(message, type) {
         const warning = document.querySelector("#unity-warning");

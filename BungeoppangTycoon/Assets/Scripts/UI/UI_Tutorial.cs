@@ -12,11 +12,12 @@ using UnityEngine.UI;
 public class UI_Tutorial : UI_Base
 {
     private const string CompletedKey = "tutorial_completed_v1";
-    private const int TotalSteps = 10;
+    private const int TotalSteps = 12;
 
     private enum Stage
     {
         CustomerOrder,
+        SwitchToCooking,
         SelectKettle,
         FillMold,
         SelectRedBean,
@@ -25,14 +26,20 @@ public class UI_Tutorial : UI_Base
         AddTopBatter,
         Bake,
         MoveToDisplay,
+        SwitchToCustomer,
         ServeCustomer,
     }
 
     public static bool IsRunning { get; private set; }
     public static bool IsBlockingFirstCustomer => IsRunning && tutorialStarted == false;
+    public static bool AllowsManualViewSwitch =>
+        IsRunning == false ||
+        (activeInstance != null && tutorialStarted &&
+         (activeInstance.stage == Stage.SwitchToCooking || activeInstance.stage == Stage.SwitchToCustomer));
 
     private static bool forcedOrderIssued;
     private static bool promptRequestedForGameStart;
+    private static UI_Tutorial activeInstance;
 
     [Header("Overlay")]
     [SerializeField] private RectTransform overlayRoot;
@@ -160,6 +167,7 @@ public class UI_Tutorial : UI_Base
             return;
 
         hasInitialized = true;
+        activeInstance = this;
         IsRunning = true;
         forcedOrderIssued = false;
         tutorialStarted = false;
@@ -208,6 +216,8 @@ public class UI_Tutorial : UI_Base
 
         IsRunning = false;
         tutorialStarted = false;
+        if (activeInstance == this)
+            activeInstance = null;
     }
 
     private void ShowTutorialConsent()
@@ -304,7 +314,14 @@ public class UI_Tutorial : UI_Base
         switch (tutorialEvent)
         {
             case TutorialEvent.CustomerOrderAccepted:
-                SetStage(Stage.SelectKettle);
+                SetStage(Stage.SwitchToCooking);
+                break;
+
+            case TutorialEvent.ViewChanged:
+                if (stage == Stage.SwitchToCooking && CameraController.Instance?.CurrentView == GameplayView.Cooking)
+                    SetStage(Stage.SelectKettle);
+                else if (stage == Stage.SwitchToCustomer && CameraController.Instance?.CurrentView == GameplayView.Customer)
+                    SetStage(Stage.ServeCustomer);
                 break;
 
             case TutorialEvent.ToolSelected:
@@ -343,7 +360,7 @@ public class UI_Tutorial : UI_Base
 
             case TutorialEvent.FishBunDisplayed:
                 currentFishBun = source;
-                SetStage(Stage.ServeCustomer);
+                SetStage(Stage.SwitchToCustomer);
                 break;
 
             case TutorialEvent.FishBunServed:
@@ -357,6 +374,7 @@ public class UI_Tutorial : UI_Base
         return stage switch
         {
             Stage.CustomerOrder => tutorialEvent == TutorialEvent.CustomerOrderAccepted,
+            Stage.SwitchToCooking => tutorialEvent == TutorialEvent.ViewChanged && CameraController.Instance?.CurrentView == GameplayView.Cooking,
             Stage.SelectKettle => tutorialEvent == TutorialEvent.ToolSelected && source != null && source.CompareTag("kettle"),
             Stage.FillMold => tutorialEvent == TutorialEvent.MoldFilled,
             Stage.SelectRedBean => tutorialEvent == TutorialEvent.ToolSelected && source != null && source.name == FillingType.redBean.ToString(),
@@ -365,6 +383,7 @@ public class UI_Tutorial : UI_Base
             Stage.AddTopBatter => tutorialEvent == TutorialEvent.TopBatterAdded && source == currentFishBun,
             Stage.Bake => tutorialEvent == TutorialEvent.BakeStageAdvanced || tutorialEvent == TutorialEvent.Cooked,
             Stage.MoveToDisplay => tutorialEvent == TutorialEvent.FishBunDisplayed && source == currentFishBun,
+            Stage.SwitchToCustomer => tutorialEvent == TutorialEvent.ViewChanged && CameraController.Instance?.CurrentView == GameplayView.Customer,
             Stage.ServeCustomer => tutorialEvent == TutorialEvent.FishBunServed && source == currentFishBun,
             _ => false,
         };
@@ -379,42 +398,43 @@ public class UI_Tutorial : UI_Base
         // 조리 시간이 필요한 굽기 단계만 게임 시계를 흐르게 합니다.
         Managers.Game.IsTutorialClockPaused = stage != Stage.Bake;
 
-        if (stage == Stage.SelectKettle)
-            FindCameraController()?.ShowCookingView();
-        else if (stage == Stage.ServeCustomer)
-            FindCameraController()?.ShowCustomerView();
-
         switch (stage)
         {
             case Stage.CustomerOrder:
                 SetGuide(1, "첫 손님의 주문을 받아요", "손님이 나타나면 손님을 클릭하세요. 첫 주문은 팥붕어빵 1개예요.");
                 break;
+            case Stage.SwitchToCooking:
+                SetGuide(2, "조리대로 이동하세요", "PC는 SPACE 키를 누르고, 모바일은 왼쪽 전환 버튼을 눌러 조리대로 이동하세요.");
+                break;
             case Stage.SelectKettle:
-                SetGuide(2, "주전자를 선택하세요", "주전자를 클릭하면 위로 살짝 들립니다. 반죽을 부을 준비예요.");
+                SetGuide(3, "주전자를 선택하세요", "PC는 Q 키, 모바일은 주전자를 눌러 반죽을 부을 준비를 하세요.");
                 break;
             case Stage.FillMold:
-                SetGuide(3, "빈 붕어빵 틀을 클릭하세요", "선택한 주전자로 빈 틀에 밑반죽을 부어 주세요.");
+                SetGuide(4, "빈 붕어빵 틀을 클릭하세요", "선택한 주전자로 빈 틀에 밑반죽을 부어 주세요.");
                 break;
             case Stage.SelectRedBean:
-                SetGuide(4, "팥 재료를 선택하세요", "팥 통을 클릭한 뒤, 반죽이 담긴 붕어빵을 클릭합니다.");
+                SetGuide(5, "팥 재료를 선택하세요", "PC는 1 키, 모바일은 팥 통을 눌러 재료를 선택하세요.");
                 break;
             case Stage.AddFilling:
-                SetGuide(5, "붕어빵에 팥을 넣으세요", "밑반죽 위의 붕어빵을 클릭해 팥을 넣어 주세요.");
+                SetGuide(6, "붕어빵에 팥을 넣으세요", "밑반죽 위의 붕어빵을 클릭해 팥을 넣어 주세요.");
                 break;
             case Stage.SelectKettleAgain:
-                SetGuide(6, "주전자를 다시 선택하세요", "윗반죽을 덮을 차례예요.");
+                SetGuide(7, "주전자를 다시 선택하세요", "PC는 Q 키, 모바일은 주전자를 다시 눌러 주세요.");
                 break;
             case Stage.AddTopBatter:
-                SetGuide(7, "윗반죽을 부으세요", "팥이 들어간 붕어빵을 클릭해 반죽으로 덮습니다.");
+                SetGuide(8, "윗반죽을 부으세요", "팥이 들어간 붕어빵을 클릭해 반죽으로 덮습니다.");
                 break;
             case Stage.Bake:
                 SetBakeCopy();
                 break;
             case Stage.MoveToDisplay:
-                SetGuide(9, "완성된 붕어빵을 진열하세요", "완성된 붕어빵을 진열대로 드래그하세요.");
+                SetGuide(10, "완성된 붕어빵을 진열하세요", "붕어빵을 클릭해 선택한 뒤 진열대를 클릭하세요. 드래그해도 됩니다.");
+                break;
+            case Stage.SwitchToCustomer:
+                SetGuide(11, "손님 화면으로 이동하세요", "PC는 SPACE 키를 누르고, 모바일은 왼쪽 전환 버튼을 눌러 손님에게 돌아가세요.");
                 break;
             case Stage.ServeCustomer:
-                SetGuide(10, "손님에게 건네세요", "진열대의 붕어빵을 손님에게 드래그하면 첫 주문 완료입니다.");
+                SetGuide(12, "손님에게 건네세요", "붕어빵을 클릭해 선택한 뒤 손님을 클릭하면 첫 주문 완료입니다.");
                 break;
         }
     }
@@ -422,9 +442,9 @@ public class UI_Tutorial : UI_Base
     private void SetBakeCopy()
     {
         if (firstBakeFinished)
-            SetGuide(8, "한 번 더 구워 완성하세요", "조금 더 기다렸다가 붕어빵을 다시 클릭하면 완성됩니다.");
+            SetGuide(9, "한 번 더 구워 완성하세요", "조금 더 기다렸다가 붕어빵을 다시 클릭하면 완성됩니다.");
         else
-            SetGuide(8, "노릇해질 때까지 기다리세요", "조금 기다린 뒤 붕어빵을 클릭해 한 번 뒤집어 주세요.");
+            SetGuide(9, "노릇해질 때까지 기다리세요", "조금 기다린 뒤 붕어빵을 클릭해 한 번 뒤집어 주세요.");
     }
 
     private void SetGuide(int number, string title, string description)
@@ -449,6 +469,7 @@ public class UI_Tutorial : UI_Base
         return stage switch
         {
             Stage.CustomerOrder => FindActiveCustomer(),
+            Stage.SwitchToCooking or Stage.SwitchToCustomer => GameObject.Find("toggleViewButton"),
             Stage.SelectKettle or Stage.SelectKettleAgain => GameObject.Find("kettle"),
             Stage.FillMold => FindEmptyMold(),
             Stage.SelectRedBean => GameObject.Find(FillingType.redBean.ToString()),
@@ -506,6 +527,15 @@ public class UI_Tutorial : UI_Base
             TryGetTargetRect(currentFishBun, out Rect fishBunRect))
         {
             targetRect = Union(targetRect, fishBunRect);
+        }
+
+        if (stage == Stage.MoveToDisplay &&
+            currentFishBun != null &&
+            TryGetTargetRect(currentFishBun, out Rect selectedBunRect))
+        {
+            GameObject displayPlate = GameObject.Find("DisplayPlate");
+            if (displayPlate != null && TryGetTargetRect(displayPlate, out Rect displayRect))
+                targetRect = Union(selectedBunRect, displayRect);
         }
 
         SetSpotlightVisible(true);
@@ -594,6 +624,23 @@ public class UI_Tutorial : UI_Base
         Camera camera = Camera.main;
         if (target == null || camera == null)
             return false;
+
+        RectTransform uiRect = target.GetComponent<RectTransform>();
+        if (uiRect != null)
+        {
+            Vector3[] corners = new Vector3[4];
+            uiRect.GetWorldCorners(corners);
+            Vector2 uiScreenMin = RectTransformUtility.WorldToScreenPoint(null, corners[0]);
+            Vector2 uiScreenMax = RectTransformUtility.WorldToScreenPoint(null, corners[2]);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(overlayRoot, uiScreenMin, null, out Vector2 uiLocalMin);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(overlayRoot, uiScreenMax, null, out Vector2 uiLocalMax);
+            localRect = Rect.MinMaxRect(
+                Mathf.Min(uiLocalMin.x, uiLocalMax.x),
+                Mathf.Min(uiLocalMin.y, uiLocalMax.y),
+                Mathf.Max(uiLocalMin.x, uiLocalMax.x),
+                Mathf.Max(uiLocalMin.y, uiLocalMax.y));
+            return localRect.Overlaps(overlayRoot.rect);
+        }
 
         Renderer targetRenderer = target.GetComponentInChildren<Renderer>();
         Collider2D targetCollider = target.GetComponentInChildren<Collider2D>();

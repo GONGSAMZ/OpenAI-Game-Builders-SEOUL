@@ -30,44 +30,54 @@ public class ToolController : MonoBehaviour
 
     void OnMouseDown()
     {
-        //선택된 이전 물건이 있었으면
-        if (selectedTool != null)
-            pickDown(); //이전 pickup 물건 내려 놓기
-
-        pickUp();
+        Select();
 
     }
 
-    //객체 집어 올리는 메서드
-    void pickUp()
+    public void Select()
     {
+        if (Managers.Game.isRunning == false)
+            return;
+
+        if (selectedTool == this)
+            return;
+
+        InputManager.Instance?.ClearSelectedFishBun();
+        DeselectCurrent();
+
         transform.position += moveDir; //위로 올리기
-        transform.localScale = Vector3.one;
         transform.rotation = Quaternion.Euler(0, 0, originZRotation+zRotation); // 비스듬히 회전
         transform.localScale = originScale;
 
         GetComponent<SpriteRenderer>().sortingOrder = maxSortingOrder;
         selectedTool = this;
+        InputManager.Instance?.ShowToolTargets(this);
 
         TutorialSignals.Raise(TutorialEvent.ToolSelected, gameObject);
 
     }
 
-    //객체 내려놓는 메서드
-    void pickDown()
+    public void Deselect()
     {
-        selectedTool.transform.position -= moveDir;
-        transform.localScale = Vector3.one;
-        selectedTool.transform.rotation = Quaternion.Euler(0, 0, selectedTool.originZRotation);
+        if (selectedTool != this)
+            return;
+
+        transform.position -= moveDir;
+        transform.rotation = Quaternion.Euler(0, 0, originZRotation);
         transform.localScale = originScale;
-        selectedTool.GetComponent<SpriteRenderer>().sortingOrder = selectedTool.originSortingOrder;
+        GetComponent<SpriteRenderer>().sortingOrder = originSortingOrder;
         selectedTool = null;
+        InputManager.Instance?.ClearTargetHighlights();
+    }
+
+    public static void DeselectCurrent()
+    {
+        selectedTool?.Deselect();
     }
 
     void InitIngredient()
     {
-        if(selectedTool != null)
-            selectedTool.pickDown();
+        DeselectCurrent();
 
     }
 }

@@ -118,6 +118,10 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     public void OnPointerClick(PointerEventData eventData)
     {
+        // 완성된 붕어빵을 선택한 상태라면 주문 받기나 대화보다 전달을 우선합니다.
+        if (InputManager.Instance != null && InputManager.Instance.TryHandleSelectedFishBun(Customer))
+            return;
+
         if (isLeaving == true)
             return;
 
