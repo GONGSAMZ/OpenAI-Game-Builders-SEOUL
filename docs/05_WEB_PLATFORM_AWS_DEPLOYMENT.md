@@ -82,7 +82,7 @@ Unity GameCI용 `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`는 GitHub Actio
 ## 운영 메모
 
 - CloudFront 기본 도메인으로 HTTPS를 제공하므로 별도 도메인 없이 HIVE Redirect URI를 등록할 수 있습니다.
-- 서비스 스택의 `StoreProductImageBucketName` 출력은 HIVE 상품 이미지를 저장하는 비공개 S3 버킷입니다. `<전체-market-pid>.png` 키로 업로드하면 CloudFront `/store-products/`에서 제공됩니다.
+- 서비스 스택의 `StoreProductImageBucketName` 출력은 HIVE 상품 이미지를 저장하는 비공개 S3 버킷입니다. `store-products/<전체-market-pid>.png` 키로 업로드하면 CloudFront `/store-products/`에서 제공됩니다.
 - ALB, Fargate, CloudFront, DynamoDB에는 AWS 요금이 발생할 수 있습니다.
 - 세션은 프로토타입 범위에서 메모리 저장이므로 배포 후 다시 로그인할 수 있습니다. 구매 아이템은 DynamoDB에 유지됩니다.
 - 인프라 변경 전 `infra/aws/service.yml`의 비용과 IAM 범위를 팀에서 검토합니다.

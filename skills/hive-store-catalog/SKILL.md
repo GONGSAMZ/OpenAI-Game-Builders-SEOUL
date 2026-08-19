@@ -43,7 +43,7 @@ com.gongsamz.bungeoppang.equipment.golden-pan.1
 512×512 PNG를 AWS 서비스 스택 출력 `StoreProductImageBucketName` 버킷에 아래 키로 업로드한다.
 
 ```text
-<전체-market-pid>.png
+store-products/<전체-market-pid>.png
 ```
 
 `Content-Type=image/png`, `Cache-Control=public,max-age=300`을 적용한다. CloudFront의 `/store-products/` 경로가 비공개 S3 버킷을 읽는다. 이미지가 없거나 로딩에 실패하면 Unity 기본 이미지가 표시된다.

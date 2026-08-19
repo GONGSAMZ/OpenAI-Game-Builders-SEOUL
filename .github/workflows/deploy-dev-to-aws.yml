@@ -214,15 +214,15 @@ jobs:
 
           aws s3 cp \
             BungeoppangTycoon/Assets/Resources/Sprites/StoreProducts/red-bean-100.png \
-            "s3://$image_bucket/com.gongsamz.bungeoppang.redbean100.png" \
+            "s3://$image_bucket/store-products/com.gongsamz.bungeoppang.redbean100.png" \
             --content-type image/png --cache-control public,max-age=300
           aws s3 cp \
             BungeoppangTycoon/Assets/Resources/Sprites/StoreProducts/red-bean-550.png \
-            "s3://$image_bucket/com.gongsamz.bungeoppang.redbean550.png" \
+            "s3://$image_bucket/store-products/com.gongsamz.bungeoppang.redbean550.png" \
             --content-type image/png --cache-control public,max-age=300
           aws s3 cp \
             BungeoppangTycoon/Assets/Resources/Sprites/StoreProducts/golden-pan.png \
-            "s3://$image_bucket/com.gongsamz.bungeoppang.goldenpan.png" \
+            "s3://$image_bucket/store-products/com.gongsamz.bungeoppang.goldenpan.png" \
             --content-type image/png --cache-control public,max-age=300
 
       - name: Verify public endpoint
@@ -244,7 +244,7 @@ jobs:
           grep -q '/game-bridge.js' <<< "$game_html"
           grep -q 'createUnityInstance' <<< "$game_html"
 
-          curl --fail --show-error \
+          curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors \
             "$public_url/store-products/com.gongsamz.bungeoppang.redbean100.png" \
             --output /dev/null
 

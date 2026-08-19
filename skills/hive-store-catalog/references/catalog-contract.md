@@ -47,7 +47,7 @@ HIVE 상품 API는 PlayerID를 요구하므로 로그인된 요청에서 목록�
 ## 이미지 운영
 
 - CloudFormation 출력: `StoreProductImageBucketName`
-- 객체 키: `<marketPid>.png`
+- 객체 키: `store-products/<marketPid>.png`
 - 공개 URL: `${PUBLIC_BASE_URL}/store-products/<marketPid>.png`
 - 권장 크기: 512×512 PNG
 - CloudFront 기본 TTL: 300초, 최대 3600초
