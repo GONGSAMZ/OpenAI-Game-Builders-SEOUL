@@ -54,6 +54,9 @@ public class UI_Game : UI_Base
         orderUpdateAction += orderUpdate;
 
         ordersPanel = Util.FindObject(gameObject, "ordersPanel");
+        // 설정 화면에서 돌아와 UI_Game이 새로 만들어진 경우에도,
+        // 프리팹 기본값 대신 현재 주문 상태를 바로 표시한다.
+        orderUpdate();
 
         // 첫 플레이에서만 게임 위에 조리 튜토리얼을 띄운다.
         if (UI_Tutorial.ShouldShow())
