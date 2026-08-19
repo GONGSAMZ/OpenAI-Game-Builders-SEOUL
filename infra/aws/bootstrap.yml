@@ -334,8 +334,8 @@ Resources:
                   - s3:PutEncryptionConfiguration
                   - s3:PutObject
                 Resource:
-                  - arn:aws:s3:::openai-game-builders-seoul-service-*
-                  - arn:aws:s3:::openai-game-builders-seoul-service-*/*
+                  - arn:aws:s3:::openai-game-builders-seoul-*
+                  - arn:aws:s3:::openai-game-builders-seoul-*/*
               - Effect: Allow
                 Action: iam:PassRole
                 Resource:
