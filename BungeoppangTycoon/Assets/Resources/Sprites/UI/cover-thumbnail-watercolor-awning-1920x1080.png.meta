@@ -1,7 +1,10 @@
 fileFormatVersion: 2
-guid: 33f59f904f0fb2a7454172b69210b069
+guid: 604233d3ce6d80c4f884921542783675
 TextureImporter:
-  internalIDToNameTable: []
+  internalIDToNameTable:
+  - first:
+      213: 5665815241911221954
+    second: cover-thumbnail-watercolor-awning-1920x1080_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -94,19 +97,6 @@ TextureImporter:
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
   - serializedVersion: 4
-    buildTarget: iOS
-    maxTextureSize: 2048
-    resizeAlgorithm: 0
-    textureFormat: -1
-    textureCompression: 1
-    compressionQuality: 50
-    crunchedCompression: 0
-    allowsAlphaSplitting: 0
-    overridden: 0
-    ignorePlatformSupport: 0
-    androidETC2FallbackOverride: 0
-    forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 4
     buildTarget: WebGL
     maxTextureSize: 2048
     resizeAlgorithm: 0
@@ -123,67 +113,23 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Junho_Default
+      name: cover-thumbnail-watercolor-awning-1920x1080_0
       rect:
         serializedVersion: 2
-        x: 48
-        y: 300
-        width: 512
-        height: 724
+        x: 0
+        y: 0
+        width: 1920
+        height: 1080
       alignment: 0
-      pivot: {x: 0.5, y: 0.5}
+      pivot: {x: 0, y: 0}
       border: {x: 0, y: 0, z: 0, w: 0}
       customData: 
       outline: []
       physicsShape: []
-      tessellationDetail: 0
+      tessellationDetail: -1
       bones: []
-      spriteID: ef5c08f0919a5e5bc9166238dcba1035
-      internalID: 1845334964
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: Junho_Joy
-      rect:
-        serializedVersion: 2
-        x: 512
-        y: 300
-        width: 512
-        height: 724
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 4f312a4850165f6778240d016d801199
-      internalID: -1205662176
-      vertices: []
-      indices: 
-      edges: []
-      weights: []
-    - serializedVersion: 2
-      name: Junho_Disappointed
-      rect:
-        serializedVersion: 2
-        x: 970
-        y: 300
-        width: 512
-        height: 724
-      alignment: 0
-      pivot: {x: 0.5, y: 0.5}
-      border: {x: 0, y: 0, z: 0, w: 0}
-      customData: 
-      outline: []
-      physicsShape: []
-      tessellationDetail: 0
-      bones: []
-      spriteID: 4bb882aa269b69905cd051d820c6f0e9
-      internalID: -1713237801
+      spriteID: 2cebc1991f401ae40800000000000000
+      internalID: 5665815241911221954
       vertices: []
       indices: 
       edges: []
@@ -192,7 +138,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 66ef9ace27cca09b0f2dbe49d121cdbc
+    spriteID: 
     internalID: 0
     vertices: []
     indices: 
@@ -202,11 +148,9 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      Junho_Default: 1845334964
-      Junho_Disappointed: -1713237801
-      Junho_Joy: -1205662176
+      cover-thumbnail-watercolor-awning-1920x1080_0: 5665815241911221954
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
-  userData: Figma source Yrun8rClSF4bLDLSsDDjuQ
+  userData: 
   assetBundleName: 
   assetBundleVariant: 
