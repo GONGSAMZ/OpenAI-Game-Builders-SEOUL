@@ -281,7 +281,8 @@ public class FishBunController : MonoBehaviour,
             else 
                 //if (state == CookingState.cooking)
             {
-                bakingStatus = QualityStatus.perfect;
+                bakingStatus = bakingTime >= requiredTime * 2f ? QualityStatus.crisp :
+                    bakingTime >= requiredTime * 1.35f ? QualityStatus.perfect : QualityStatus.soft;
                 imgIndex = (int)CookingState.cooked;
                 state = CookingState.cooked;
 

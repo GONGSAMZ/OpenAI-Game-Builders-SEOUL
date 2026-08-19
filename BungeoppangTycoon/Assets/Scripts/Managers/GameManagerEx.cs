@@ -167,6 +167,7 @@ public class GameManagerEx
         CurData.day = Mathf.Max(1, Managers.Instance.day) - 1;
         CurData.numOfFilling = 4;
         CurData.money = Managers.Instance.money;
+        CustomerStoryProgress.InitializeGame();
 
         isRunning = true;
         IsTutorialClockPaused = false;
@@ -204,7 +205,16 @@ public class GameManagerEx
                         () => { Managers.UI.ShowUI<UI_AlertClosingTime>(false); }, 
                         ref didAlertClosingTime, false);
 
-                    if(isAllExited == true)
+                    if (CustomerStoryProgress.IsSpecialOrderActive)
+                        break;
+                    if (isAllExited == true && CustomerStoryProgress.IsSpecialOrderDue())
+                    {
+                        CustomerStoryProgress.BeginSpecialOrder();
+                        CustomerController controller = UnityEngine.Object.FindFirstObjectByType<CustomerController>();
+                        if (controller != null)
+                            controller.BeginSpecialOrder(CustomerStoryProgress.ActiveStory);
+                    }
+                    else if (isAllExited == true)
                         dayState = DayState.Closing;
                 }
 
@@ -256,6 +266,7 @@ public class GameManagerEx
         //1. 데이터 초기화
         delta = 0; 
         ++CurData.day;
+        CustomerStoryProgress.BeginDay(CurData.day);
 
         totalFishBunsSold = 0;      
         totalCustomers = 0;         
@@ -319,6 +330,11 @@ public class GameManagerEx
         isRunning = true;
 
 
+    }
+
+    public void CompleteSpecialOrder()
+    {
+        dayState = DayState.Closing;
     }
 
     public bool IsEnding()

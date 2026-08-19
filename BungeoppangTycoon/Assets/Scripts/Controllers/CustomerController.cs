@@ -1,11 +1,18 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
 public class CustomerController : MonoBehaviour, IPointerClickHandler
 {
     CustomerData CustomerData; //SO 데이터
+    CustomerType customerType;
+    bool isSpecialOrder;
+    GameObject storyBubble;
+    bool isStoryChoiceOpen;
+    bool isStoryReplyVisible;
+    const float StoryReplyDuration = 5f;
 /*    static int level = 1; //손님 레벨
     static int Ex; //누적 손님 만족도*/
 
@@ -34,6 +41,9 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         }
     }
+
+    /// <summary>대화 집중 화면에서 원래 색으로 강조할 손님 그림입니다.</summary>
+    public SpriteRenderer StoryFocusRenderer => Customer != null ? Customer.GetComponent<SpriteRenderer>() : null;
     #endregion
 
     #region 주문 관련 변수
@@ -108,8 +118,23 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (didAcceptOrder == true || isLeaving == true)
+        if (isLeaving == true)
             return;
+
+        if (isStoryChoiceOpen)
+        {
+            CancelStoryDialogueSelection();
+            return;
+        }
+
+        if (isStoryReplyVisible)
+            return;
+
+        if (didAcceptOrder == true)
+        {
+            TryOpenStoryDialogue();
+            return;
+        }
 
         //주문
         Order();
@@ -117,6 +142,91 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         Managers.Game.acceptOrder(order);
         didAcceptOrder = true;
         TutorialSignals.Raise(TutorialEvent.CustomerOrderAccepted, Customer);
+        string customerName = CustomerCollectionCatalog.Get(customerType)?.DisplayName ?? customerType.ToString();
+        Debug.Log(
+            $"[손님 이야기] 주문 수락 | 손님={customerName}" +
+            $" | 튜토리얼 진행 중={(UI_Tutorial.IsRunning ? "예" : "아니요")}" +
+            $" | {CustomerStoryProgress.GetTalkDebugState(customerType)}");
+        RefreshStoryBubble();
+    }
+
+    public void TryOpenStoryDialogue()
+    {
+        if (isSpecialOrder || !didAcceptOrder || isLeaving || !CustomerStoryProgress.CanTalkToday(customerType)) return;
+        if (isStoryChoiceOpen)
+            return;
+
+        isStoryChoiceOpen = true;
+        RefreshStoryBubble();
+        UI_CustomerStoryChoices.Show(this, CustomerStoryProgress.ActiveStory);
+    }
+
+    public void SelectStoryTopic(int topicIndex)
+    {
+        CustomerStoryData story = CustomerStoryProgress.ActiveStory;
+        if (!isStoryChoiceOpen || story?.Topics == null || topicIndex < 0 || topicIndex >= story.Topics.Length ||
+            story.CustomerType != customerType || !CustomerStoryProgress.CanTalkToday(customerType))
+        {
+            Debug.LogWarning($"[손님 이야기] 낮 대화 선택 처리 차단 | 선택지 번호={topicIndex + 1} | {CustomerStoryProgress.GetTalkDebugState(customerType)}", this);
+            CancelStoryDialogueSelection();
+            return;
+        }
+
+        bool completedBefore = CustomerStoryProgress.CompletedTopics.Contains(topicIndex);
+        bool isNew = CustomerStoryProgress.CompleteTalkTopic(customerType, topicIndex);
+        string reply = completedBefore ? story.Topics[topicIndex].RepeatReply : story.Topics[topicIndex].FirstReply;
+
+        isStoryChoiceOpen = false;
+        isStoryReplyVisible = true;
+
+        if (isNew)
+            orderAngryPoint = Mathf.Max(-100, orderAngryPoint - 10);
+
+        // 선택지에서 답변으로 넘어가도 집중 화면과 게임 시간 정지는 그대로 유지한다.
+        UI_CustomerStoryChoices.ShowReply(this, reply, StoryReplyDuration);
+        RefreshStoryBubble();
+        Debug.Log(
+            $"[손님 이야기] 낮 대화 답변 표시 | 손님={story.DisplayName} | 선택지 번호={topicIndex + 1}" +
+            $" | 처음 들은 주제={(isNew ? "예" : "아니요")} | 답변 표시 시간={StoryReplyDuration:F1}초", this);
+    }
+
+    public void CancelStoryDialogueSelection()
+    {
+        if (!isStoryChoiceOpen)
+            return;
+
+        isStoryChoiceOpen = false;
+        UI_CustomerStoryChoices.Hide();
+        RefreshStoryBubble();
+    }
+
+    public void ReduceAngerForStoryTalk()
+    {
+        orderAngryPoint = Mathf.Max(-100, orderAngryPoint - 10);
+        RefreshStoryBubble();
+    }
+
+    public void OnStoryOverlayClosed() => RefreshStoryBubble();
+
+    public void OnStoryReplyFinished()
+    {
+        if (!isStoryReplyVisible)
+            return;
+
+        isStoryReplyVisible = false;
+        UI_CustomerStoryChoices.Hide();
+        RefreshStoryBubble();
+    }
+
+    void CancelStoryReply(bool refresh = true)
+    {
+        if (!isStoryReplyVisible)
+            return;
+
+        isStoryReplyVisible = false;
+        UI_CustomerStoryChoices.Hide();
+        if (refresh)
+            RefreshStoryBubble();
     }
 
     void ShowOrderNotAcceptedMessage()
@@ -160,6 +270,13 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     }
 
+    void OnDestroy()
+    {
+        Managers.Game.InitAction -= CoInstantiateCustomer;
+        if (isStoryChoiceOpen || isStoryReplyVisible)
+            UI_CustomerStoryChoices.Hide();
+    }
+
     void Update()
     {
         if (Managers.Game.isRunning == false)
@@ -179,6 +296,11 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     public void InitCustomer()
     {
+        if (isStoryChoiceOpen)
+            UI_CustomerStoryChoices.Hide();
+        isStoryChoiceOpen = false;
+        CancelStoryReply(false);
+
         if (orderNotAcceptedMessageRoutine != null)
             StopCoroutine(orderNotAcceptedMessageRoutine);
 
@@ -192,8 +314,17 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         orderAngryPoint = 0;
 
         //1. 손님 종류 랜덤 지정
-        int customerType = UnityEngine.Random.Range(0, Util.GetEnumSize(typeof(CustomerType)));
-        CustomerData = Managers.Resource.LoadCustomerSO((CustomerType)customerType);
+        bool guaranteedStoryCustomer = CustomerStoryProgress.TryGetGuaranteedCustomer(Managers.Game.totalCustomers, out customerType);
+        if (!guaranteedStoryCustomer)
+            customerType = (CustomerType)UnityEngine.Random.Range(0, Util.GetEnumSize(typeof(CustomerType)));
+        CustomerData = Managers.Resource.LoadCustomerSO(customerType);
+        CustomerCollectionProgress.MarkMet(customerType);
+        string customerName = CustomerCollectionCatalog.Get(customerType)?.DisplayName ?? customerType.ToString();
+        Debug.Log(
+            $"[손님 이야기] 손님 등장 준비 | 손님={customerName}" +
+            $" | 이야기 손님 우선 등장={(guaranteedStoryCustomer ? "예" : "아니요")}" +
+            $" | 등장 전 누적 손님 수={Managers.Game.totalCustomers}명" +
+            $" | 튜토리얼 진행 중={(UI_Tutorial.IsRunning ? "예" : "아니요")}");
 
         //2. 손님 스프라이트
         customer.GetComponent<SpriteRenderer>().sprite = CustomerData.GetImage();
@@ -204,6 +335,9 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         pay = 0;
         didAcceptOrder = false;
         isLeaving = false;
+        isSpecialOrder = false;
+        EnsureStoryBubble();
+        RefreshStoryBubble();
         ++Managers.Game.numsOfCurCustomers;
     }
 
@@ -212,6 +346,15 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         //주문 내역 비우기
         order.Clear();
+
+        if (isSpecialOrder)
+        {
+            order.Add(CustomerStoryProgress.ActiveStory.RequiredFilling, 1);
+            NumOfFishBun = 1;
+            UI_order.SetOrderText(order);
+            UI_order.gameObject.SetActive(true);
+            return;
+        }
 
         // 첫 튜토리얼에서만 결과가 흔들리지 않도록 팥붕어빵 1개로 고정한다.
         if (UI_Tutorial.TryConsumeForcedRedBeanOrder())
@@ -267,6 +410,9 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     public bool TryEat(FillingType filling, QualityStatus baking)
     {
+        // 답변 표시보다 붕어빵 전달 결과를 우선한다.
+        CancelStoryReply();
+
         if (isLeaving == true)
         {
             ShowTemporaryMessage("손님이 퇴장 중입니다.");
@@ -277,6 +423,13 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         {
             ShowOrderNotAcceptedMessage();
             return false;
+        }
+
+        if (isSpecialOrder)
+        {
+            CustomerStoryProgress.ResolveSpecialOrder(filling, baking);
+            BeginExit();
+            return true;
         }
 
         if (order.ContainsKey(filling) == false)
@@ -353,6 +506,13 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
             return;
 
         isLeaving = true;
+        if (isStoryChoiceOpen)
+        {
+            isStoryChoiceOpen = false;
+            UI_CustomerStoryChoices.Hide();
+        }
+        CancelStoryReply(false);
+        RefreshStoryBubble();
         StartCoroutine(Exit(isAngry));
     }
 
@@ -371,7 +531,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         else
             reaction = CustomerData.GetImage(1); //만족
 
-        // 대화 팝업 없애기
+        // 주문 또는 낮 대화 답변 말풍선 없애기
         UI_order.gameObject.SetActive(false);
 
         customer.GetComponent<SpriteRenderer>().sprite = reaction;
@@ -379,16 +539,21 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         yield return new WaitForSeconds(reactionTime);
 
         //돈 내기
-        Managers.Game.Money += pay;
+        if (!isSpecialOrder)
+            Managers.Game.Money += pay;
 
         //손님 비활성화
         customer.gameObject.SetActive(false);
-        --Managers.Game.numsOfCurCustomers;
+        if (!isSpecialOrder)
+            --Managers.Game.numsOfCurCustomers;
         Debug.Log($" {gameObject.name} Exit 끝");
 
 
         //다음 손님
-        StartCoroutine(InstatiateCustomer());
+        if (!isSpecialOrder)
+            StartCoroutine(InstatiateCustomer());
+        else
+            Managers.Game.CompleteSpecialOrder();
         yield break;
 
     }
@@ -424,6 +589,87 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         customer.gameObject.SetActive(true);
 
         yield break;
+    }
+
+    public void BeginSpecialOrder(CustomerStoryData story)
+    {
+        StopAllCoroutines();
+        if (isStoryChoiceOpen)
+            UI_CustomerStoryChoices.Hide();
+        isStoryChoiceOpen = false;
+        CancelStoryReply(false);
+        customerType = story.CustomerType;
+        CustomerData = Managers.Resource.LoadCustomerSO(customerType);
+        Customer.GetComponent<SpriteRenderer>().sprite = CustomerData.GetImage();
+        pay = 0; didAcceptOrder = false; isLeaving = false; isSpecialOrder = true;
+        customer.gameObject.SetActive(true);
+        EnsureStoryBubble(); RefreshStoryBubble();
+        CustomerStoryOverlay.ShowSpecialIntro(this);
+    }
+
+    private void EnsureStoryBubble()
+    {
+        if (storyBubble != null) return;
+        // StoryTalkBubble.png는 Multiple Sprite로 임포트되어 있으므로 첫 번째 조각을 명시한다.
+        Sprite sprite = Managers.Resource.LoadSprite("UI/StoryTalkBubble", 0);
+        if (sprite == null)
+        {
+            Debug.LogError("대화 말풍선 스프라이트를 불러오지 못했습니다: Sprites/UI/StoryTalkBubble", this);
+            return;
+        }
+        storyBubble = new GameObject("StoryTalkBubble", typeof(SpriteRenderer), typeof(BoxCollider2D), typeof(CustomerStoryBubble));
+        storyBubble.transform.SetParent(Customer.transform, false);
+        storyBubble.transform.localPosition = new Vector3(0f, 3.9f, 0f);
+        // 원본 PNG 해상도와 무관하게 손님 머리 위에서 일정한 크기로 보이게 한다.
+        float scale = sprite.bounds.size.y > 0f ? 1.45f / sprite.bounds.size.y : 1.5f;
+        storyBubble.transform.localScale = Vector3.one * scale;
+        SpriteRenderer renderer = storyBubble.GetComponent<SpriteRenderer>(); renderer.sprite = sprite; renderer.sortingLayerName = "UI"; renderer.sortingOrder = 20;
+        storyBubble.GetComponent<CustomerStoryBubble>().SetOwner(this);
+        string customerName = CustomerCollectionCatalog.Get(customerType)?.DisplayName ?? customerType.ToString();
+        Debug.Log(
+            $"[손님 이야기] 대화 말풍선 생성 | 손님={customerName} | 사용 이미지={sprite.name}" +
+            $" | 손님 기준 위치={storyBubble.transform.localPosition} | 크기 배율={scale:F3}" +
+            $" | 표시 순서 레이어={renderer.sortingLayerName} | 레이어 안 순서={renderer.sortingOrder}", this);
+    }
+
+    private void RefreshStoryBubble()
+    {
+        bool canTalkToday = CustomerStoryProgress.CanTalkToday(customerType);
+        bool blockedByTutorial = UI_Tutorial.IsRunning;
+        bool storyInteractionVisible = isStoryChoiceOpen || isStoryReplyVisible;
+        bool shouldOfferStoryTalk = !isSpecialOrder && didAcceptOrder && !isLeaving && canTalkToday && !blockedByTutorial && !storyInteractionVisible;
+        bool shouldShow = shouldOfferStoryTalk && storyBubble != null;
+        bool shouldShowOrderBubble = didAcceptOrder && !isLeaving && !shouldShow && !storyInteractionVisible;
+
+        if (storyBubble != null)
+            storyBubble.SetActive(shouldShow);
+
+        if (shouldShowOrderBubble)
+        {
+            UI_order.SetOrderText(order);
+            UI_order.gameObject.SetActive(true);
+        }
+        else
+        {
+            UI_order.gameObject.SetActive(false);
+        }
+
+        string customerName = CustomerCollectionCatalog.Get(customerType)?.DisplayName ?? customerType.ToString();
+        Debug.Log(
+            $"[손님 이야기] 말풍선 표시 상태 갱신 | 손님={customerName}" +
+            $" | 대화 말풍선 생성됨={(storyBubble != null ? "예" : "아니요")}" +
+            $" | 특별 주문 중={(isSpecialOrder ? "예" : "아니요")}" +
+            $" | 주문 수락됨={(didAcceptOrder ? "예" : "아니요")}" +
+            $" | 퇴장 중={(isLeaving ? "예" : "아니요")}" +
+            $" | 오늘 대화 가능={(canTalkToday ? "예" : "아니요")}" +
+            $" | 튜토리얼로 차단됨={(blockedByTutorial ? "예" : "아니요")}" +
+            $" | 선택지 표시 중={(isStoryChoiceOpen ? "예" : "아니요")}" +
+            $" | 답변 표시 중={(isStoryReplyVisible ? "예" : "아니요")}" +
+            $" | 대화 제안 조건 충족={(shouldOfferStoryTalk ? "예" : "아니요")}" +
+            $" | 대화 말풍선 표시={(storyBubble != null && storyBubble.activeSelf ? "예" : "아니요")}" +
+            $" | 주문 말풍선 표시={(UI_order.gameObject.activeSelf ? "예" : "아니요")}" +
+            $" | {CustomerStoryProgress.GetTalkDebugState(customerType)}",
+            this);
     }
 
 
