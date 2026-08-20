@@ -12,6 +12,14 @@ public class GameData
 
     //해금된 재료 개수
     public int numOfFilling;
+
+    //도감
+
+    //스토리 진행률
+
+    //아이템
+    
+   
 }
 
 public class GameManagerEx
@@ -44,8 +52,8 @@ public class GameManagerEx
     #endregion
 
     #region 시간 관련 변수
-    readonly int startHour = 18;
-    readonly int endHour = 23;
+    readonly int startHour = 19;
+    readonly int endHour = 22;
     public int hour
     { get { return (int)delta / 60 + startHour; } }
 
