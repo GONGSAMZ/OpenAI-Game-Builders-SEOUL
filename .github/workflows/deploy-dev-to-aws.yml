@@ -7,6 +7,7 @@ on:
       - "BungeoppangTycoon/**"
       - "platform-server/**"
       - "infra/aws/**"
+      - ".dockerignore"
       - ".github/workflows/deploy-dev-to-aws.yml"
   workflow_dispatch:
 
@@ -21,8 +22,6 @@ concurrency:
 jobs:
   preflight:
     runs-on: ubuntu-latest
-    outputs:
-      ready: ${{ steps.check.outputs.ready }}
     env:
       AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
       AWS_REGION: ${{ vars.AWS_REGION }}
@@ -31,7 +30,6 @@ jobs:
       AWS_TASK_ROLE_ARN: ${{ vars.AWS_TASK_ROLE_ARN }}
       AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
       AWS_RUNTIME_SECRET_ARN: ${{ vars.AWS_RUNTIME_SECRET_ARN }}
-      UNITY_CI_ENABLED: ${{ vars.UNITY_CI_ENABLED || 'false' }}
       UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -43,24 +41,19 @@ jobs:
           for name in AWS_ROLE_ARN AWS_REGION AWS_ECR_REPOSITORY AWS_TASK_EXECUTION_ROLE_ARN AWS_TASK_ROLE_ARN AWS_DYNAMODB_TABLE AWS_RUNTIME_SECRET_ARN; do
             if [[ -z "${!name}" ]]; then missing+=("$name"); fi
           done
-          if [[ "$UNITY_CI_ENABLED" == "true" ]]; then
-            for name in UNITY_LICENSE UNITY_EMAIL UNITY_PASSWORD; do
-              if [[ -z "${!name}" ]]; then missing+=("$name"); fi
-            done
-          fi
+          for name in UNITY_LICENSE UNITY_EMAIL UNITY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then missing+=("$name"); fi
+          done
           if (( ${#missing[@]} > 0 )); then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "### AWS 배포 설정 대기" >> "$GITHUB_STEP_SUMMARY"
+            echo "### AWS 배포 설정 오류" >> "$GITHUB_STEP_SUMMARY"
             echo "누락: ${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
 
   build-and-deploy:
     needs: preflight
-    if: needs.preflight.outputs.ready == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
@@ -82,6 +75,13 @@ jobs:
       USE_RUNTIME_SECRETS: "true"
     steps:
       - uses: actions/checkout@v7
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: BungeoppangTycoon/Library
+          key: Unity-Library-WebGL-${{ runner.os }}-${{ hashFiles('BungeoppangTycoon/ProjectSettings/ProjectVersion.txt', 'BungeoppangTycoon/Packages/manifest.json', 'BungeoppangTycoon/Packages/packages-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            Unity-Library-WebGL-${{ runner.os }}-${{ hashFiles('BungeoppangTycoon/ProjectSettings/ProjectVersion.txt', 'BungeoppangTycoon/Packages/manifest.json', 'BungeoppangTycoon/Packages/packages-lock.json') }}-
       - uses: pnpm/action-setup@v6
         with:
           version: 11.19.0
@@ -92,7 +92,6 @@ jobs:
           cache-dependency-path: platform-server/pnpm-lock.yaml
 
       - name: Build Unity 6.3 WebGL
-        if: vars.UNITY_CI_ENABLED == 'true'
         uses: game-ci/unity-builder@v5
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -105,17 +104,10 @@ jobs:
           buildMethod: WebGLBuildCommand.Build
 
       - name: Stage Unity build in the server image
-        if: vars.UNITY_CI_ENABLED == 'true'
         shell: bash
         run: node platform-server/scripts/unity-build-manifest.mjs stage
 
-      - name: Validate tracked Unity WebGL build
-        if: vars.UNITY_CI_ENABLED != 'true'
-        shell: bash
-        run: node platform-server/scripts/unity-build-manifest.mjs verify
-
       - name: Validate rebuilt Unity WebGL build
-        if: vars.UNITY_CI_ENABLED == 'true'
         shell: bash
         run: node platform-server/scripts/unity-build-manifest.mjs verify
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 [Serializable]
@@ -17,17 +18,24 @@ internal sealed class CustomerStorySaveData
 public static class CustomerStoryProgress
 {
     private const string SaveKey = "customer_story_jeonghyun_v1";
+    private const string ProgressId = "jeonghyeon";
+    private const string LegacyMigrationKey = "customer_story_account_migration_v1";
     private static CustomerStorySaveData save;
+    private static string loadedSaveKey;
     private static bool guaranteedCustomerSpawned;
+
+    public static event Action Changed;
 
     private static CustomerStorySaveData SaveData
     {
         get
         {
-            if (save != null) return save;
-            string json = PlayerPrefs.GetString(SaveKey, string.Empty);
+            string currentSaveKey = CurrentSaveKey;
+            if (save != null && loadedSaveKey == currentSaveKey) return save;
+            string json = PlayerPrefs.GetString(currentSaveKey, string.Empty);
             save = string.IsNullOrWhiteSpace(json) ? new CustomerStorySaveData() : JsonUtility.FromJson<CustomerStorySaveData>(json) ?? new CustomerStorySaveData();
             save.completedTopicIndexes ??= new List<int>();
+            loadedSaveKey = currentSaveKey;
             return save;
         }
     }
@@ -50,9 +58,9 @@ public static class CustomerStoryProgress
 
         CustomerStoryData jeongHyun = CustomerStoryCatalog.Get(CustomerType.JeongHyun);
         bool fillingAvailable = IsFillingAvailable(jeongHyun.RequiredFilling);
-        ActiveStory = SaveData.storyCompleted || !fillingAvailable ? null : jeongHyun;
+        RefreshActiveStory();
         SaveData.hasStartedStoryGame = true;
-        Persist();
+        Persist(false);
         Debug.Log(
             $"[손님 이야기] 게임 이야기 상태 초기화 | 현재 날짜={Managers.Game.Day}일차" +
             $" | 활성 이야기={(ActiveStory != null ? ActiveStory.DisplayName : "없음")}" +
@@ -69,7 +77,7 @@ public static class CustomerStoryProgress
     public static void BeginDay(int day)
     {
         if (SaveData.lastTalkDay != day)
-            Persist();
+            Persist(false);
     }
 
     public static bool TryGetGuaranteedCustomer(int totalCustomers, out CustomerType customerType)
@@ -110,7 +118,7 @@ public static class CustomerStoryProgress
         if (isNew) SaveData.completedTopicIndexes.Add(topicIndex);
         if (SaveData.completedTopicIndexes.Count >= ActiveStory.Topics.Length && SaveData.specialOrderDueDay < 0 && IsFillingAvailable(ActiveStory.RequiredFilling))
             SaveData.specialOrderDueDay = Managers.Game.Day + 1;
-        Persist();
+        Persist(true);
         Debug.Log(
             $"[손님 이야기] 대화 주제 완료 | 손님={ActiveStory.DisplayName} | 선택지 번호={topicIndex + 1}" +
             $" | 처음 들은 주제={(isNew ? "예" : "아니요")}" +
@@ -163,9 +171,96 @@ public static class CustomerStoryProgress
             CustomerStoryOverlay.ShowResult(ActiveStory.DisplayName, fillingMatch || bakeMatch ? ActiveStory.NearMissMessage : ActiveStory.FailureMessage, false);
         }
         IsSpecialOrderActive = false;
-        Persist();
+        Persist(true);
     }
 
     private static bool IsFillingAvailable(FillingType filling) => (int)filling < Managers.Game.NumOfFilling;
-    private static void Persist() { PlayerPrefs.SetString(SaveKey, JsonUtility.ToJson(SaveData)); PlayerPrefs.Save(); }
+
+    public static void OnAccountChanged()
+    {
+        MigrateLegacyProgress();
+        save = null;
+        loadedSaveKey = null;
+        ActiveStory = null;
+        IsSpecialOrderActive = false;
+        if (Managers.Game.NumOfFilling > 0)
+            RefreshActiveStory();
+        Changed?.Invoke();
+    }
+
+    public static void MergeAccountProgress(GamePlatformClient client)
+    {
+        if (client == null || string.IsNullOrWhiteSpace(client.AccountSubject)) return;
+
+        IReadOnlyList<int> remoteTopics = client.GetRemoteCompletedStoryTopics(ProgressId);
+        bool remoteCompleted = client.IsRemoteStoryCompleted(ProgressId);
+        bool shouldPush = SaveData.storyCompleted && !remoteCompleted;
+        bool changed = false;
+
+        foreach (int topicIndex in SaveData.completedTopicIndexes)
+            if (!remoteTopics.Contains(topicIndex)) shouldPush = true;
+
+        foreach (int topicIndex in remoteTopics)
+        {
+            if (SaveData.completedTopicIndexes.Contains(topicIndex)) continue;
+            SaveData.completedTopicIndexes.Add(topicIndex);
+            changed = true;
+        }
+
+        SaveData.completedTopicIndexes.Sort();
+        if (remoteCompleted && !SaveData.storyCompleted)
+        {
+            SaveData.storyCompleted = true;
+            changed = true;
+        }
+
+        if (Managers.Game.NumOfFilling > 0)
+            RefreshActiveStory();
+
+        if (changed)
+            Persist(false);
+
+        if (shouldPush)
+            client.MergeStoryProgress(ProgressId, SaveData.completedTopicIndexes, SaveData.storyCompleted);
+
+    }
+
+    private static string CurrentSaveKey => PlayerProgressAccountScope.IsAuthenticated
+        ? SaveKey + "__" + PlayerProgressAccountScope.Current
+        : SaveKey;
+
+    private static void RefreshActiveStory()
+    {
+        CustomerStoryData story = CustomerStoryCatalog.Get(CustomerType.JeongHyun);
+        ActiveStory = SaveData.storyCompleted || story == null || !IsFillingAvailable(story.RequiredFilling)
+            ? null
+            : story;
+    }
+
+    private static void MigrateLegacyProgress()
+    {
+        if (!PlayerProgressAccountScope.IsAuthenticated || PlayerPrefs.HasKey(LegacyMigrationKey))
+            return;
+
+        string accountSaveKey = SaveKey + "__" + PlayerProgressAccountScope.Current;
+        if (!PlayerPrefs.HasKey(accountSaveKey) && PlayerPrefs.HasKey(SaveKey))
+            PlayerPrefs.SetString(accountSaveKey, PlayerPrefs.GetString(SaveKey));
+
+        PlayerPrefs.DeleteKey(SaveKey);
+        PlayerPrefs.SetString(LegacyMigrationKey, PlayerProgressAccountScope.Current);
+        PlayerPrefs.Save();
+    }
+
+    private static void Persist(bool syncAccount)
+    {
+        PlayerPrefs.SetString(CurrentSaveKey, JsonUtility.ToJson(SaveData));
+        PlayerPrefs.Save();
+        Changed?.Invoke();
+
+        if (syncAccount)
+            GamePlatformClient.Instance?.MergeStoryProgress(
+                ProgressId,
+                SaveData.completedTopicIndexes,
+                SaveData.storyCompleted);
+    }
 }

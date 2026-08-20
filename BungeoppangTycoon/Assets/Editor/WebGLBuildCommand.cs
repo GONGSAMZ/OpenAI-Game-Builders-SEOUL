@@ -10,17 +10,18 @@ public static class WebGLBuildCommand
 {
     public static void Configure()
     {
-        EnsureUrpCompatibilityMode();
-
-        if (!EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL))
+        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.WebGL &&
+            !EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL))
             throw new InvalidOperationException("WebGL 플랫폼 전환에 실패했습니다.");
+
+        EnsureWebGlBuildEnvironment();
 
         Console.WriteLine("WEBGL_CONFIGURATION_SUCCEEDED");
     }
 
     public static void Build()
     {
-        EnsureUrpCompatibilityMode();
+        EnsureWebGlBuildEnvironment();
 
         string[] scenes = EditorBuildSettings.scenes
             .Where(scene => scene.enabled)
@@ -77,21 +78,26 @@ public static class WebGLBuildCommand
         File.WriteAllText(indexPath, html);
     }
 
-    private static void EnsureUrpCompatibilityMode()
+    private static void EnsureWebGlBuildEnvironment()
     {
+        // 플랫폼을 이 메서드 안에서 전환하면 Unity가 WebGL 전용 스크립트 심볼을
+        // 재컴파일하기 전에 BuildPipeline이 실행될 수 있습니다. CI는 targetPlatform=WebGL,
+        // 로컬 배치는 -buildTarget WebGL로 에디터를 시작해 컴파일 경계를 보장합니다.
+        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.WebGL)
+            throw new InvalidOperationException(
+                "현재 활성 빌드 대상이 WebGL이 아닙니다. " +
+                "Unity에서 WebGL로 전환하거나 배치 실행에 -buildTarget WebGL을 지정한 뒤 다시 빌드하세요.");
+
         NamedBuildTarget webTarget = NamedBuildTarget.FromBuildTargetGroup(BuildTargetGroup.WebGL);
         string defines = PlayerSettings.GetScriptingDefineSymbols(webTarget);
-        string[] updatedDefines = defines
+        bool hasCompatibilityMode = defines
             .Split(';')
             .Where(define => !string.IsNullOrWhiteSpace(define))
-            .Append("URP_COMPATIBILITY_MODE")
-            .Distinct()
-            .ToArray();
-
-        PlayerSettings.SetScriptingDefineSymbols(
-            webTarget,
-            string.Join(";", updatedDefines));
-        AssetDatabase.SaveAssets();
+            .Any(define => define == "URP_COMPATIBILITY_MODE");
+        if (!hasCompatibilityMode)
+            throw new InvalidOperationException(
+                "WebGL Scripting Define Symbols에 URP_COMPATIBILITY_MODE가 필요합니다. " +
+                "ProjectSettings.asset에 영구 설정한 뒤 다시 빌드하세요.");
     }
 }
 #endif

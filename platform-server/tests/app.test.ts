@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
 import type { HiveBillingGateway } from "../src/integrations/hive/billing-client.js";
 import type { NicePayGateway } from "../src/integrations/nicepay/client.js";
+import { InMemoryPlayerProgressStore } from "../src/progress/store.js";
+import { InMemorySessionStore } from "../src/session-store.js";
 import { InMemoryMarketStore } from "../src/store/store.js";
 import { createTestConfig } from "./helpers.js";
 
@@ -79,6 +81,77 @@ describe("integration API", () => {
     expect(session.body.session).toEqual(
       expect.objectContaining({ provider: "mock-hive", playerId: "local-player" })
     );
+  });
+
+  it("도감과 스토리 진행은 인증 사용자별로 저장되고 단조롭게 병합된다", async () => {
+    const sessions = new InMemorySessionStore(3600);
+    const firstSession = await sessions.create({
+      subject: "player-a",
+      provider: "mock-hive",
+      playerId: "player-a"
+    });
+    const secondSession = await sessions.create({
+      subject: "player-b",
+      provider: "mock-hive",
+      playerId: "player-b"
+    });
+    const playerProgressStore = new InMemoryPlayerProgressStore();
+    const app = createApp({
+      config: createTestConfig(),
+      sessions,
+      playerProgressStore
+    });
+
+    await request(app).get("/api/v1/progress").expect(401);
+
+    await request(app)
+      .post("/api/v1/progress/customers/jeonghyeon/met")
+      .set("Authorization", `Bearer ${firstSession.token}`)
+      .expect(200);
+
+    const firstUpdate = await request(app)
+      .put("/api/v1/progress/stories/jeonghyeon")
+      .set("Authorization", `Bearer ${firstSession.token}`)
+      .send({ completedTopicIndexes: [2, 0, 2], storyCompleted: true })
+      .expect(200);
+    expect(firstUpdate.body.customers[0]).toEqual({
+      customerId: "jeonghyeon",
+      met: true,
+      completedTopicIndexes: [0, 2],
+      storyCompleted: true
+    });
+
+    const staleUpdate = await request(app)
+      .put("/api/v1/progress/stories/jeonghyeon")
+      .set("Authorization", `Bearer ${firstSession.token}`)
+      .send({ completedTopicIndexes: [1], storyCompleted: false })
+      .expect(200);
+    expect(staleUpdate.body.customers[0]).toEqual({
+      customerId: "jeonghyeon",
+      met: true,
+      completedTopicIndexes: [0, 1, 2],
+      storyCompleted: true
+    });
+
+    await request(app)
+      .get("/api/v1/progress")
+      .set("Authorization", `Bearer ${secondSession.token}`)
+      .expect(200, { schemaVersion: 1, customers: [] });
+
+    await request(app)
+      .post("/api/v1/progress/customers/not-a-customer/met")
+      .set("Authorization", `Bearer ${firstSession.token}`)
+      .expect(400);
+    await request(app)
+      .put("/api/v1/progress/stories/not-a-customer")
+      .set("Authorization", `Bearer ${firstSession.token}`)
+      .send({ completedTopicIndexes: [], storyCompleted: false })
+      .expect(400);
+    await request(app)
+      .put("/api/v1/progress/stories/jeonghyeon")
+      .set("Authorization", `Bearer ${firstSession.token}`)
+      .send({})
+      .expect(400);
   });
 
   it("팝업 연결이 끊겨도 HttpOnly 쿠키로 로그인 세션을 복구하고 로그아웃한다", async () => {

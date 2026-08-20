@@ -63,6 +63,16 @@ pnpm unity:verify
 
 `unity:stage`는 `platform-server/game-dist`를 갱신하면서 Unity 버전, Unity 소스 트리 SHA-256과 산출물 해시를 `build-manifest.json`에 기록한다. Unity 원본을 바꾸고 기존 `game-dist`만 그대로 push하면 CI가 실패해야 정상이다.
 
+배치 빌드는 Unity를 처음부터 WebGL 대상으로 시작해야 한다. `Build` 안에서 플랫폼을 바꾸면 Unity가 WebGL 전용 심볼을 재컴파일하기 전에 빌드가 이어질 수 있으므로 다음처럼 `-buildTarget WebGL`을 지정한다. GitHub Actions의 `targetPlatform: WebGL`도 같은 목적이다.
+
+```powershell
+& 'C:\Program Files\Unity\Hub\Editor\6000.3.22f1\Editor\Unity.exe' `
+  -batchmode -nographics -quit -buildTarget WebGL `
+  -projectPath (Resolve-Path BungeoppangTycoon) `
+  -executeMethod WebGLBuildCommand.Build `
+  -logFile unity-webgl-build.log
+```
+
 UI를 변경했다면 최소 1280×720, 1920×1080, 2560×1080에서 잘림·겹침·마우스 입력을 확인한다. 로그인 문자 입력 중 게임 조작이 실행되지 않는지도 확인한다.
 
 ## 4. 플랫폼 서버나 API를 바꿀 때
@@ -83,6 +93,15 @@ pnpm unity:verify
 - 결제와 지급에는 거래 ID 또는 UUID 멱등성 키를 유지한다.
 - 팥 코인은 일반 게임 돈 `Managers.Game.Money`와 섞지 않는다.
 - 로그인 세션, 팥 코인, 인벤토리와 장착 상태의 운영 기준은 DynamoDB다.
+
+### 도감·스토리 계정 동기화
+
+- 로그인 후 `GET /api/v1/progress`로 현재 계정 스냅샷을 받고 이후 플랫폼 상태와 함께 5초 주기로 동기화한다.
+- 손님 첫 조우는 `POST /api/v1/progress/customers/:customerId/met`, 영구 스토리 진행은 `PUT /api/v1/progress/stories/:customerId`로 보낸다.
+- 서버는 세션의 `subject`만 사용하며 DynamoDB `PLAYER#<subject> / PROGRESS#CUSTOMER#<customerId>`에 사용자별 저장한다.
+- 조우 여부, 완료 대화 주제와 스토리 완료는 합집합 방식으로만 전진한다. 오래된 클라이언트가 완료 상태를 되돌리지 못해야 한다.
+- 특별 주문 예정일·재도전일·당일 대화 제한은 현재 플레이 날짜에 종속되므로 계정 영구 진행에 포함하지 않는다.
+- 기존 무계정 PlayerPrefs 데이터는 첫 로그인 계정에 한 번만 이전한다. 이후 로그인·로그아웃·계정 전환 때는 계정별 키를 다시 불러와 서로 섞이지 않게 한다.
 
 ## 5. HIVE Console에 상품을 추가하거나 수정할 때
 
@@ -170,12 +189,15 @@ API만 `live`로 바꾸고 게임에서 사용하지 않는 상태는 기능 완
 
 ## 9. AWS에 배포할 때
 
-일반 배포에는 AWS 콘솔 로그인이 필요하지 않다. 검증된 변경을 `DEV`에 push하면 GitHub OIDC가 자동으로 서버 검사, WebGL 해시 검증, ECR 이미지 생성, CloudFormation 배포와 공개 URL Smoke Test를 실행한다.
+일반 배포에는 AWS 콘솔 로그인이 필요하지 않다. 검증된 변경을 `DEV`에 push하면 GitHub OIDC가 자동으로 정확히 그 커밋의 Unity 원본을 WebGL로 새로 빌드하고, 서버 검사, 산출물 해시 검증, ECR 이미지 생성, CloudFormation 배포와 공개 URL Smoke Test를 실행한다. 저장소에 남아 있던 `game-dist`를 최신 빌드처럼 대신 배포하는 우회 경로는 두지 않는다.
+
+Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`와 AWS 변수 중 하나라도 없으면 preflight가 즉시 실패해야 정상이다. 누락된 Unity 빌드를 건너뛰고 이전 WebGL을 배포하도록 설정하지 않는다.
 
 배포 성공 조건:
 
 - `Verify platform server`
-- `Validate tracked/rebuilt Unity WebGL build`
+- `Build Unity 6.3 WebGL`
+- `Validate rebuilt Unity WebGL build`
 - `Verify DynamoDB recovery and session expiry`
 - `Deploy ECS Fargate service`
 - `Publish default store product images`
@@ -217,13 +239,13 @@ API만 `live`로 바꾸고 게임에서 사용하지 않는 상태는 기능 완
 - 사용자별 팥 코인·인벤토리·황금 틀 장착 저장
 - NICEPAY 테스트 결제 후 사용자별 지급
 - HIVE Console 상품의 인게임 카탈로그 자동 구성
-- Unity WebGL 해시 검증과 `DEV` → AWS 자동 배포·롤백
+- 정확한 DEV Unity 소스를 매번 새로 빌드하는 WebGL 해시 검증과 `DEV` → AWS 자동 배포·롤백
 
 ### 아직 완료로 보면 안 되는 작업
 
 - OpenAI live 기능의 실제 게임 사용
-- 일반 게임 진행·레시피·스토리 저장과 랭킹
-- 손님 특별 주문·이야기·도감 구현
+- 일반 게임 진행·레시피 저장과 랭킹
+- 정현 외 손님의 특별 주문·이야기 콘텐츠
 - 레시피 해금 상점
 - 전체 Editor/WebGL 회귀 테스트와 출시 후보 QA
 - 제출판의 개발 도구 제거

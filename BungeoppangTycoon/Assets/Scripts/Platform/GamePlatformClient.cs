@@ -22,12 +22,14 @@ public sealed class GamePlatformClient : MonoBehaviour
     private bool serverSessionAvailable;
     private Coroutine inventorySyncLoop;
     private readonly Dictionary<string, int> inventory = new();
+    private readonly Dictionary<string, PlayerCustomerProgress> accountProgress = new();
 
     public int RedBeanCoinBalance => GetItemQuantity(PlatformCurrencyItemId);
     public int TestPointBalance { get; private set; }
     public bool OwnsGoldenPan => GetItemQuantity("golden-pan") > 0;
     public bool IsGoldenPanEquipped { get; private set; }
     public float BakingTimeMultiplier => IsGoldenPanEquipped ? 0.8f : 1f;
+    public string AccountSubject { get; private set; }
 
     public static GamePlatformClient Instance { get; private set; }
 
@@ -103,7 +105,9 @@ public sealed class GamePlatformClient : MonoBehaviour
 #else
         sessionToken = null;
         serverSessionAvailable = false;
+        SetAccountSubject(null);
         ClearStoreState();
+        ClearAccountProgressState();
 #endif
     }
 
@@ -154,6 +158,16 @@ public sealed class GamePlatformClient : MonoBehaviour
         });
     }
 
+    public IEnumerator GetAccountProgress(Action<string> onSuccess)
+    {
+        string requestedSubject = AccountSubject;
+        yield return SendJson("GET", "/api/v1/progress", null, json =>
+        {
+            if (!ApplyAccountProgress(requestedSubject, json)) return;
+            onSuccess?.Invoke(json);
+        });
+    }
+
     public void OpenNicePayTestCheckout(string productId)
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -167,6 +181,65 @@ public sealed class GamePlatformClient : MonoBehaviour
     {
         if (!IsLoggedIn) return;
         StartCoroutine(GetInventory(null));
+    }
+
+    public void SyncAccountProgressNow()
+    {
+        if (!IsLoggedIn || string.IsNullOrWhiteSpace(AccountSubject)) return;
+        StartCoroutine(GetAccountProgress(null));
+    }
+
+    public bool HasRemoteCustomerMet(string customerId)
+    {
+        return !string.IsNullOrWhiteSpace(customerId) &&
+            accountProgress.TryGetValue(customerId, out PlayerCustomerProgress progress) &&
+            progress.met;
+    }
+
+    public IReadOnlyList<int> GetRemoteCompletedStoryTopics(string customerId)
+    {
+        if (!string.IsNullOrWhiteSpace(customerId) &&
+            accountProgress.TryGetValue(customerId, out PlayerCustomerProgress progress) &&
+            progress.completedTopicIndexes != null)
+            return progress.completedTopicIndexes;
+        return Array.Empty<int>();
+    }
+
+    public bool IsRemoteStoryCompleted(string customerId)
+    {
+        return !string.IsNullOrWhiteSpace(customerId) &&
+            accountProgress.TryGetValue(customerId, out PlayerCustomerProgress progress) &&
+            progress.storyCompleted;
+    }
+
+    public void MarkCustomerMet(string customerId)
+    {
+        if (!IsLoggedIn || string.IsNullOrWhiteSpace(AccountSubject) || string.IsNullOrWhiteSpace(customerId))
+            return;
+
+        string requestedSubject = AccountSubject;
+        string path = "/api/v1/progress/customers/" + UnityWebRequest.EscapeURL(customerId) + "/met";
+        StartCoroutine(SendJson("POST", path, null, json => ApplyAccountProgress(requestedSubject, json)));
+    }
+
+    public void MergeStoryProgress(
+        string customerId,
+        IReadOnlyCollection<int> completedTopicIndexes,
+        bool storyCompleted)
+    {
+        if (!IsLoggedIn || string.IsNullOrWhiteSpace(AccountSubject) || string.IsNullOrWhiteSpace(customerId))
+            return;
+
+        string requestedSubject = AccountSubject;
+        var payload = JsonUtility.ToJson(new StoryProgressRequest
+        {
+            completedTopicIndexes = completedTopicIndexes == null
+                ? Array.Empty<int>()
+                : new List<int>(completedTopicIndexes).ToArray(),
+            storyCompleted = storyCompleted
+        });
+        string path = "/api/v1/progress/stories/" + UnityWebRequest.EscapeURL(customerId);
+        StartCoroutine(SendJson("PUT", path, payload, json => ApplyAccountProgress(requestedSubject, json)));
     }
 
     public int GetItemQuantity(string itemId)
@@ -202,8 +275,7 @@ public sealed class GamePlatformClient : MonoBehaviour
     {
         sessionToken = token;
         serverSessionAvailable = true;
-        StartInventorySync();
-        SyncInventoryNow();
+        StartCoroutine(InitializeAuthenticatedState());
         LoginSucceeded?.Invoke(token);
     }
 
@@ -212,7 +284,9 @@ public sealed class GamePlatformClient : MonoBehaviour
         sessionToken = null;
         serverSessionAvailable = false;
         StopInventorySync();
+        SetAccountSubject(null);
         ClearStoreState();
+        ClearAccountProgressState();
     }
 
     public void OnHiveShopClosed(string _)
@@ -261,6 +335,38 @@ public sealed class GamePlatformClient : MonoBehaviour
         }
     }
 
+    private bool ApplyAccountProgress(string requestedSubject, string json)
+    {
+        if (string.IsNullOrWhiteSpace(requestedSubject) ||
+            !string.Equals(AccountSubject, requestedSubject, StringComparison.Ordinal))
+            return false;
+
+        try
+        {
+            PlayerProgressEnvelope envelope = JsonUtility.FromJson<PlayerProgressEnvelope>(json);
+            accountProgress.Clear();
+            if (envelope?.customers != null)
+            {
+                foreach (PlayerCustomerProgress customer in envelope.customers)
+                {
+                    if (customer == null || string.IsNullOrWhiteSpace(customer.customerId))
+                        continue;
+                    customer.completedTopicIndexes ??= Array.Empty<int>();
+                    accountProgress[customer.customerId] = customer;
+                }
+            }
+
+            CustomerCollectionProgress.MergeAccountProgress(this);
+            CustomerStoryProgress.MergeAccountProgress(this);
+            return true;
+        }
+        catch (Exception error)
+        {
+            OnBridgeError($"계정 진행도 동기화에 실패했습니다: {error.Message}");
+            return false;
+        }
+    }
+
     public void OnBridgeError(string message)
     {
         Debug.LogError(message);
@@ -303,18 +409,37 @@ public sealed class GamePlatformClient : MonoBehaviour
 
     private IEnumerator RestoreSession()
     {
+        yield return InitializeAuthenticatedState();
+    }
+
+    private IEnumerator InitializeAuthenticatedState()
+    {
         bool restored = false;
+        string sessionJson = null;
         yield return SendJson(
             "GET",
             "/api/v1/auth/session",
             null,
-            _ => restored = true,
+            json =>
+            {
+                restored = true;
+                sessionJson = json;
+            },
             false);
 
         serverSessionAvailable = restored;
-        if (!restored) yield break;
+        if (!restored)
+        {
+            sessionToken = null;
+            SetAccountSubject(null);
+            yield break;
+        }
+
+        SessionEnvelope envelope = JsonUtility.FromJson<SessionEnvelope>(sessionJson);
+        SetAccountSubject(envelope?.session?.subject);
         StartInventorySync();
         SyncInventoryNow();
+        SyncAccountProgressNow();
     }
 
     private void StartInventorySync()
@@ -335,7 +460,11 @@ public sealed class GamePlatformClient : MonoBehaviour
         while (IsLoggedIn)
         {
             yield return new WaitForSecondsRealtime(InventorySyncIntervalSeconds);
-            if (IsLoggedIn) SyncInventoryNow();
+            if (IsLoggedIn)
+            {
+                SyncInventoryNow();
+                SyncAccountProgressNow();
+            }
         }
         inventorySyncLoop = null;
     }
@@ -346,6 +475,21 @@ public sealed class GamePlatformClient : MonoBehaviour
         TestPointBalance = 0;
         IsGoldenPanEquipped = false;
         StoreStateChanged?.Invoke();
+    }
+
+    private void ClearAccountProgressState()
+    {
+        accountProgress.Clear();
+    }
+
+    private void SetAccountSubject(string subject)
+    {
+        string normalized = string.IsNullOrWhiteSpace(subject) ? null : subject.Trim();
+        if (AccountSubject == normalized) return;
+        AccountSubject = normalized;
+        accountProgress.Clear();
+        CustomerCollectionProgress.OnAccountChanged();
+        CustomerStoryProgress.OnAccountChanged();
     }
 
     [Serializable]
@@ -388,5 +532,40 @@ public sealed class GamePlatformClient : MonoBehaviour
     private sealed class StoreWallet
     {
         public int testPoints;
+    }
+
+    [Serializable]
+    private sealed class SessionEnvelope
+    {
+        public PlatformSession session;
+    }
+
+    [Serializable]
+    private sealed class PlatformSession
+    {
+        public string subject;
+    }
+
+    [Serializable]
+    private sealed class PlayerProgressEnvelope
+    {
+        public int schemaVersion;
+        public PlayerCustomerProgress[] customers;
+    }
+
+    [Serializable]
+    private sealed class PlayerCustomerProgress
+    {
+        public string customerId;
+        public bool met;
+        public int[] completedTopicIndexes;
+        public bool storyCompleted;
+    }
+
+    [Serializable]
+    private sealed class StoryProgressRequest
+    {
+        public int[] completedTopicIndexes;
+        public bool storyCompleted;
     }
 }

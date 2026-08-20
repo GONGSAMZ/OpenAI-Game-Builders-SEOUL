@@ -1,0 +1,15 @@
+*
+!.dockerignore
+!platform-server/
+!platform-server/Dockerfile
+!platform-server/package.json
+!platform-server/pnpm-lock.yaml
+!platform-server/pnpm-workspace.yaml
+!platform-server/tsconfig.json
+!platform-server/tsconfig.build.json
+!platform-server/src/
+!platform-server/src/**
+!platform-server/public/
+!platform-server/public/**
+!platform-server/game-dist/
+!platform-server/game-dist/**

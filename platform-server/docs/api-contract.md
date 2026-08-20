@@ -36,6 +36,47 @@ Hive 로그인 팝업에 사용할 URL을 반환합니다. 브라우저에서는
 
 현재 게임 세션을 폐기합니다.
 
+## 계정별 도감·스토리 진행
+
+도감과 스토리 진행 API는 모두 게임 세션이 필요하며, 요청에서 PlayerID를 받지 않고 인증된 세션의 `subject`만 사용합니다. 진행 상태는 감소하지 않는 방식으로 병합되므로 오래된 클라이언트가 이미 완료한 진행을 되돌릴 수 없습니다.
+
+### `GET /api/v1/progress`
+
+로그인한 사용자의 도감 조우 여부와 영구 스토리 진행을 반환합니다.
+
+```json
+{
+  "schemaVersion": 1,
+  "customers": [
+    {
+      "customerId": "jeonghyeon",
+      "met": true,
+      "completedTopicIndexes": [0, 1],
+      "storyCompleted": false
+    }
+  ]
+}
+```
+
+지원하는 `customerId`는 `jeonghyeon`, `hajin`, `miju`, `sunja`, `geonwoo`, `taesu`, `nari`, `junho`다.
+
+### `POST /api/v1/progress/customers/:customerId/met`
+
+인증된 사용자가 해당 손님을 만난 사실을 기록하고 전체 진행 스냅샷을 반환합니다. 한 번 기록된 `met`은 다시 `false`가 되지 않습니다.
+
+### `PUT /api/v1/progress/stories/:customerId`
+
+완료한 대화 주제와 스토리 완료 여부를 서버 상태에 합집합으로 병합하고 전체 진행 스냅샷을 반환합니다.
+
+```json
+{
+  "completedTopicIndexes": [0, 1, 2],
+  "storyCompleted": true
+}
+```
+
+스토리 갱신은 해당 손님의 `met`도 자동으로 `true`로 만듭니다. 특별 주문 예정일·당일 대화 제한처럼 현재 플레이 세션의 날짜에 종속된 값은 이 계정 API에 저장하지 않습니다.
+
 ## OpenAI 프록시
 
 ### `POST /api/v1/ai/npc-reaction`

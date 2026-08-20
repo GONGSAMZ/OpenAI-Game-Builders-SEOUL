@@ -8,6 +8,7 @@ Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, �
 - HIVE 통합 Web Login URL 생성, 콜백 디코딩, `/token` 서버 검증
 - Hive 계정 없이 시험하는 mock 로그인
 - 외부 토큰을 브라우저에 노출하지 않는 서버 게임 세션과 DynamoDB 세션 영속화
+- 세션 subject 기준의 사용자별 도감·스토리 진행 저장과 단조 병합 API
 - OpenAI Responses API 서버 프록시와 mock 응답
 - 사용자별 테스트 포인트 mock 결제·충전, 중복 차감 방지, 메모리/DynamoDB 아이템 저장소
 - NICEPAY 샌드박스 테스트 결제의 주문·서명·승인 검증과 사용자별 상품 지급
@@ -87,7 +88,7 @@ OpenAI 공식 문서:
 
 ## 현재 제한 사항
 
-- 로컬 기본값에서는 세션·상점 데이터를 메모리에 저장하고, AWS `DATA_STORE=dynamodb` 환경에서는 둘 다 DynamoDB에 유지합니다.
+- 로컬 기본값에서는 세션·상점·도감/스토리 데이터를 메모리에 저장하고, AWS `DATA_STORE=dynamodb` 환경에서는 모두 DynamoDB에 유지합니다.
 - AI 엔드포인트는 연동 검증용 NPC 반응 예시입니다. 기획 확정 후 게임 기능에 맞춘 입출력 계약으로 버전 관리합니다.
 - 실제 HIVE 유료 결제는 Console Web Login AppID, Billing 인증 키, 웹 상점/PG/상품 설정이 준비된 뒤 Sandbox에서 최종 검증해야 합니다.
 - 결제 취소 알림은 현재 지급하지 않고 정상 응답만 하며, 이미 사용된 재화의 환불 회수 정책은 정식 출시 전 별도 설계가 필요합니다.

@@ -51,7 +51,23 @@ public sealed class UI_Collection : UI_Base
 
         Bind(closeButton, Close); Bind(customerTabButton, ShowCustomerList); Bind(storyTabButton, ShowStoryList); Bind(backButton, ShowCustomerList);
         Bind(previousSceneButton, () => MoveReplayScene(-1)); Bind(nextSceneButton, () => MoveReplayScene(1));
+        CustomerCollectionProgress.Changed += RefreshProgress;
+        CustomerStoryProgress.Changed += RefreshProgress;
         ShowCustomerList();
+    }
+
+    private void OnDestroy()
+    {
+        CustomerCollectionProgress.Changed -= RefreshProgress;
+        CustomerStoryProgress.Changed -= RefreshProgress;
+    }
+
+    private void RefreshProgress()
+    {
+        if (customerPanel != null && customerPanel.activeSelf)
+            BuildCustomerCards();
+        else if (storyPanel != null && storyPanel.activeSelf)
+            BuildStoryCards();
     }
 
     private void ShowCustomerList()

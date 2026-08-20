@@ -39,6 +39,11 @@ import {
   type SessionStore
 } from "./session-store.js";
 import {
+  createPlayerProgressStore,
+  playerProgressCustomerIds,
+  type PlayerProgressStore
+} from "./progress/store.js";
+import {
   createStoreCatalogService,
   type StoreCatalogGateway
 } from "./store/catalog-service.js";
@@ -72,6 +77,13 @@ const devTestPointCreditSchema = z.object({
 
 const moldEquipmentSchema = z.object({
   itemId: z.literal("golden-pan").nullable()
+});
+
+const progressCustomerIdSchema = z.enum(playerProgressCustomerIds);
+
+const storyProgressSchema = z.object({
+  completedTopicIndexes: z.array(z.number().int().min(0).max(63)).max(64),
+  storyCompleted: z.boolean()
 });
 
 const nicePayOrderSchema = z.object({
@@ -118,6 +130,7 @@ interface AppDependencies {
   aiService?: AiService;
   marketStore?: MarketStore;
   storeCatalog?: StoreCatalogGateway;
+  playerProgressStore?: PlayerProgressStore;
 }
 
 function setUnityAssetHeaders(response: Response, filePath: string): void {
@@ -183,6 +196,8 @@ export function createApp(dependencies: AppDependencies) {
   const aiService = dependencies.aiService ?? new AiService(config.openai);
   const marketStore = dependencies.marketStore ?? createMarketStore(config);
   const storeCatalog = dependencies.storeCatalog ?? createStoreCatalogService(config);
+  const playerProgressStore =
+    dependencies.playerProgressStore ?? createPlayerProgressStore(config);
   const app = express();
   const requireGameSession = requireSession(sessions, sessionCookieName);
   const nicePayCallbackPath = "/api/v1/store/nicepay/callback";
@@ -379,6 +394,48 @@ export function createApp(dependencies: AppDependencies) {
       await sessions.delete(session.token);
       clearSessionCookie(response, config);
       response.status(204).end();
+    }
+  );
+
+  app.get(
+    "/api/v1/progress",
+    requireGameSession,
+    async (_request: Request, response: Response) => {
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(await playerProgressStore.getPlayerProgress(session.subject));
+    }
+  );
+
+  app.post(
+    "/api/v1/progress/customers/:customerId/met",
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const customerId = progressCustomerIdSchema.parse(request.params.customerId);
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(await playerProgressStore.markCustomerMet(session.subject, customerId));
+    }
+  );
+
+  app.put(
+    "/api/v1/progress/stories/:customerId",
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const customerId = progressCustomerIdSchema.parse(request.params.customerId);
+      const input = storyProgressSchema.parse(request.body);
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(
+          await playerProgressStore.mergeStoryProgress(
+            session.subject,
+            customerId,
+            input
+          )
+        );
     }
   );
 
