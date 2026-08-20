@@ -8,16 +8,14 @@ using UnityEngine.UI;
 /// </summary>
 public class UI_Store : UI_Base
 {
-    private static readonly Color32 ActiveTabColor = new(24, 91, 97, 255);
-    private static readonly Color32 InactiveTabColor = new(238, 220, 179, 255);
     private static readonly Color32 ActiveTabTextColor = new(255, 247, 226, 255);
     private static readonly Color32 InactiveTabTextColor = new(54, 45, 32, 255);
 
     private Button nextDayButton;
     private Button fillingButton;
     private Button itemButton;
-    private Image fillingTabBackground;
-    private Image itemTabBackground;
+    private RawImage fillingTabSurface;
+    private RawImage itemTabSurface;
     private TextMeshProUGUI fillingTabLabel;
     private TextMeshProUGUI itemTabLabel;
     private TextMeshProUGUI beanCoinNum;
@@ -29,8 +27,8 @@ public class UI_Store : UI_Base
         nextDayButton = Util.Find<Button>(gameObject, "NextDayButton");
         fillingButton = Util.Find<Button>(gameObject, "FillingButton");
         itemButton = Util.Find<Button>(gameObject, "SkillButton");
-        fillingTabBackground = fillingButton != null ? fillingButton.GetComponent<Image>() : null;
-        itemTabBackground = itemButton != null ? itemButton.GetComponent<Image>() : null;
+        fillingTabSurface = Util.Find<RawImage>(gameObject, "FillingTabSurface", true);
+        itemTabSurface = Util.Find<RawImage>(gameObject, "ItemTabSurface", true);
         fillingTabLabel = fillingButton != null ? fillingButton.GetComponentInChildren<TextMeshProUGUI>(true) : null;
         itemTabLabel = itemButton != null ? itemButton.GetComponentInChildren<TextMeshProUGUI>(true) : null;
         fillingCards = Util.Find<Transform>(gameObject, "FillingCards", true)?.gameObject;
@@ -74,14 +72,34 @@ public class UI_Store : UI_Base
         if (itemCards != null)
             itemCards.SetActive(!showFillings);
 
-        SetTabStyle(fillingTabBackground, fillingTabLabel, showFillings);
-        SetTabStyle(itemTabBackground, itemTabLabel, !showFillings);
+        SetText("TitleText", showFillings ? "내일 장사 준비" : "내일 장사 도구");
+        SetText("SubtitleText", showFillings
+            ? "팔고 싶은 붕어빵 속을 골라 보세요."
+            : "조리 흐름을 바꾸는 도구와 일시 효과를 골라 보세요.");
+        SetText("StoreNote", showFillings
+            ? "구매한 속은 내일부터 주문에 등장합니다."
+            : "구매한 도구는 다음 영업일부터 사용할 수 있습니다.");
+
+        // 피그마 시안에서 아이템 탭의 제목은 상점 소 탭보다 조금 위·오른쪽에 있습니다.
+        // 탭을 전환해도 같은 위치에 남지 않도록 실제 UI에서도 함께 갱신합니다.
+        RectTransform titleRect = Util.Find<RectTransform>(gameObject, "TitleText", true);
+        if (titleRect != null)
+            // 현재 프로젝트의 TMP 글꼴은 시안 글꼴보다 윗 여백이 작습니다.
+            // 아이템 탭에서 제목 윗부분이 잘리지 않는 공통 높이를 사용합니다.
+            titleRect.anchoredPosition = showFillings ? new Vector2(142f, -51f) : new Vector2(150f, -51f);
+
+        RectTransform noteRect = Util.Find<RectTransform>(gameObject, "StoreNote", true);
+        if (noteRect != null)
+            noteRect.sizeDelta = new Vector2(showFillings ? 800f : 900f, noteRect.sizeDelta.y);
+
+        SetTabStyle(fillingTabSurface, fillingTabLabel, showFillings);
+        SetTabStyle(itemTabSurface, itemTabLabel, !showFillings);
     }
 
-    private static void SetTabStyle(Image background, TextMeshProUGUI label, bool selected)
+    private static void SetTabStyle(RawImage surface, TextMeshProUGUI label, bool selected)
     {
-        if (background != null)
-            background.color = selected ? ActiveTabColor : InactiveTabColor;
+        if (surface != null)
+            surface.color = selected ? Color.white : new Color(1f, 1f, 1f, 0.48f);
         if (label != null)
             label.color = selected ? ActiveTabTextColor : InactiveTabTextColor;
     }

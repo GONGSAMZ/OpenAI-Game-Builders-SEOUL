@@ -356,6 +356,14 @@ public static class InAppMarketPrefabBuilder
         GameObject root = PrefabUtility.LoadPrefabContents(StorePrefabPath);
         try
         {
+            // StorePrefabBuilder가 만든 최신 상점은 이미 피그마 위치의 팥코인 패널을 포함합니다.
+            // 예전 방식으로 MoneyPanel을 복제하면 카드 위에 중복 표시가 생기므로 그대로 둡니다.
+            if (FindChild(root.transform, "BeanCoinPanel") != null)
+            {
+                PrefabUtility.SaveAsPrefabAsset(root, StorePrefabPath);
+                return;
+            }
+
             Transform existing = FindChild(root.transform, "RedBeanCoinPanel");
             if (existing != null)
                 Object.DestroyImmediate(existing.gameObject);
@@ -525,7 +533,8 @@ public static class InAppMarketPrefabBuilder
             throw new InvalidOperationException("UI_Game에 인앱 마켓 진입 버튼이 없습니다.");
         if (FindChild(gameHud.transform, "redBeanCoinText")?.GetComponent<TextMeshProUGUI>() == null)
             throw new InvalidOperationException("UI_Game에 팥 코인 표시가 없습니다.");
-        if (FindChild(store.transform, "RedBeanCoinNum")?.GetComponent<TextMeshProUGUI>() == null)
+        if (FindChild(store.transform, "BeanCoinNum")?.GetComponent<TextMeshProUGUI>() == null &&
+            FindChild(store.transform, "RedBeanCoinNum")?.GetComponent<TextMeshProUGUI>() == null)
             throw new InvalidOperationException("UI_Store에 팥 코인 표시가 없습니다.");
 
         string[] productSpritePaths = { "golden-pan", "red-bean-100", "red-bean-550" };

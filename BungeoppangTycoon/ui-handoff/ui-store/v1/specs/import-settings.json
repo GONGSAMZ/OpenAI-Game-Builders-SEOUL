@@ -1,0 +1,10 @@
+{
+  "assets": [
+    {"path":"assets/store-scene-fillings.png","textureType":"Sprite (2D and UI)","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":2048,"nineSliceBorder":null},
+    {"path":"assets/panel-skin.png","textureType":"Sprite (2D and UI)","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":2048,"nineSliceBorder":null},
+    {"path":"assets/card-surface.png","textureType":"Sprite (2D and UI)","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":2048,"nineSliceBorder":null},
+    {"path":"assets/button-paper.png","textureType":"Sprite (2D and UI)","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":2048,"nineSliceBorder":null},
+    {"path":"assets/button-primary.png","textureType":"Sprite (2D and UI)","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":2048,"nineSliceBorder":null},
+    {"path":"assets/filling-art-sheet.png","textureType":"Sprite (2D and UI)","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":2048,"nineSliceBorder":null}
+  ]
+}

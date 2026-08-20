@@ -1,0 +1,9 @@
+{
+  "initialFocus": "FillingButton",
+  "controls": [
+    {"id":"FillingButton","input":"mouse/keyboard","event":"ShowFillings","states":["selected","focused"],"disabledWhen":null,"navigation":{"right":"SkillButton","down":"PurchaseButton"},"cancel":"none"},
+    {"id":"SkillButton","input":"mouse/keyboard","event":"ShowItems","states":["default","focused"],"disabledWhen":null,"navigation":{"left":"FillingButton","down":"PurchaseButton"},"cancel":"none"},
+    {"id":"PurchaseButton","input":"mouse/keyboard","event":"PurchaseProduct","states":["available","locked","owned","focused"],"disabledWhen":"재화 부족 또는 잠김","navigation":{"up":"FillingButton","down":"NextDayButton"},"cancel":"none"},
+    {"id":"NextDayButton","input":"mouse/keyboard","event":"Managers.Game.StartNextDay","states":["default","pressed","disabled","focused"],"disabledWhen":"차단 팝업 표시 중","navigation":{"up":"PurchaseButton"},"cancel":"none"}
+  ]
+}

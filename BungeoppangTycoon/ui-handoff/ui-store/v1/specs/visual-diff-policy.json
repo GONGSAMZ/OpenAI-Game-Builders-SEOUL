@@ -1,0 +1,8 @@
+{
+  "referenceResolutions": [[1920,1080],[2560,1080]],
+  "maxChannelDifference": 18,
+  "maxChangedPixelRatio": 0.04,
+  "ignoreMasks": ["paper texture fine grain", "watercolor anti-aliasing"],
+  "strictRegions": ["panel edge", "title/subtitle bounds", "balance chips", "tabs", "card bounds", "button bounds", "text baselines"],
+  "textRule": "동적 TMP 텍스트의 글자 누락·빈 재질·잘림은 허용하지 않는다."
+}

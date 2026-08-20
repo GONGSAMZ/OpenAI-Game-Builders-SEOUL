@@ -24,6 +24,8 @@ public class UI_Game : UI_Base
     TextMeshProUGUI viewHintText;
     TextMeshProUGUI shortcutHintText;
     TextMeshProUGUI selectedFishBunText;
+    TextMeshProUGUI timeText;
+    TextMeshProUGUI moneyText;
 
     #endregion
 
@@ -43,7 +45,10 @@ public class UI_Game : UI_Base
 
         //데이터
         GetTMP((int)TMP.dayText).text = $"Day {Managers.Game.Day}";
-        GetTMP((int)TMP.moneyText).text = $"{Managers.Game.Money.ToString("N0")} 원";
+        timeText = GetTMP((int)TMP.timeText);
+        moneyText = GetTMP((int)TMP.moneyText);
+        if (moneyText != null)
+            moneyText.text = $"{Managers.Game.Money.ToString("N0")} 원";
         GetButton((int)Btns.toggleViewButton).gameObject.AddEvent(toggleViewBtnFunc);
         GetButton((int)Btns.settingsButton).gameObject.AddEvent(settingsBtnFunc);
         GetButton((int)Btns.inAppMarketButton).gameObject.AddEvent(inAppMarketBtnFunc);
@@ -89,8 +94,10 @@ public class UI_Game : UI_Base
     void Update()
     {
         //분은 10의 단위로만 바꿈
-        GetTMP((int)TMP.timeText).text = ($"{Managers.Game.hour} : {minute}0");
-        GetTMP((int)TMP.moneyText).text = ($"{Managers.Game.Money.ToString("N0")} 원 ");
+        if (timeText != null)
+            timeText.text = ($"{Managers.Game.hour} : {minute}0");
+        if (moneyText != null)
+            moneyText.text = ($"{Managers.Game.Money.ToString("N0")} 원 ");
         // WebGL 부모 헤더의 계정 변경을 이벤트 누락과 관계없이 즉시 반영한다.
         RefreshPlatformCurrency();
 
