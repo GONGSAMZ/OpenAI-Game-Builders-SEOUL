@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Linq;
 using TMPro;
 using UnityEngine;
@@ -15,20 +14,48 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
 
     private static UI_CustomerStoryChoices instance;
 
-    private readonly Button[] choiceButtons = new Button[3];
-    private GameObject focusRoot;
-    private GameObject choicePanel;
-    private GameObject replyBubble;
-    private RectTransform choicePanelRect;
-    private RectTransform focusedCustomerRect;
-    private RectTransform replyBubbleRect;
-    private Image focusedCustomerImage;
-    private TextMeshProUGUI replyText;
+    // 이 참조들은 UI_CustomerStoryChoices.prefab에 직접 저장된다.
+    // 실행 중 UI를 새로 만들지 않으므로, Inspector에서 카드 크기와 여백을 바로 조정할 수 있다.
+    [SerializeField] private GameObject focusRoot;
+    [SerializeField] private GameObject choicePanel;
+    [SerializeField] private GameObject replyBubble;
+    [SerializeField] private RectTransform choicePanelRect;
+    [SerializeField] private RectTransform focusedCustomerRect;
+    [SerializeField] private RectTransform replyBubbleRect;
+    [SerializeField] private Image focusedCustomerImage;
+    [SerializeField] private TextMeshProUGUI replyText;
+    [SerializeField] private Button[] choiceButtons = new Button[3];
+    [SerializeField] private TextMeshProUGUI[] choiceLabels = new TextMeshProUGUI[3];
     private CustomerController currentCustomer;
-    private Coroutine replyRoutine;
+    // 선택지 버튼을 누른 바로 그 클릭으로 답변 말풍선까지 닫히지 않게 구분한다.
+    private int replyOpenedFrame = -1;
     private bool wasGameRunning;
     private bool isVisible;
     private bool isReplyVisible;
+
+#if UNITY_EDITOR
+    /// <summary>프리팹 생성기가 실제 UI 자식들을 이 컴포넌트에 저장할 때 사용한다.</summary>
+    public void SetPrefabReferences(
+        GameObject newFocusRoot,
+        GameObject newChoicePanel,
+        GameObject newReplyBubble,
+        Image newFocusedCustomerImage,
+        TextMeshProUGUI newReplyText,
+        Button[] newChoiceButtons,
+        TextMeshProUGUI[] newChoiceLabels)
+    {
+        focusRoot = newFocusRoot;
+        choicePanel = newChoicePanel;
+        replyBubble = newReplyBubble;
+        focusedCustomerImage = newFocusedCustomerImage;
+        choicePanelRect = newChoicePanel.GetComponent<RectTransform>();
+        replyBubbleRect = newReplyBubble.GetComponent<RectTransform>();
+        focusedCustomerRect = newFocusedCustomerImage.rectTransform;
+        replyText = newReplyText;
+        choiceButtons = newChoiceButtons;
+        choiceLabels = newChoiceLabels;
+    }
+#endif
 
     public static void Show(CustomerController customer, CustomerStoryData story)
     {
@@ -42,7 +69,7 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
         view.ShowChoicesInternal(customer, story);
     }
 
-    public static void ShowReply(CustomerController customer, string reply, float duration)
+    public static void ShowReply(CustomerController customer, string reply)
     {
         if (instance == null || !instance.isVisible || instance.currentCustomer != customer)
         {
@@ -51,7 +78,7 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
             return;
         }
 
-        instance.ShowReplyInternal(reply, duration);
+        instance.ShowReplyInternal(reply);
     }
 
     public static void Hide()
@@ -88,8 +115,7 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
             return null;
         }
 
-        instance.BuildIfNeeded();
-        return instance;
+        return instance.BindPrefabIfNeeded() ? instance : null;
     }
 
     private void Awake()
@@ -101,7 +127,7 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
         }
 
         instance = this;
-        BuildIfNeeded();
+        BindPrefabIfNeeded();
     }
 
     private void Update()
@@ -109,17 +135,20 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
         if (!isVisible)
             return;
 
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (isReplyVisible)
         {
-            if (isReplyVisible)
+            bool clickedAfterOpening = Input.GetMouseButtonDown(0) && Time.frameCount > replyOpenedFrame;
+            bool confirmed = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Escape);
+            if (clickedAfterOpening || confirmed)
                 currentCustomer?.OnStoryReplyFinished();
-            else
-                currentCustomer?.CancelStoryDialogueSelection();
             return;
         }
 
-        if (isReplyVisible)
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            currentCustomer?.CancelStoryDialogueSelection();
             return;
+        }
 
         if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) SelectChoice(0);
         else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2)) SelectChoice(1);
@@ -148,8 +177,7 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
         for (int i = 0; i < choiceButtons.Length; i++)
         {
             bool completed = CustomerStoryProgress.CompletedTopics.Contains(i);
-            TextMeshProUGUI label = choiceButtons[i].GetComponentInChildren<TextMeshProUGUI>(true);
-            label.text = $"{i + 1}. {(completed ? "(완료) " : string.Empty)}{story.Topics[i].Choice}";
+            choiceLabels[i].text = $"{i + 1}. {(completed ? "(완료) " : string.Empty)}{story.Topics[i].Choice}";
             choiceButtons[i].gameObject.SetActive(true);
         }
 
@@ -165,29 +193,18 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
         Debug.Log($"[손님 이야기] 낮 대화 집중 화면 시작 | 손님={story.DisplayName} | 게임 시간 정지=예", customer);
     }
 
-    private void ShowReplyInternal(string reply, float duration)
+    private void ShowReplyInternal(string reply)
     {
-        if (replyRoutine != null)
-            StopCoroutine(replyRoutine);
-
         choicePanel.SetActive(false);
         replyText.text = reply;
         PositionReplyBubble();
         replyBubble.SetActive(true);
         isReplyVisible = true;
+        replyOpenedFrame = Time.frameCount;
 
         if (EventSystem.current != null)
             EventSystem.current.SetSelectedGameObject(null);
 
-        replyRoutine = StartCoroutine(CoFinishReply(Mathf.Max(.1f, duration)));
-    }
-
-    private IEnumerator CoFinishReply(float duration)
-    {
-        // 게임 시간이 멈춘 상태에서도 손님의 답변은 실제 5초 뒤 끝나야 한다.
-        yield return new WaitForSecondsRealtime(duration);
-        replyRoutine = null;
-        currentCustomer?.OnStoryReplyFinished();
     }
 
     private void SelectChoice(int index)
@@ -200,12 +217,6 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
 
     private void HideInternal(bool restoreGame)
     {
-        if (replyRoutine != null)
-        {
-            StopCoroutine(replyRoutine);
-            replyRoutine = null;
-        }
-
         if (focusRoot != null)
             focusRoot.SetActive(false);
 
@@ -218,126 +229,61 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
         currentCustomer = null;
         isVisible = false;
         isReplyVisible = false;
+        replyOpenedFrame = -1;
     }
 
-    private void BuildIfNeeded()
+    /// <summary>
+    /// 프리팹에 저장된 자식과 참조를 확인하고, 버튼 동작만 연결한다.
+    /// 빠진 참조는 이름으로 한 번 보완해 이전 프리팹 인스턴스도 안전하게 처리한다.
+    /// </summary>
+    private bool BindPrefabIfNeeded()
     {
+        if (focusRoot == null)
+            focusRoot = transform.Find("ConversationFocus")?.gameObject;
+
         if (focusRoot != null)
-            return;
-
-        RectTransform rootRect = transform as RectTransform;
-        Stretch(rootRect);
-
-        focusRoot = new GameObject("ConversationFocus", typeof(RectTransform));
-        focusRoot.layer = LayerMask.NameToLayer("UI");
-        focusRoot.transform.SetParent(transform, false);
-        Stretch(focusRoot.GetComponent<RectTransform>());
-
-        // 이 반투명 막은 뒤 화면을 차분하게 만들고, 동시에 다른 모든 클릭을 가로막는다.
-        Image blocker = CreateImage("DesaturatedInteractionBlocker", focusRoot.transform);
-        Stretch(blocker.rectTransform);
-        blocker.color = new Color(.07f, .09f, .14f, .76f);
-        blocker.raycastTarget = true;
-
-        focusedCustomerImage = CreateImage("FocusedCustomer", focusRoot.transform);
-        focusedCustomerRect = focusedCustomerImage.rectTransform;
-        focusedCustomerImage.preserveAspect = true;
-        focusedCustomerImage.raycastTarget = false;
-
-        choicePanel = new GameObject("ChoicePanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        choicePanel.layer = LayerMask.NameToLayer("UI");
-        choicePanel.transform.SetParent(focusRoot.transform, false);
-        choicePanelRect = choicePanel.GetComponent<RectTransform>();
-        choicePanelRect.anchorMin = choicePanelRect.anchorMax = new Vector2(0f, .5f);
-        choicePanelRect.pivot = new Vector2(0f, .5f);
-        choicePanelRect.anchoredPosition = new Vector2(ReferenceLeftMargin, 0f);
-        choicePanelRect.sizeDelta = new Vector2(460f, 690f);
-
-        Image panelImage = choicePanel.GetComponent<Image>();
-        panelImage.sprite = Managers.Resource.LoadSprite("UI/StoryChoicePanel3-v1", 0);
-        panelImage.preserveAspect = true;
-        panelImage.raycastTarget = false;
-
-        TMP_FontAsset font = Resources.Load<TMP_FontAsset>("omyuPretty SDF") ?? TMP_Settings.defaultFontAsset;
-        float[] slotY = { 210f, -10f, -230f };
-
-        for (int i = 0; i < choiceButtons.Length; i++)
         {
-            int index = i;
-            GameObject buttonObject = new($"Choice{i + 1}", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
-            buttonObject.layer = LayerMask.NameToLayer("UI");
-            buttonObject.transform.SetParent(choicePanel.transform, false);
+            choicePanel ??= focusRoot.transform.Find("ChoicePanel")?.gameObject;
+            replyBubble ??= focusRoot.transform.Find("CustomerReplyBubble")?.gameObject;
+            focusedCustomerImage ??= focusRoot.transform.Find("FocusedCustomer")?.GetComponent<Image>();
+        }
 
-            RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
-            buttonRect.anchorMin = buttonRect.anchorMax = new Vector2(.5f, .5f);
-            buttonRect.pivot = new Vector2(.5f, .5f);
-            buttonRect.anchoredPosition = new Vector2(0f, slotY[i]);
-            buttonRect.sizeDelta = new Vector2(404f, 174f);
+        choicePanelRect ??= choicePanel != null ? choicePanel.GetComponent<RectTransform>() : null;
+        replyBubbleRect ??= replyBubble != null ? replyBubble.GetComponent<RectTransform>() : null;
+        focusedCustomerRect ??= focusedCustomerImage != null ? focusedCustomerImage.rectTransform : null;
+        replyText ??= replyBubble != null ? replyBubble.GetComponentInChildren<TextMeshProUGUI>(true) : null;
 
-            Image hitArea = buttonObject.GetComponent<Image>();
-            hitArea.color = new Color(1f, 1f, 1f, .001f);
+        if (choicePanel != null)
+        {
+            for (int i = 0; i < choiceButtons.Length; i++)
+            {
+                Transform card = choicePanel.transform.Find($"Choice{i + 1}");
+                choiceButtons[i] ??= card?.GetComponent<Button>();
+                choiceLabels[i] ??= card?.GetComponentInChildren<TextMeshProUGUI>(true);
+            }
+        }
 
-            Button button = buttonObject.GetComponent<Button>();
-            ColorBlock colors = button.colors;
-            colors.normalColor = new Color(1f, 1f, 1f, .001f);
-            colors.highlightedColor = new Color(.36f, .68f, .88f, .20f);
-            colors.selectedColor = new Color(.95f, .70f, .25f, .18f);
-            colors.pressedColor = new Color(.29f, .60f, .82f, .28f);
-            colors.fadeDuration = .08f;
-            button.colors = colors;
-            button.onClick.AddListener(() => SelectChoice(index));
-            choiceButtons[i] = button;
-
-            TextMeshProUGUI label = CreateText("Label", buttonObject.transform, font);
-            Stretch(label.rectTransform);
-            label.rectTransform.offsetMin = new Vector2(24f, 12f);
-            label.rectTransform.offsetMax = new Vector2(-24f, -12f);
-            label.fontSize = 38f;
-            label.enableAutoSizing = false;
-            label.fontStyle = FontStyles.Normal;
-            label.color = new Color(.22f, .15f, .11f, 1f);
-            label.alignment = TextAlignmentOptions.Center;
-            label.textWrappingMode = TextWrappingModes.NoWrap;
-            label.overflowMode = TextOverflowModes.Ellipsis;
-            label.characterSpacing = 1f;
-            label.raycastTarget = false;
+        if (focusRoot == null || choicePanelRect == null || replyBubbleRect == null || focusedCustomerImage == null || replyText == null ||
+            choiceButtons.Any(button => button == null) || choiceLabels.Any(label => label == null))
+        {
+            Debug.LogError("[손님 이야기] UI_CustomerStoryChoices 프리팹의 필수 오브젝트가 빠져 있습니다. Tools/Bungeoppang/Build Customer Story Choices Prefab을 실행해 복구하세요.", this);
+            return false;
         }
 
         for (int i = 0; i < choiceButtons.Length; i++)
         {
+            int index = i;
+            choiceButtons[i].onClick.RemoveAllListeners();
+            choiceButtons[i].onClick.AddListener(() => SelectChoice(index));
+
             Navigation navigation = new() { mode = Navigation.Mode.Explicit };
             navigation.selectOnUp = choiceButtons[(i + choiceButtons.Length - 1) % choiceButtons.Length];
             navigation.selectOnDown = choiceButtons[(i + 1) % choiceButtons.Length];
             choiceButtons[i].navigation = navigation;
         }
 
-        replyBubble = new GameObject("CustomerReplyBubble", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        replyBubble.layer = LayerMask.NameToLayer("UI");
-        replyBubble.transform.SetParent(focusRoot.transform, false);
-        replyBubbleRect = replyBubble.GetComponent<RectTransform>();
-        replyBubbleRect.anchorMin = replyBubbleRect.anchorMax = new Vector2(.5f, .5f);
-        replyBubbleRect.pivot = new Vector2(.5f, .5f);
-        replyBubbleRect.sizeDelta = new Vector2(650f, 270f);
-
-        Image replyImage = replyBubble.GetComponent<Image>();
-        replyImage.sprite = Managers.Resource.LoadSprite("UI/DialogueBallon", 0);
-        replyImage.type = Image.Type.Sliced;
-        replyImage.raycastTarget = false;
-
-        replyText = CreateText("ReplyText", replyBubble.transform, font);
-        Stretch(replyText.rectTransform);
-        replyText.rectTransform.offsetMin = new Vector2(82f, 58f);
-        replyText.rectTransform.offsetMax = new Vector2(-82f, -58f);
-        replyText.fontSize = 30f;
-        replyText.enableAutoSizing = true;
-        replyText.fontSizeMin = 24f;
-        replyText.fontSizeMax = 32f;
-        replyText.color = new Color(.22f, .15f, .11f, 1f);
-        replyText.alignment = TextAlignmentOptions.Center;
-        replyText.textWrappingMode = TextWrappingModes.Normal;
-        replyText.raycastTarget = false;
-
         focusRoot.SetActive(false);
+        return true;
     }
 
     private void UpdateFocusedCustomer(CustomerController customerController)
@@ -395,32 +341,6 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
         float scaleFactor = canvas != null && canvas.scaleFactor > 0f ? canvas.scaleFactor : 1f;
         float safeInset = Screen.safeArea.xMin / scaleFactor;
         choicePanelRect.anchoredPosition = new Vector2(Mathf.Max(ReferenceLeftMargin, safeInset + 32f), 0f);
-    }
-
-    private static Image CreateImage(string objectName, Transform parent)
-    {
-        GameObject target = new(objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        target.layer = LayerMask.NameToLayer("UI");
-        target.transform.SetParent(parent, false);
-        return target.GetComponent<Image>();
-    }
-
-    private static TextMeshProUGUI CreateText(string objectName, Transform parent, TMP_FontAsset font)
-    {
-        GameObject target = new(objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
-        target.layer = LayerMask.NameToLayer("UI");
-        target.transform.SetParent(parent, false);
-        TextMeshProUGUI text = target.GetComponent<TextMeshProUGUI>();
-        text.font = font;
-        return text;
-    }
-
-    private static void Stretch(RectTransform rect)
-    {
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
     }
 
     private void OnDestroy()
