@@ -430,8 +430,16 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         if (isSpecialOrder)
         {
-            CustomerStoryProgress.ResolveSpecialOrder(filling, baking);
-            BeginExit();
+            bool storySucceeded = CustomerStoryProgress.ResolveSpecialOrder(filling, baking);
+            if (storySucceeded)
+            {
+                // 컷씬이 끝나기 전까지는 특별 주문 상태를 유지해 마감 정산이 앞서지 않게 합니다.
+                CustomerStoryCutscenePlayer.PlayJeongHyunUnlock(() => BeginExit());
+            }
+            else
+            {
+                BeginExit();
+            }
             return true;
         }
 
@@ -556,7 +564,10 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         if (!isSpecialOrder)
             StartCoroutine(InstatiateCustomer());
         else
+        {
+            CustomerStoryProgress.CompleteSpecialOrderSession();
             Managers.Game.CompleteSpecialOrder();
+        }
         yield break;
 
     }
