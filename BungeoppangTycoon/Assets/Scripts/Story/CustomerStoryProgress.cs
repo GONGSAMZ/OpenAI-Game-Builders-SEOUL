@@ -2,35 +2,12 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-[Serializable]
-internal sealed class CustomerStorySaveData
-{
-    public bool hasStartedStoryGame;
-    public int lastTalkDay;
-    public List<int> completedTopicIndexes = new();
-    public int specialOrderDueDay = -1;
-    public int retryAvailableDay = -1;
-    public bool storyCompleted;
-}
-
-/// <summary>PlayerPrefs에 저장되는 정현 이야기 진행 상태와 특별 주문 예약을 관리합니다.</summary>
+/// <summary>통합 저장 데이터의 정현 이야기 진행 상태와 특별 주문 예약을 관리합니다.</summary>
 public static class CustomerStoryProgress
 {
-    private const string SaveKey = "customer_story_jeonghyun_v1";
-    private static CustomerStorySaveData save;
     private static bool guaranteedCustomerSpawned;
 
-    private static CustomerStorySaveData SaveData
-    {
-        get
-        {
-            if (save != null) return save;
-            string json = PlayerPrefs.GetString(SaveKey, string.Empty);
-            save = string.IsNullOrWhiteSpace(json) ? new CustomerStorySaveData() : JsonUtility.FromJson<CustomerStorySaveData>(json) ?? new CustomerStorySaveData();
-            save.completedTopicIndexes ??= new List<int>();
-            return save;
-        }
-    }
+    private static CustomerProgressData SaveData => SaveService.Instance.GetCustomer(CustomerType.JeongHyun);
 
     public static CustomerStoryData ActiveStory { get; private set; }
     public static bool IsSpecialOrderActive { get; private set; }
@@ -44,14 +21,9 @@ public static class CustomerStoryProgress
         IsSpecialOrderActive = false;
         int previousLastTalkDay = SaveData.lastTalkDay;
 
-        // 게임 날짜는 새 게임마다 다시 시작하므로 이전 플레이의 날짜와 비교하면 안 됩니다.
-        // 완료한 대화 주제는 유지하고, "하루 한 번" 제한에 쓰는 날짜만 새 플레이에 맞게 초기화합니다.
-        SaveData.lastTalkDay = -1;
-
         CustomerStoryData jeongHyun = CustomerStoryCatalog.Get(CustomerType.JeongHyun);
         bool fillingAvailable = IsFillingAvailable(jeongHyun.RequiredFilling);
         ActiveStory = SaveData.storyCompleted || !fillingAvailable ? null : jeongHyun;
-        SaveData.hasStartedStoryGame = true;
         Persist();
         Debug.Log(
             $"[손님 이야기] 게임 이야기 상태 초기화 | 현재 날짜={Managers.Game.Day}일차" +
@@ -60,8 +32,7 @@ public static class CustomerStoryProgress
             $" | 필요한 맛={Define.FillingText[(int)jeongHyun.RequiredFilling]}" +
             $" | 필요한 맛 사용 가능={(fillingAvailable ? "예" : "아니요")}" +
             $" | 이전 플레이 마지막 대화 날짜={(previousLastTalkDay > 0 ? previousLastTalkDay + "일차" : "없음")}" +
-            $" | 새 게임 대화 제한 초기화=예" +
-            $" | 완료한 대화={SaveData.completedTopicIndexes.Count}/{jeongHyun.Topics.Length}" +
+            $" | 완료한 대화={SaveData.completedTopicIds.Count}/{jeongHyun.Topics.Length}" +
             $" | 특별 주문 예정일={(SaveData.specialOrderDueDay > 0 ? SaveData.specialOrderDueDay + "일차" : "없음")}" +
             $" | 재도전 가능일={(SaveData.retryAvailableDay > 0 ? SaveData.retryAvailableDay + "일차" : "없음")}");
     }
@@ -94,7 +65,20 @@ public static class CustomerStoryProgress
 
     public static bool IsTalkTarget(CustomerType customerType) => ActiveStory != null && !SaveData.storyCompleted && ActiveStory.CustomerType == customerType;
     public static bool CanTalkToday(CustomerType customerType) => IsTalkTarget(customerType) && SaveData.lastTalkDay != Managers.Game.Day;
-    public static IReadOnlyCollection<int> CompletedTopics => SaveData.completedTopicIndexes;
+    public static IReadOnlyCollection<int> CompletedTopics => CompletedTopicsFor(CustomerType.JeongHyun);
+
+    public static IReadOnlyCollection<int> CompletedTopicsFor(CustomerType customerType)
+    {
+        List<int> result = new();
+        CustomerProgressData progress = SaveService.Instance.GetCustomer(customerType);
+        CustomerStoryData story = CustomerStoryCatalog.Get(customerType);
+        if (story == null) return result;
+        for (int index = 0; index < story.Topics.Length; index++)
+            if (progress.completedTopicIds.Contains(SaveIds.Topic(index))) result.Add(index);
+        return result;
+    }
+
+    public static bool IsStoryCompletedFor(CustomerType customerType) => SaveService.Instance.GetCustomer(customerType).storyCompleted;
 
     public static bool CompleteTalkTopic(CustomerType customerType, int topicIndex)
     {
@@ -105,16 +89,17 @@ public static class CustomerStoryProgress
                 $" | {GetTalkDebugState(customerType)}");
             return false;
         }
-        bool isNew = !SaveData.completedTopicIndexes.Contains(topicIndex);
+        string topicId = SaveIds.Topic(topicIndex);
+        bool isNew = !SaveData.completedTopicIds.Contains(topicId);
         SaveData.lastTalkDay = Managers.Game.Day;
-        if (isNew) SaveData.completedTopicIndexes.Add(topicIndex);
-        if (SaveData.completedTopicIndexes.Count >= ActiveStory.Topics.Length && SaveData.specialOrderDueDay < 0 && IsFillingAvailable(ActiveStory.RequiredFilling))
+        if (isNew) SaveData.completedTopicIds.Add(topicId);
+        if (SaveData.completedTopicIds.Count >= ActiveStory.Topics.Length && SaveData.specialOrderDueDay < 0 && IsFillingAvailable(ActiveStory.RequiredFilling))
             SaveData.specialOrderDueDay = Managers.Game.Day + 1;
         Persist();
         Debug.Log(
             $"[손님 이야기] 대화 주제 완료 | 손님={ActiveStory.DisplayName} | 선택지 번호={topicIndex + 1}" +
             $" | 처음 들은 주제={(isNew ? "예" : "아니요")}" +
-            $" | 완료한 대화={SaveData.completedTopicIndexes.Count}/{ActiveStory.Topics.Length}" +
+            $" | 완료한 대화={SaveData.completedTopicIds.Count}/{ActiveStory.Topics.Length}" +
             $" | 마지막 대화 날짜={SaveData.lastTalkDay}일차" +
             $" | 특별 주문 예정일={(SaveData.specialOrderDueDay > 0 ? SaveData.specialOrderDueDay + "일차" : "없음")}");
         return isNew;
@@ -144,17 +129,22 @@ public static class CustomerStoryProgress
 
     public static void BeginSpecialOrder() => IsSpecialOrderActive = true;
 
-    public static void ResolveSpecialOrder(FillingType filling, QualityStatus bake)
+    /// <summary>특별 주문 결과를 저장하고, 성공 여부를 호출자에게 돌려줍니다.</summary>
+    public static bool ResolveSpecialOrder(FillingType filling, QualityStatus bake)
     {
-        if (ActiveStory == null) return;
+        if (ActiveStory == null) return false;
         bool fillingMatch = filling == ActiveStory.RequiredFilling;
         bool bakeMatch = bake == ActiveStory.RequiredBake;
+        string attemptedSoulId = SaveIds.Soul(filling, bake);
+        if (!SaveData.attemptedSoulIds.Contains(attemptedSoulId)) SaveData.attemptedSoulIds.Add(attemptedSoulId);
+        SaveService.Instance.DiscoverSoul(filling, bake, fillingMatch && bakeMatch ? ActiveStory.CustomerType : null);
         if (fillingMatch && bakeMatch)
         {
             SaveData.storyCompleted = true;
             SaveData.specialOrderDueDay = -1;
             SaveData.retryAvailableDay = -1;
-            CustomerStoryOverlay.ShowResult(ActiveStory.DisplayName, ActiveStory.SuccessMessage, true);
+            Persist();
+            return true;
         }
         else
         {
@@ -162,10 +152,33 @@ public static class CustomerStoryProgress
             SaveData.retryAvailableDay = Managers.Game.Day + 2;
             CustomerStoryOverlay.ShowResult(ActiveStory.DisplayName, fillingMatch || bakeMatch ? ActiveStory.NearMissMessage : ActiveStory.FailureMessage, false);
         }
-        IsSpecialOrderActive = false;
         Persist();
+        return false;
+    }
+
+    /// <summary>손님이 화면에서 완전히 퇴장한 뒤에만 특별 주문 상태를 끝냅니다.</summary>
+    public static void CompleteSpecialOrderSession()
+    {
+        IsSpecialOrderActive = false;
+    }
+
+    /// <summary>에디터에서 특별 주문 흐름을 처음부터 시험할 때만 사용합니다.</summary>
+    public static void ResetForDebug()
+    {
+        CustomerProgressData progress = SaveData;
+        progress.lastTalkDay = -1;
+        progress.completedTopicIds.Clear();
+        progress.attemptedSoulIds.Clear();
+        progress.specialOrderDueDay = -1;
+        progress.retryAvailableDay = -1;
+        progress.storyCompleted = false;
+        SaveService.Instance.SaveStoryProgress();
+        ActiveStory = null;
+        IsSpecialOrderActive = false;
+        guaranteedCustomerSpawned = false;
+        Debug.Log("[손님 이야기] 정현 이야기 진행도를 초기화했습니다.");
     }
 
     private static bool IsFillingAvailable(FillingType filling) => (int)filling < Managers.Game.NumOfFilling;
-    private static void Persist() { PlayerPrefs.SetString(SaveKey, JsonUtility.ToJson(SaveData)); PlayerPrefs.Save(); }
+    private static void Persist() => SaveService.Instance.SaveStoryProgress();
 }

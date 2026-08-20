@@ -171,10 +171,11 @@ public class GameManagerEx
             fillingArr[i] = FindObject(ParentGo, $"{(FillingType)i}", true);
 
         //2. 데이터 초기화
-        // Managers의 값은 기획용 시작값이다. 게임을 시작할 때만 현재 데이터로 복사한다.
-        CurData.day = Mathf.Max(1, Managers.Instance.day) - 1;
-        CurData.numOfFilling = 4;
-        CurData.money = Managers.Instance.money;
+        // 저장값의 nextDay는 다음에 시작할 영업일이다. Opening에서 1 증가시키므로 여기서는 1을 뺀다.
+        SaveGameData saved = SaveService.Data;
+        CurData.day = Mathf.Max(1, saved.run.nextDay) - 1;
+        CurData.numOfFilling = Mathf.Clamp(saved.run.unlockedFillingIds.Count, 1, GetEnumSize(typeof(FillingType)));
+        CurData.money = saved.run.money;
         CustomerStoryProgress.InitializeGame();
 
         isRunning = true;
@@ -317,6 +318,14 @@ public class GameManagerEx
         //Debug.Log($"현재 돈: {Money} - 오늘 시작 보유금 {openingMoney}");
         //Debug.Log($"오늘 매출: {todayRevenue} - 재료비: {ingredientCost} = 오늘 순수익 {netProfit}");
         Money -= ingredientCost;
+
+        SaveService.Instance.CommitDay(
+            Day,
+            Money,
+            totalFishBunsSold,
+            totalCustomers,
+            todayRevenue,
+            netProfit);
 
 
 

@@ -59,13 +59,7 @@ public static class CustomerCollectionCatalog
 /// <summary>손님이 실제로 등장한 뒤에만 상세 정보를 보여 주기 위한 작은 저장소입니다.</summary>
 public static class CustomerCollectionProgress
 {
-    private const string MetCustomerKey = "collection_met_customers_v1";
+    public static void MarkMet(CustomerType customerType) => SaveService.Instance.MarkCustomerMet(customerType);
 
-    public static void MarkMet(CustomerType customerType)
-    {
-        PlayerPrefs.SetInt(MetCustomerKey + "_" + (int)customerType, 1);
-        PlayerPrefs.Save();
-    }
-
-    public static bool HasMet(CustomerType customerType) => PlayerPrefs.GetInt(MetCustomerKey + "_" + (int)customerType, 0) == 1;
+    public static bool HasMet(CustomerType customerType) => SaveService.Instance.HasMet(customerType);
 }

@@ -30,6 +30,8 @@ public class UI_Intro : MonoBehaviour
         {
             startButton.onClick.RemoveListener(StartBtn);
             startButton.onClick.AddListener(StartBtn);
+            if (SaveService.Instance != null)
+                startButton.interactable = SaveService.Instance.IsReadyForGameplay;
         }
 
         if (quitButton == null)
@@ -45,15 +47,18 @@ public class UI_Intro : MonoBehaviour
 
     private void Update()
     {
+        bool saveReady = SaveService.Instance == null || SaveService.Instance.IsReadyForGameplay;
+        if (startButton != null && !isStarting)
+            startButton.interactable = saveReady;
         bool startButtonIsVisible = startButton != null && startButton.gameObject.activeInHierarchy;
 
-        if (!startButtonIsVisible && Input.GetMouseButtonDown(0))
+        if (saveReady && !startButtonIsVisible && Input.GetMouseButtonDown(0))
             StartBtn();
     }
 
     public void StartBtn()
     {
-        if (isStarting)
+        if (isStarting || (SaveService.Instance != null && !SaveService.Instance.IsReadyForGameplay))
             return;
 
         isStarting = true;
