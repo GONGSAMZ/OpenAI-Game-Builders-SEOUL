@@ -206,10 +206,12 @@ public class UI_Game : UI_Base
             return;
 
         bool touchMode = InputManager.Instance != null && InputManager.Instance.IsTouchMode;
+        bool showKeyboardHints = KeyboardHintSettings.IsEnabled && touchMode == false;
         string viewName = view == GameplayView.Customer ? "손님 화면" : "조리대 화면";
         string controlHint = touchMode ? "위아래로 밀거나 전환 버튼" : "SPACE  화면 전환";
         viewHintText.text = $"{viewName}  ·  {controlHint}";
-        shortcutHintText.gameObject.SetActive(!touchMode && view == GameplayView.Cooking);
+        viewHintText.gameObject.SetActive(touchMode || showKeyboardHints);
+        shortcutHintText.gameObject.SetActive(showKeyboardHints && view == GameplayView.Cooking);
     }
 
     void RefreshTouchMode(bool touchMode)

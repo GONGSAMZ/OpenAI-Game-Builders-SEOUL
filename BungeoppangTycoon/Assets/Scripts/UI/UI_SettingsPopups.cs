@@ -2,6 +2,23 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// 게임 화면에 표시되는 PC 단축키 안내의 표시 여부를 저장합니다.
+/// 실제 키보드 조작은 이 설정과 관계없이 계속 사용할 수 있습니다.
+/// </summary>
+public static class KeyboardHintSettings
+{
+    private const string KeyboardHintsEnabledKey = "settings_keyboard_hints_enabled_v1";
+
+    public static bool IsEnabled => PlayerPrefs.GetInt(KeyboardHintsEnabledKey, 1) == 1;
+
+    public static void SetEnabled(bool enabled)
+    {
+        PlayerPrefs.SetInt(KeyboardHintsEnabledKey, enabled ? 1 : 0);
+        PlayerPrefs.Save();
+    }
+}
+
 public abstract class UI_SettingsPopupBase : UI_Base
 {
     protected TextMeshProUGUI titleText;
@@ -21,18 +38,66 @@ public abstract class UI_SettingsPopupBase : UI_Base
 
 public sealed class UI_SettingsOptions : UI_SettingsPopupBase
 {
-    const string VolumeKey = "settings_master_volume_v1";
-    Slider volumeSlider;
+    private const string VolumeKey = "settings_master_volume_v1";
+
+    private Slider volumeSlider;
+    private Button keyboardHintButton;
+    private TextMeshProUGUI keyboardHintButtonLabel;
+
     protected override void Init()
     {
         base.Init();
+
         volumeSlider = Util.Find<Slider>(gameObject, "VolumeSlider", true);
-        volumeSlider.value = PlayerPrefs.GetFloat(VolumeKey, AudioListener.volume);
-        volumeSlider.onValueChanged.AddListener(ApplyVolume);
-        ApplyVolume(volumeSlider.value);
+        if (volumeSlider != null)
+        {
+            volumeSlider.SetValueWithoutNotify(PlayerPrefs.GetFloat(VolumeKey, AudioListener.volume));
+            volumeSlider.onValueChanged.AddListener(ApplyVolume);
+            ApplyVolume(volumeSlider.value);
+        }
+
+        keyboardHintButton = Util.Find<Button>(gameObject, "KeyboardHintButton", true);
+        keyboardHintButtonLabel = Util.Find<TextMeshProUGUI>(gameObject, "KeyboardHintButtonLabel", true);
+        if (keyboardHintButton != null)
+        {
+            keyboardHintButton.onClick.AddListener(ToggleKeyboardHints);
+        }
+
+        RefreshDescription();
     }
-    protected override void Render() { titleText.text = "옵션"; bodyText.text = "전체 음량을 조절합니다."; }
-    void ApplyVolume(float value) { AudioListener.volume = Mathf.Clamp01(value); PlayerPrefs.SetFloat(VolumeKey, AudioListener.volume); PlayerPrefs.Save(); bodyText.text = $"전체 음량  {Mathf.RoundToInt(AudioListener.volume * 100f)}%"; }
+
+    protected override void Render()
+    {
+        titleText.text = "옵션";
+        RefreshDescription();
+    }
+
+    private void ApplyVolume(float value)
+    {
+        AudioListener.volume = Mathf.Clamp01(value);
+        PlayerPrefs.SetFloat(VolumeKey, AudioListener.volume);
+        PlayerPrefs.Save();
+        RefreshDescription();
+    }
+
+    private void ToggleKeyboardHints()
+    {
+        KeyboardHintSettings.SetEnabled(KeyboardHintSettings.IsEnabled == false);
+        RefreshDescription();
+    }
+
+    private void RefreshDescription()
+    {
+        if (bodyText == null)
+            return;
+
+        bodyText.text = $"전체 음량  {Mathf.RoundToInt(AudioListener.volume * 100f)}%\n\n키보드 단축키 안내를 표시할지 선택하세요.";
+
+        if (keyboardHintButtonLabel != null)
+            keyboardHintButtonLabel.text = KeyboardHintSettings.IsEnabled
+                ? "키보드 조작 안내  켜짐"
+                : "키보드 조작 안내  꺼짐";
+    }
 }
 
 public sealed class UI_SettingsHelp : UI_SettingsPopupBase
