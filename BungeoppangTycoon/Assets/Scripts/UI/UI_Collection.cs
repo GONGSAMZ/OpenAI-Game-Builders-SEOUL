@@ -115,7 +115,7 @@ public sealed class UI_Collection : UI_Base
         }
     }
 
-    private bool IsStoryUnlocked(CustomerCollectionEntry entry) => entry.CustomerType == CustomerType.JeongHyun && CustomerStoryProgress.IsStoryCompleted;
+    private bool IsStoryUnlocked(CustomerCollectionEntry entry) => CustomerStoryProgress.IsStoryCompletedFor(entry.CustomerType);
 
     private string BuildRecentTalks(CustomerCollectionEntry entry)
     {
@@ -123,13 +123,20 @@ public sealed class UI_Collection : UI_Base
         if (story == null) return "아직 나눈 대화가 없어요.";
         List<string> talks = new();
         for (int i = 0; i < story.Topics.Length; i++)
-            if (CustomerStoryProgress.CompletedTopics.Contains(i)) talks.Add("• " + story.Topics[i].Choice);
+            if (CustomerStoryProgress.CompletedTopicsFor(entry.CustomerType).Contains(i)) talks.Add("• " + story.Topics[i].Choice);
         return talks.Count == 0 ? "아직 나눈 대화가 없어요." : string.Join("\n", talks);
     }
 
     private void OpenReplay(CustomerCollectionEntry entry)
     {
-        replayEntry = entry; replaySceneIndex = 1; storyPanel.SetActive(false); replayPanel.SetActive(true); RenderReplayScene();
+        if (entry.CustomerType != CustomerType.JeongHyun) return;
+        gameObject.SetActive(false);
+        CustomerStoryCutscenePlayer.ReplayJeongHyun(() =>
+        {
+            if (this == null) return;
+            gameObject.SetActive(true);
+            ShowStoryList();
+        });
     }
 
     private void MoveReplayScene(int delta)

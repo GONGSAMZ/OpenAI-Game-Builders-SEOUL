@@ -52,6 +52,11 @@ import {
   InsufficientTestPointsError,
   type MarketStore
 } from "./store/store.js";
+import {
+  createPlayerSaveStore,
+  SaveRevisionConflictError,
+  type PlayerSaveStore
+} from "./save/save-store.js";
 
 const publicDirectory = path.resolve(process.cwd(), "public");
 const loginCookieName = "hive_login_attempt";
@@ -84,6 +89,28 @@ const progressCustomerIdSchema = z.enum(playerProgressCustomerIds);
 const storyProgressSchema = z.object({
   completedTopicIndexes: z.array(z.number().int().min(0).max(63)).max(64),
   storyCompleted: z.boolean()
+});
+
+const saveProfileSchema = z.object({
+  schemaVersion: z.number().int().min(1).max(100),
+  revision: z.number().int().min(0),
+  updatedAt: z.string().max(100),
+  run: z.object({
+    nextDay: z.number().int().min(1).max(1_000_000),
+    money: z.number().int().min(-1_000_000_000).max(1_000_000_000),
+    unlockedFillingIds: z.array(z.string().min(1).max(100)).max(100),
+    ownedGameplayItemIds: z.array(z.string().min(1).max(100)).max(500)
+  }).passthrough(),
+  account: z.object({
+    customers: z.array(z.object({ customerId: z.string().min(1).max(100) }).passthrough()).max(100),
+    discoveredSouls: z.array(z.object({ soulId: z.string().min(1).max(200) }).passthrough()).max(200),
+    achievements: z.array(z.object({ achievementId: z.string().min(1).max(100) }).passthrough()).max(200)
+  }).passthrough()
+}).passthrough();
+
+const savePutSchema = z.object({
+  expectedRevision: z.number().int().min(0),
+  profile: saveProfileSchema
 });
 
 const nicePayOrderSchema = z.object({
@@ -131,6 +158,7 @@ interface AppDependencies {
   marketStore?: MarketStore;
   storeCatalog?: StoreCatalogGateway;
   playerProgressStore?: PlayerProgressStore;
+  playerSaves?: PlayerSaveStore;
 }
 
 function setUnityAssetHeaders(response: Response, filePath: string): void {
@@ -198,6 +226,7 @@ export function createApp(dependencies: AppDependencies) {
   const storeCatalog = dependencies.storeCatalog ?? createStoreCatalogService(config);
   const playerProgressStore =
     dependencies.playerProgressStore ?? createPlayerProgressStore(config);
+  const playerSaves = dependencies.playerSaves ?? createPlayerSaveStore(config);
   const app = express();
   const requireGameSession = requireSession(sessions, sessionCookieName);
   const nicePayCallbackPath = "/api/v1/store/nicepay/callback";
@@ -459,6 +488,43 @@ export function createApp(dependencies: AppDependencies) {
     async (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
       response.json(await marketStore.getPlayerState(session.subject));
+    }
+  );
+
+  app.get(
+    "/api/v1/save/profile",
+    requireGameSession,
+    async (_request: Request, response: Response) => {
+      const { session } = response.locals as AuthenticatedLocals;
+      response.set("cache-control", "private, no-store").json({
+        profile: (await playerSaves.get(session.subject)) ?? null
+      });
+    }
+  );
+
+  app.put(
+    "/api/v1/save/profile",
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const input = savePutSchema.parse(request.body);
+      const { session } = response.locals as AuthenticatedLocals;
+      try {
+        const profile = await playerSaves.put(
+          session.subject,
+          input.expectedRevision,
+          input.profile
+        );
+        response.set("cache-control", "private, no-store").json({ profile });
+      } catch (error) {
+        if (error instanceof SaveRevisionConflictError) {
+          response.status(409).json({
+            error: { code: "SAVE_CONFLICT", message: error.message },
+            profile: error.current ?? null
+          });
+          return;
+        }
+        throw error;
+      }
     }
   );
 

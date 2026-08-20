@@ -14,7 +14,6 @@ public sealed class CustomerCollectionEntry
     public string StoryTitle;
     public string StorySoulName;
     public string StoryFolder;
-    public string ProgressId;
 }
 
 public static class CustomerCollectionCatalog
@@ -53,7 +52,6 @@ public static class CustomerCollectionCatalog
             StoryTitle = storyTitle,
             StorySoulName = soulName,
             StoryFolder = storyFolder,
-            ProgressId = storyFolder,
         };
     }
 }
@@ -61,100 +59,20 @@ public static class CustomerCollectionCatalog
 /// <summary>손님이 실제로 등장한 뒤에만 상세 정보를 보여 주기 위한 작은 저장소입니다.</summary>
 public static class CustomerCollectionProgress
 {
-    private const string MetCustomerKey = "collection_met_customers_v1";
-    private const string LegacyMigrationKey = "collection_progress_account_migration_v1";
-
-    public static event Action Changed;
-
-    public static void MarkMet(CustomerType customerType)
+    public static event Action Changed
     {
-        if (HasMet(customerType)) return;
-
-        PlayerPrefs.SetInt(GetKey(customerType), 1);
-        PlayerPrefs.Save();
-        Changed?.Invoke();
-
-        CustomerCollectionEntry entry = CustomerCollectionCatalog.Get(customerType);
-        if (entry != null)
-            GamePlatformClient.Instance?.MarkCustomerMet(entry.ProgressId);
-    }
-
-    public static bool HasMet(CustomerType customerType) => PlayerPrefs.GetInt(GetKey(customerType), 0) == 1;
-
-    public static void OnAccountChanged()
-    {
-        MigrateLegacyProgress();
-        Changed?.Invoke();
-    }
-
-    public static void MergeAccountProgress(GamePlatformClient client)
-    {
-        if (client == null || string.IsNullOrWhiteSpace(client.AccountSubject)) return;
-
-        bool changed = false;
-        foreach (CustomerCollectionEntry entry in CustomerCollectionCatalog.Entries)
+        add
         {
-            bool remoteMet = client.HasRemoteCustomerMet(entry.ProgressId);
-            bool localMet = HasMet(entry.CustomerType);
-
-            if (remoteMet && !localMet)
-            {
-                PlayerPrefs.SetInt(GetKey(entry.CustomerType), 1);
-                changed = true;
-            }
-            else if (localMet && !remoteMet)
-            {
-                client.MarkCustomerMet(entry.ProgressId);
-            }
+            SaveService.Instance.DataChanged += value;
         }
-
-        if (!changed) return;
-        PlayerPrefs.Save();
-        Changed?.Invoke();
-    }
-
-    private static string GetKey(CustomerType customerType)
-    {
-        string legacyKey = MetCustomerKey + "_" + (int)customerType;
-        return PlayerProgressAccountScope.IsAuthenticated
-            ? legacyKey + "__" + PlayerProgressAccountScope.Current
-            : legacyKey;
-    }
-
-    private static void MigrateLegacyProgress()
-    {
-        if (!PlayerProgressAccountScope.IsAuthenticated || PlayerPrefs.HasKey(LegacyMigrationKey))
-            return;
-
-        foreach (CustomerCollectionEntry entry in CustomerCollectionCatalog.Entries)
+        remove
         {
-            string legacyKey = MetCustomerKey + "_" + (int)entry.CustomerType;
-            if (PlayerPrefs.GetInt(legacyKey, 0) != 1) continue;
-            PlayerPrefs.SetInt(GetKey(entry.CustomerType), 1);
-            PlayerPrefs.DeleteKey(legacyKey);
-        }
-
-        PlayerPrefs.SetString(LegacyMigrationKey, PlayerProgressAccountScope.Current);
-        PlayerPrefs.Save();
-    }
-}
-
-internal static class PlayerProgressAccountScope
-{
-    public static bool IsAuthenticated =>
-        GamePlatformClient.Instance != null &&
-        !string.IsNullOrWhiteSpace(GamePlatformClient.Instance.AccountSubject);
-
-    public static string Current
-    {
-        get
-        {
-            string subject = GamePlatformClient.Instance?.AccountSubject;
-            if (string.IsNullOrWhiteSpace(subject)) return "guest";
-            return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(subject))
-                .TrimEnd('=')
-                .Replace('+', '-')
-                .Replace('/', '_');
+            if (SaveService.Instance != null)
+                SaveService.Instance.DataChanged -= value;
         }
     }
+
+    public static void MarkMet(CustomerType customerType) => SaveService.Instance.MarkCustomerMet(customerType);
+
+    public static bool HasMet(CustomerType customerType) => SaveService.Instance.HasMet(customerType);
 }

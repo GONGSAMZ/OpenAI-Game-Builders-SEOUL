@@ -8,6 +8,7 @@ import type { NicePayGateway } from "../src/integrations/nicepay/client.js";
 import { InMemoryPlayerProgressStore } from "../src/progress/store.js";
 import { InMemorySessionStore } from "../src/session-store.js";
 import { InMemoryMarketStore } from "../src/store/store.js";
+import { InMemoryPlayerSaveStore } from "../src/save/save-store.js";
 import { createTestConfig } from "./helpers.js";
 
 function extractSessionToken(html: string): string {
@@ -33,6 +34,52 @@ function sha256(value: string): string {
 }
 
 describe("integration API", () => {
+  it("로그인 계정 저장을 생성하고 revision 충돌을 막는다", async () => {
+    const playerSaves = new InMemoryPlayerSaveStore();
+    const app = createApp({ config: createTestConfig(), playerSaves });
+    const token = await login(app);
+    const auth = { Authorization: `Bearer ${token}` };
+    const profile = {
+      schemaVersion: 2,
+      revision: 0,
+      updatedAt: "",
+      run: {
+        nextDay: 1,
+        money: 5000,
+        unlockedFillingIds: ["red-bean", "custard", "nutella", "cream-cheese"],
+        ownedGameplayItemIds: []
+      },
+      account: { customers: [], discoveredSouls: [], achievements: [] }
+    };
+
+    await request(app)
+      .get("/api/v1/save/profile")
+      .set(auth)
+      .expect(200, { profile: null });
+
+    const created = await request(app)
+      .put("/api/v1/save/profile")
+      .set(auth)
+      .send({ expectedRevision: 0, profile })
+      .expect(200);
+    expect(created.body.profile).toEqual(expect.objectContaining({ revision: 1 }));
+
+    const conflict = await request(app)
+      .put("/api/v1/save/profile")
+      .set(auth)
+      .send({ expectedRevision: 0, profile })
+      .expect(409);
+    expect(conflict.body).toEqual(expect.objectContaining({
+      error: expect.objectContaining({ code: "SAVE_CONFLICT" }),
+      profile: expect.objectContaining({ revision: 1 })
+    }));
+  });
+
+  it("로그인하지 않은 사용자의 저장 API 접근을 거부한다", async () => {
+    const app = createApp({ config: createTestConfig() });
+    await request(app).get("/api/v1/save/profile").expect(401);
+  });
+
   it("health와 공개 설정을 반환한다", async () => {
     const app = createApp({ config: createTestConfig() });
     const health = await request(app).get("/api/v1/health").expect(200);

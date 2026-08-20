@@ -12,7 +12,6 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     GameObject storyBubble;
     bool isStoryChoiceOpen;
     bool isStoryReplyVisible;
-    const float StoryReplyDuration = 5f;
 /*    static int level = 1; //손님 레벨
     static int Ex; //누적 손님 만족도*/
 
@@ -187,11 +186,11 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
             orderAngryPoint = Mathf.Max(-100, orderAngryPoint - 10);
 
         // 선택지에서 답변으로 넘어가도 집중 화면과 게임 시간 정지는 그대로 유지한다.
-        UI_CustomerStoryChoices.ShowReply(this, reply, StoryReplyDuration);
+        UI_CustomerStoryChoices.ShowReply(this, reply);
         RefreshStoryBubble();
         Debug.Log(
             $"[손님 이야기] 낮 대화 답변 표시 | 손님={story.DisplayName} | 선택지 번호={topicIndex + 1}" +
-            $" | 처음 들은 주제={(isNew ? "예" : "아니요")} | 답변 표시 시간={StoryReplyDuration:F1}초", this);
+            $" | 처음 들은 주제={(isNew ? "예" : "아니요")} | 답변 닫기=화면 클릭 또는 Enter/Esc", this);
     }
 
     public void CancelStoryDialogueSelection()
@@ -431,8 +430,16 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         if (isSpecialOrder)
         {
-            CustomerStoryProgress.ResolveSpecialOrder(filling, baking);
-            BeginExit();
+            bool storySucceeded = CustomerStoryProgress.ResolveSpecialOrder(filling, baking);
+            if (storySucceeded)
+            {
+                // 컷씬이 끝나기 전까지는 특별 주문 상태를 유지해 마감 정산이 앞서지 않게 합니다.
+                CustomerStoryCutscenePlayer.PlayJeongHyunUnlock(() => BeginExit());
+            }
+            else
+            {
+                BeginExit();
+            }
             return true;
         }
 
@@ -557,7 +564,10 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         if (!isSpecialOrder)
             StartCoroutine(InstatiateCustomer());
         else
+        {
+            CustomerStoryProgress.CompleteSpecialOrderSession();
             Managers.Game.CompleteSpecialOrder();
+        }
         yield break;
 
     }
