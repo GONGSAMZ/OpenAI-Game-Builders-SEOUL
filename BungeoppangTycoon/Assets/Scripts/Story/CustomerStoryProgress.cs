@@ -7,8 +7,11 @@ public static class CustomerStoryProgress
 {
     private static bool guaranteedCustomerSpawned;
 
-    private static CustomerProgressData SaveData =>
-        SaveService.Instance.GetCustomer(CustomerType.JeongHyun);
+    // SaveService.Data는 서비스 생성 전 첫 프레임에도 런타임 인스턴스를 준비합니다.
+    // 기존 GetCustomer 경로는 계정 목록이 아직 초기화되지 않은 경우의 안전망입니다.
+    private static CustomerProgressData SaveData => SaveService.Data.account.customers.Find(
+        value => value.customerId == SaveIds.Customer(CustomerType.JeongHyun))
+        ?? SaveService.Instance.GetCustomer(CustomerType.JeongHyun);
 
     public static event Action Changed
     {
