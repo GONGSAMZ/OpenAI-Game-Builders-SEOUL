@@ -19,7 +19,7 @@ public static class SettingsPopupPrefabBuilder
     /// <summary>옵션 팝업만 다시 생성합니다. 다른 설정 팝업은 건드리지 않습니다.</summary>
     public static void BuildOptions()
     {
-        Build<UI_SettingsOptions>("UI_SettingsOptions", true);
+        SettingsOptionsFigmaPrefabBuilder.BuildOptions();
         AssetDatabase.SaveAssets();
     }
 
