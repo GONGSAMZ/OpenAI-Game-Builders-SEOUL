@@ -14,6 +14,8 @@ public sealed class GamePlatformClient : MonoBehaviour
     [SerializeField] private string apiBaseUrl = "http://localhost:3000";
 
     public event Action<string> LoginSucceeded;
+    public event Action<string> SessionChanged;
+    public event Action SessionRestoreCompleted;
     public event Action<string> RequestFailed;
     public event Action StoreStateChanged;
     public event Action PaymentSucceeded;
@@ -46,6 +48,8 @@ public sealed class GamePlatformClient : MonoBehaviour
 #endif
 
     public bool IsLoggedIn => serverSessionAvailable || !string.IsNullOrWhiteSpace(sessionToken);
+    public string SessionSubject { get; private set; }
+    public bool IsSessionRestoreComplete { get; private set; }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void CreateRuntimeClient()
@@ -103,6 +107,8 @@ public sealed class GamePlatformClient : MonoBehaviour
 #else
         sessionToken = null;
         serverSessionAvailable = false;
+        SessionSubject = null;
+        SessionChanged?.Invoke(null);
         ClearStoreState();
 #endif
     }
@@ -152,6 +158,16 @@ public sealed class GamePlatformClient : MonoBehaviour
             ApplyStoreState(json);
             onSuccess?.Invoke(json);
         });
+    }
+
+    public IEnumerator GetSaveProfile(Action<string> onSuccess, Action<long, string> onFailure)
+    {
+        yield return SendJsonDetailed("GET", "/api/v1/save/profile", null, onSuccess, onFailure);
+    }
+
+    public IEnumerator PutSaveProfile(string payload, Action<string> onSuccess, Action<long, string> onFailure)
+    {
+        yield return SendJsonDetailed("PUT", "/api/v1/save/profile", payload, onSuccess, onFailure);
     }
 
     public void OpenNicePayTestCheckout(string productId)
@@ -204,6 +220,7 @@ public sealed class GamePlatformClient : MonoBehaviour
         serverSessionAvailable = true;
         StartInventorySync();
         SyncInventoryNow();
+        StartCoroutine(ResolveSessionSubject());
         LoginSucceeded?.Invoke(token);
     }
 
@@ -211,6 +228,8 @@ public sealed class GamePlatformClient : MonoBehaviour
     {
         sessionToken = null;
         serverSessionAvailable = false;
+        SessionSubject = null;
+        SessionChanged?.Invoke(null);
         StopInventorySync();
         ClearStoreState();
     }
@@ -274,6 +293,19 @@ public sealed class GamePlatformClient : MonoBehaviour
         Action<string> onSuccess,
         bool reportFailure = true)
     {
+        yield return SendJsonDetailed(method, path, body, onSuccess, (status, responseBody) =>
+        {
+            if (reportFailure) OnBridgeError($"HTTP {status}: {responseBody}");
+        });
+    }
+
+    private IEnumerator SendJsonDetailed(
+        string method,
+        string path,
+        string body,
+        Action<string> onSuccess,
+        Action<long, string> onFailure)
+    {
         using var request = new UnityWebRequest(apiBaseUrl.TrimEnd('/') + path, method);
         request.downloadHandler = new DownloadHandlerBuffer();
 
@@ -293,8 +325,7 @@ public sealed class GamePlatformClient : MonoBehaviour
 
         if (request.result != UnityWebRequest.Result.Success)
         {
-            if (reportFailure)
-                OnBridgeError($"HTTP {request.responseCode}: {request.downloadHandler.text}");
+            onFailure?.Invoke(request.responseCode, request.downloadHandler.text);
             yield break;
         }
 
@@ -304,17 +335,40 @@ public sealed class GamePlatformClient : MonoBehaviour
     private IEnumerator RestoreSession()
     {
         bool restored = false;
+        string responseJson = null;
         yield return SendJson(
             "GET",
             "/api/v1/auth/session",
             null,
-            _ => restored = true,
+            json => { restored = true; responseJson = json; },
             false);
 
         serverSessionAvailable = restored;
-        if (!restored) yield break;
-        StartInventorySync();
-        SyncInventoryNow();
+        if (restored)
+        {
+            ApplySession(responseJson);
+            StartInventorySync();
+            SyncInventoryNow();
+        }
+        IsSessionRestoreComplete = true;
+        SessionRestoreCompleted?.Invoke();
+    }
+
+    private IEnumerator ResolveSessionSubject()
+    {
+        string responseJson = null;
+        yield return GetSession(json => responseJson = json);
+        ApplySession(responseJson);
+    }
+
+    private void ApplySession(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return;
+        SessionEnvelope envelope = JsonUtility.FromJson<SessionEnvelope>(json);
+        string subject = envelope?.session?.subject;
+        if (string.IsNullOrWhiteSpace(subject) || subject == SessionSubject) return;
+        SessionSubject = subject;
+        SessionChanged?.Invoke(subject);
     }
 
     private void StartInventorySync()
@@ -388,5 +442,17 @@ public sealed class GamePlatformClient : MonoBehaviour
     private sealed class StoreWallet
     {
         public int testPoints;
+    }
+
+    [Serializable]
+    private sealed class SessionEnvelope
+    {
+        public SessionData session;
+    }
+
+    [Serializable]
+    private sealed class SessionData
+    {
+        public string subject;
     }
 }

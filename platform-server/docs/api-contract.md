@@ -168,3 +168,20 @@ HIVE 웹 상점의 결제 알림 URL입니다. `STORE_MODE=hive-web-shop`에서�
   }
 }
 ```
+# 플레이 저장
+
+로그인 계정의 게임 진행은 인앱 구매 인벤토리와 별도 문서로 저장한다.
+
+### `GET /api/v1/save/profile`
+
+- 인증 필요
+- 응답: `{ "profile": SaveProfile | null }`
+- 계정 저장이 아직 없으면 `profile`은 `null`이다.
+
+### `PUT /api/v1/save/profile`
+
+- 인증 필요
+- 요청: `{ "expectedRevision": number, "profile": SaveProfile }`
+- 성공하면 revision을 1 증가시킨 최신 `profile`을 반환한다.
+- 다른 기기에서 먼저 저장했다면 `409 SAVE_CONFLICT`와 서버의 최신 `profile`을 반환한다.
+- 클라이언트는 충돌 시 서버 데이터를 우선하고 로컬 데이터는 백업한다.

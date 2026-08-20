@@ -161,6 +161,7 @@ Resources:
                   - dynamodb:PutItem
                   - dynamodb:Query
                   - dynamodb:UpdateItem
+                  - dynamodb:TransactWriteItems
                 Resource: !GetAtt GameDataTable.Arn
 
   GitHubDeployRole:
