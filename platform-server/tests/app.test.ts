@@ -138,7 +138,10 @@ describe("integration API", () => {
       });
     const page = await request(app).get("/").expect(200);
     expect(page.text).toContain("붕어빵 타이쿤");
-    expect(page.text).toContain('src="/game/index.html?v=');
+    expect(page.text).toContain('src="/game/index.html?v=test-revision"');
+    expect(page.text).toContain('src="/header.js?v=test-revision"');
+    expect(page.text).toContain('href="/styles.css?v=test-revision"');
+    expect(page.text).not.toContain("__APP_REVISION__");
     expect(page.text).not.toContain("장인 상점");
     expect(page.text).not.toContain("OPENAI LAB");
     expect(page.text).not.toContain("개발 진단 로그");
@@ -150,6 +153,11 @@ describe("integration API", () => {
     expect(page.headers["content-security-policy"]).toContain("'wasm-unsafe-eval'");
     expect(page.headers["content-security-policy"]).toContain("blob:");
     expect(page.headers["cache-control"]).toContain("no-store");
+
+    await request(app)
+      .get("/header.js?v=test-revision")
+      .expect(200)
+      .expect("cache-control", /no-cache/);
   });
 
   it("mock Hive 로그인 후 게임 세션을 조회한다", async () => {
@@ -161,8 +169,31 @@ describe("integration API", () => {
       .set("Authorization", `Bearer ${token}`)
       .expect(200);
     expect(session.body.session).toEqual(
-      expect.objectContaining({ provider: "mock-hive", playerId: "local-player" })
+      expect.objectContaining({
+        provider: "mock-hive",
+        playerId: "local-player",
+        accountLabel: "로컬 테스트 계정"
+      })
     );
+  });
+
+  it("실제 HIVE 세션은 원본 IDP 식별자 대신 마스킹된 계정 표시명을 제공한다", async () => {
+    const sessions = new InMemorySessionStore(3600);
+    const hiveSession = await sessions.create({
+      subject: "1:259926405",
+      provider: "hive",
+      idpIndex: 1,
+      idpUserId: "259926405"
+    });
+    const app = createApp({ config: createTestConfig(), sessions });
+
+    const response = await request(app)
+      .get("/api/v1/auth/session")
+      .set("Authorization", `Bearer ${hiveSession.token}`)
+      .expect(200);
+
+    expect(response.body.session.accountLabel).toBe("HIVE 계정 · 926405");
+    expect(response.body.session.accountLabel).not.toContain("1:");
   });
 
   it("도감과 스토리 진행은 인증 사용자별로 저장되고 단조롭게 병합된다", async () => {

@@ -193,6 +193,8 @@ API만 `live`로 바꾸고 게임에서 사용하지 않는 상태는 기능 완
 
 일반 배포에는 AWS 콘솔 로그인이 필요하지 않다. 검증된 변경을 `DEV`에 push하면 GitHub OIDC가 자동으로 정확히 그 커밋의 Unity 원본을 WebGL로 새로 빌드하고, 서버 검사, 산출물 해시 검증, bootstrap 데이터 인프라 갱신, ECR 이미지 생성, 서비스 CloudFormation 배포와 공개 URL Smoke Test를 실행한다. 저장소에 남아 있던 `game-dist`를 최신 빌드처럼 대신 배포하는 우회 경로는 두지 않는다.
 
+루트 포털은 서버의 `APP_REVISION`을 CSS, JavaScript와 게임 iframe URL에 자동으로 붙인다. 배포 뒤 화면만 이전 버전이면 먼저 페이지를 새로고침하고 HTML의 `?v=<commit SHA>`와 `/api/v1/version`이 같은지 확인한다. 포털 고정 파일은 `no-cache`로 재검증되므로 날짜나 임의 문자열을 `index.html`에 하드코딩하지 않는다.
+
 구매 내역은 DynamoDB `SubjectCreatedAtIndex`를 사용한다. 워크플로의 `Update account data infrastructure` 단계가 bootstrap 스택을 먼저 갱신하고 인덱스가 `ACTIVE`인지 확인한 뒤 서버를 배포하므로, 이 단계를 건너뛰어 새 서버만 배포하지 않는다.
 
 Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`와 AWS 변수 중 하나라도 없으면 preflight가 즉시 실패해야 정상이다. 누락된 Unity 빌드를 건너뛰고 이전 WebGL을 배포하도록 설정하지 않는다.

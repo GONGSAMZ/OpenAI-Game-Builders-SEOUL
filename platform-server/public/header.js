@@ -20,14 +20,19 @@
 
   function renderSession(nextSession, notifyGame = true) {
     session = nextSession;
-    const playerName = nextSession?.playerId || nextSession?.subject;
-    const signedIn = Boolean(playerName);
+    const stableId = nextSession?.playerId || nextSession?.subject;
+    const accountLabel = nextSession?.accountLabel || (
+      nextSession?.provider === "hive" && stableId
+        ? `HIVE 계정 · ${stableId.slice(-6)}`
+        : stableId
+    );
+    const signedIn = Boolean(accountLabel);
 
     loginButton.classList.toggle("signed-in", signedIn);
     loginButton.title = signedIn ? "내 정보 열기" : "HIVE 가입·로그인";
     loginLabel.textContent = signedIn ? "내 정보" : "HIVE 로그인";
-    accountAvatar.textContent = playerName ? playerName.slice(0, 1).toUpperCase() : "H";
-    accountPlayerId.textContent = playerName || "-";
+    accountAvatar.textContent = "H";
+    accountPlayerId.textContent = accountLabel || "-";
     accountProvider.textContent = nextSession?.provider === "hive" ? "HIVE 계정" : "연결된 계정";
     setMenuOpen(false);
     window.dispatchEvent(

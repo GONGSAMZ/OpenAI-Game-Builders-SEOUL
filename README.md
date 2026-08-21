@@ -69,6 +69,8 @@ Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점,
 
 > 팀 작업 전에 **[팀 작업·운영 인수인계 가이드](docs/08_TEAM_WORK_AND_OPERATIONS_GUIDE.md)**를 확인하세요. Unity/WebGL 갱신, HIVE 상품 등록, NICEPAY 테스트 결제, AWS 배포·롤백, OpenAI live 전환과 콘솔 팀원 초대 절차의 기준 문서입니다.
 
+> HIVE 계정 식별자와 화면 표시 정책은 **[HIVE 계정 식별·표시 가이드](docs/09_HIVE_ACCOUNT_IDENTITY.md)**를 따릅니다. 이메일은 Web Login v2 인증 응답에 포함되지 않으므로 저장 키로 사용하지 않습니다.
+
 | 구성 | 위치 | 역할 |
 | --- | --- | --- |
 | 플랫폼 서버 | `platform-server/` | HIVE 로그인, 게임 세션, 마켓, OpenAI 프록시 |

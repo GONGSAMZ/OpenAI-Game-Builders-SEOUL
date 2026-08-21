@@ -20,6 +20,11 @@ public class InputManager : MonoBehaviour
     bool isTouchMode;
     ToolController highlightedTool;
     readonly Dictionary<SpriteRenderer, Color> highlightedRenderers = new();
+    readonly Dictionary<SpriteRenderer, SpriteRenderer> toolTargetOutlines = new();
+
+    const float ToolTargetOutlineMinScale = 1.08f;
+    const float ToolTargetOutlinePulseScale = 0.035f;
+    const float ToolTargetOutlinePulseSpeed = 5f;
 
     public FishBunController SelectedFishBun => selectedFishBun;
     public bool IsTouchMode => isTouchMode;
@@ -49,6 +54,7 @@ public class InputManager : MonoBehaviour
     void Update()
     {
         HandleTouchInput();
+        UpdateToolTargetOutlines();
 
         if (Input.touchCount == 0 && (Input.GetMouseButtonDown(0) || Input.anyKeyDown))
             SetTouchMode(false);
@@ -264,7 +270,7 @@ public class InputManager : MonoBehaviour
         foreach (FishBunController fishBun in FindObjectsByType<FishBunController>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
         {
             if (fishBun.CanUseTool(tool))
-                Highlight(fishBun.gameObject);
+                HighlightToolTarget(fishBun.gameObject);
         }
     }
 
@@ -283,6 +289,14 @@ public class InputManager : MonoBehaviour
         }
 
         highlightedRenderers.Clear();
+
+        foreach ((SpriteRenderer source, SpriteRenderer outline) in toolTargetOutlines)
+        {
+            if (outline != null)
+                Destroy(outline.gameObject);
+        }
+
+        toolTargetOutlines.Clear();
         highlightedTool = null;
     }
 
@@ -310,5 +324,50 @@ public class InputManager : MonoBehaviour
 
         highlightedRenderers.Add(renderer, renderer.color);
         renderer.color = Color.Lerp(renderer.color, new Color(1f, 0.78f, 0.2f, renderer.color.a), 0.35f);
+    }
+
+    void HighlightToolTarget(GameObject target)
+    {
+        SpriteRenderer source = target.GetComponentInChildren<SpriteRenderer>();
+        if (source == null || toolTargetOutlines.ContainsKey(source))
+            return;
+
+        GameObject outlineObject = new("InteractableOutline", typeof(SpriteRenderer));
+        outlineObject.transform.SetParent(source.transform, false);
+
+        SpriteRenderer outline = outlineObject.GetComponent<SpriteRenderer>();
+        outline.sprite = source.sprite;
+        outline.color = Color.white;
+        outline.flipX = source.flipX;
+        outline.flipY = source.flipY;
+        outline.drawMode = source.drawMode;
+        outline.size = source.size;
+        outline.maskInteraction = source.maskInteraction;
+        outline.sortingLayerID = source.sortingLayerID;
+        outline.sortingOrder = source.sortingOrder - 1;
+        outlineObject.transform.localScale = Vector3.one * ToolTargetOutlineMinScale;
+
+        toolTargetOutlines.Add(source, outline);
+    }
+
+    void UpdateToolTargetOutlines()
+    {
+        float pulse = ToolTargetOutlineMinScale +
+            (Mathf.Sin(Time.unscaledTime * ToolTargetOutlinePulseSpeed) + 1f) * 0.5f * ToolTargetOutlinePulseScale;
+
+        foreach ((SpriteRenderer source, SpriteRenderer outline) in toolTargetOutlines)
+        {
+            if (source == null || outline == null)
+                continue;
+
+            outline.sprite = source.sprite;
+            outline.flipX = source.flipX;
+            outline.flipY = source.flipY;
+            outline.drawMode = source.drawMode;
+            outline.size = source.size;
+            outline.sortingLayerID = source.sortingLayerID;
+            outline.sortingOrder = source.sortingOrder - 1;
+            outline.transform.localScale = Vector3.one * pulse;
+        }
     }
 }
