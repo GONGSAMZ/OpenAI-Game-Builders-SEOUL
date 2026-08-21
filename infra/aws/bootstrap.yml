@@ -247,6 +247,9 @@ Resources:
                   - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/openai-game-builders-seoul-github-dev
                   - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/openai-game-builders-seoul-bootstrap-*
               - Effect: Allow
+                Action: iam:GetRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/openai-game-builders-seoul-bootst-*
+              - Effect: Allow
                 Action:
                   - ec2:AuthorizeSecurityGroupIngress
                   - ec2:AssociateRouteTable
