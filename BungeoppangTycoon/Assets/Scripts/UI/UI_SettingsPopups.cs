@@ -8,14 +8,11 @@ using UnityEngine.UI;
 /// </summary>
 public static class KeyboardHintSettings
 {
-    private const string KeyboardHintsEnabledKey = "settings_keyboard_hints_enabled_v1";
-
-    public static bool IsEnabled => PlayerPrefs.GetInt(KeyboardHintsEnabledKey, 1) == 1;
+    public static bool IsEnabled => SaveService.Data.settings.keyboardHintsEnabled;
 
     public static void SetEnabled(bool enabled)
     {
-        PlayerPrefs.SetInt(KeyboardHintsEnabledKey, enabled ? 1 : 0);
-        PlayerPrefs.Save();
+        SaveService.Instance.SetKeyboardHintsEnabled(enabled);
     }
 }
 
@@ -38,8 +35,6 @@ public abstract class UI_SettingsPopupBase : UI_Base
 
 public sealed class UI_SettingsOptions : UI_SettingsPopupBase
 {
-    private const string VolumeKey = "settings_master_volume_v1";
-
     private Slider volumeSlider;
     private Button keyboardHintButton;
     private TextMeshProUGUI keyboardHintButtonLabel;
@@ -51,7 +46,7 @@ public sealed class UI_SettingsOptions : UI_SettingsPopupBase
         volumeSlider = Util.Find<Slider>(gameObject, "VolumeSlider", true);
         if (volumeSlider != null)
         {
-            volumeSlider.SetValueWithoutNotify(PlayerPrefs.GetFloat(VolumeKey, AudioListener.volume));
+            volumeSlider.SetValueWithoutNotify(SaveService.Data.settings.masterVolume);
             volumeSlider.onValueChanged.AddListener(ApplyVolume);
             ApplyVolume(volumeSlider.value);
         }
@@ -74,9 +69,7 @@ public sealed class UI_SettingsOptions : UI_SettingsPopupBase
 
     private void ApplyVolume(float value)
     {
-        AudioListener.volume = Mathf.Clamp01(value);
-        PlayerPrefs.SetFloat(VolumeKey, AudioListener.volume);
-        PlayerPrefs.Save();
+        SaveService.Instance.SetMasterVolume(value);
         RefreshDescription();
     }
 

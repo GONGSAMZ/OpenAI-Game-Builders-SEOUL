@@ -53,10 +53,16 @@ import {
   type MarketStore
 } from "./store/store.js";
 import {
+  createPurchaseHistoryStore,
+  type PurchaseHistoryStore,
+  type PurchaseStatus
+} from "./store/purchase-history.js";
+import {
   createPlayerSaveStore,
   SaveRevisionConflictError,
   type PlayerSaveStore
 } from "./save/save-store.js";
+import { PlayerProfileService } from "./save/player-profile-service.js";
 
 const publicDirectory = path.resolve(process.cwd(), "public");
 const loginCookieName = "hive_login_attempt";
@@ -105,7 +111,12 @@ const saveProfileSchema = z.object({
     customers: z.array(z.object({ customerId: z.string().min(1).max(100) }).passthrough()).max(100),
     discoveredSouls: z.array(z.object({ soulId: z.string().min(1).max(200) }).passthrough()).max(200),
     achievements: z.array(z.object({ achievementId: z.string().min(1).max(100) }).passthrough()).max(200)
-  }).passthrough()
+  }).passthrough(),
+  settings: z.object({
+    masterVolume: z.number().min(0).max(1),
+    keyboardHintsEnabled: z.boolean(),
+    tutorialCompleted: z.boolean()
+  }).passthrough().optional()
 }).passthrough();
 
 const savePutSchema = z.object({
@@ -115,6 +126,11 @@ const savePutSchema = z.object({
 
 const nicePayOrderSchema = z.object({
   productId: z.string().trim().min(1).max(300)
+});
+
+const purchaseHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  cursor: z.string().min(1).max(4_000).optional()
 });
 
 const nicePayCallbackSchema = z.object({
@@ -156,6 +172,7 @@ interface AppDependencies {
   nicePayOrders?: NicePayOrderStore;
   aiService?: AiService;
   marketStore?: MarketStore;
+  purchaseHistory?: PurchaseHistoryStore;
   storeCatalog?: StoreCatalogGateway;
   playerProgressStore?: PlayerProgressStore;
   playerSaves?: PlayerSaveStore;
@@ -223,10 +240,12 @@ export function createApp(dependencies: AppDependencies) {
   const nicePayOrders = dependencies.nicePayOrders ?? createNicePayOrderStore(config);
   const aiService = dependencies.aiService ?? new AiService(config.openai);
   const marketStore = dependencies.marketStore ?? createMarketStore(config);
+  const purchaseHistory = dependencies.purchaseHistory ?? createPurchaseHistoryStore(config);
   const storeCatalog = dependencies.storeCatalog ?? createStoreCatalogService(config);
   const playerProgressStore =
     dependencies.playerProgressStore ?? createPlayerProgressStore(config);
   const playerSaves = dependencies.playerSaves ?? createPlayerSaveStore(config);
+  const playerProfiles = new PlayerProfileService(playerSaves, playerProgressStore);
   const app = express();
   const requireGameSession = requireSession(sessions, sessionCookieName);
   const nicePayCallbackPath = "/api/v1/store/nicepay/callback";
@@ -433,7 +452,7 @@ export function createApp(dependencies: AppDependencies) {
       const { session } = response.locals as AuthenticatedLocals;
       response
         .set("cache-control", "private, no-store")
-        .json(await playerProgressStore.getPlayerProgress(session.subject));
+        .json(await playerProfiles.getProgress(session.subject));
     }
   );
 
@@ -445,7 +464,7 @@ export function createApp(dependencies: AppDependencies) {
       const { session } = response.locals as AuthenticatedLocals;
       response
         .set("cache-control", "private, no-store")
-        .json(await playerProgressStore.markCustomerMet(session.subject, customerId));
+        .json(await playerProfiles.markCustomerMet(session.subject, customerId));
     }
   );
 
@@ -459,7 +478,7 @@ export function createApp(dependencies: AppDependencies) {
       response
         .set("cache-control", "private, no-store")
         .json(
-          await playerProgressStore.mergeStoryProgress(
+          await playerProfiles.mergeStoryProgress(
             session.subject,
             customerId,
             input
@@ -492,12 +511,31 @@ export function createApp(dependencies: AppDependencies) {
   );
 
   app.get(
+    "/api/v1/store/purchases",
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const input = purchaseHistoryQuerySchema.parse(request.query);
+      const { session } = response.locals as AuthenticatedLocals;
+      try {
+        response
+          .set("cache-control", "private, no-store")
+          .json(await purchaseHistory.list(session.subject, input.limit, input.cursor));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("cursor")) {
+          throw new HttpError(400, error.message);
+        }
+        throw error;
+      }
+    }
+  );
+
+  app.get(
     "/api/v1/save/profile",
     requireGameSession,
     async (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
       response.set("cache-control", "private, no-store").json({
-        profile: (await playerSaves.get(session.subject)) ?? null
+        profile: (await playerProfiles.get(session.subject)) ?? null
       });
     }
   );
@@ -509,7 +547,7 @@ export function createApp(dependencies: AppDependencies) {
       const input = savePutSchema.parse(request.body);
       const { session } = response.locals as AuthenticatedLocals;
       try {
-        const profile = await playerSaves.put(
+        const profile = await playerProfiles.put(
           session.subject,
           input.expectedRevision,
           input.profile
@@ -578,6 +616,12 @@ export function createApp(dependencies: AppDependencies) {
         goodsName: product.name,
         amount: product.priceKrw
       });
+      await purchaseHistory.start(session.subject, {
+        provider: "nicepay-test",
+        attemptId: order.orderId,
+        product,
+        expiresAtEpoch: order.expiresAtEpoch
+      });
       response.status(201).json({
         orderId: order.orderId,
         amount: order.amount,
@@ -596,6 +640,13 @@ export function createApp(dependencies: AppDependencies) {
     if (!order) throw new HttpError(404, "NICEPAY 주문을 찾을 수 없습니다.");
     if (order.status !== "pending") throw new HttpError(409, "이미 처리된 NICEPAY 주문입니다.");
     if (order.expiresAtEpoch < Math.floor(Date.now() / 1000)) {
+      await purchaseHistory.finish(
+        order.subject,
+        "nicepay-test",
+        order.orderId,
+        "expired",
+        "ORDER_EXPIRED"
+      );
       throw new HttpError(410, "NICEPAY 주문이 만료되었습니다.");
     }
     sendNicePayCheckoutPage(response, {
@@ -607,6 +658,8 @@ export function createApp(dependencies: AppDependencies) {
 
   app.post(nicePayCallbackPath, purchaseLimiter, async (request, response) => {
     const resultOrigin = new URL(config.publicBaseUrl).origin;
+    let historyContext: { subject: string; attemptId: string } | undefined;
+    let historyStatus: Exclude<PurchaseStatus, "pending"> | undefined;
     try {
       if (config.store.mode !== "nicepay-test" || !config.nicepay.clientId || !config.nicepay.secretKey) {
         throw new Error("NICEPAY 테스트 결제가 비활성화되어 있습니다.");
@@ -614,7 +667,10 @@ export function createApp(dependencies: AppDependencies) {
       const input = nicePayCallbackSchema.parse(request.body);
       const order = await nicePayOrders.get(input.orderId);
       if (!order) throw new Error("NICEPAY 주문을 찾을 수 없습니다.");
+      historyContext = { subject: order.subject, attemptId: order.orderId };
       if (order.status === "paid") {
+        historyStatus = "succeeded";
+        await purchaseHistory.finish(order.subject, "nicepay-test", order.orderId, historyStatus);
         sendNicePayResultPage(response, resultOrigin, {
           success: true,
           message: "이미 지급된 테스트 결제입니다.",
@@ -623,9 +679,27 @@ export function createApp(dependencies: AppDependencies) {
         return;
       }
       if (order.expiresAtEpoch < Math.floor(Date.now() / 1000)) {
+        historyStatus = "expired";
+        await purchaseHistory.finish(
+          order.subject,
+          "nicepay-test",
+          order.orderId,
+          historyStatus,
+          "ORDER_EXPIRED"
+        );
         throw new Error("NICEPAY 주문이 만료되었습니다.");
       }
-      if (input.authResultCode !== "0000") throw new Error("NICEPAY 테스트 결제가 취소됐습니다.");
+      if (input.authResultCode !== "0000") {
+        historyStatus = "cancelled";
+        await purchaseHistory.finish(
+          order.subject,
+          "nicepay-test",
+          order.orderId,
+          historyStatus,
+          "USER_CANCELLED"
+        );
+        throw new Error("NICEPAY 테스트 결제가 취소됐습니다.");
+      }
       if (input.clientId !== config.nicepay.clientId) throw new Error("NICEPAY Client ID가 일치하지 않습니다.");
       if (input.amount !== order.amount) throw new Error("NICEPAY 결제 금액이 주문과 일치하지 않습니다.");
       if (!verifyNicePayAuthenticationSignature({
@@ -661,6 +735,8 @@ export function createApp(dependencies: AppDependencies) {
         transactionId: approval.tid
       });
       await nicePayOrders.markPaid(order.orderId, approval.tid);
+      historyStatus = "succeeded";
+      await purchaseHistory.finish(order.subject, "nicepay-test", order.orderId, historyStatus);
       sendNicePayResultPage(response, resultOrigin, {
         success: true,
         message: "NICEPAY 테스트 결제가 계정에 지급됐습니다.",
@@ -668,6 +744,15 @@ export function createApp(dependencies: AppDependencies) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "NICEPAY 테스트 결제 처리에 실패했습니다.";
+      if (historyContext && !historyStatus) {
+        await purchaseHistory.finish(
+          historyContext.subject,
+          "nicepay-test",
+          historyContext.attemptId,
+          "failed",
+          "PAYMENT_FAILED"
+        );
+      }
       if (config.nodeEnv !== "test") {
         console.error(JSON.stringify({ type: "nicepay_test_payment_error", message, revision: config.revision }));
       }
@@ -694,6 +779,11 @@ export function createApp(dependencies: AppDependencies) {
         session.playerId ?? session.subject
       );
       if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
+      await purchaseHistory.start(session.subject, {
+        provider: "mock",
+        attemptId: input.idempotencyKey,
+        product
+      });
       let result;
       try {
         result = await marketStore.grantMockPurchase(
@@ -701,10 +791,30 @@ export function createApp(dependencies: AppDependencies) {
           product,
           input.idempotencyKey
         );
+        await purchaseHistory.finish(
+          session.subject,
+          "mock",
+          input.idempotencyKey,
+          "succeeded"
+        );
       } catch (error) {
         if (error instanceof InsufficientTestPointsError) {
+          await purchaseHistory.finish(
+            session.subject,
+            "mock",
+            input.idempotencyKey,
+            "failed",
+            "INSUFFICIENT_TEST_POINTS"
+          );
           throw new HttpError(409, error.message);
         }
+        await purchaseHistory.finish(
+          session.subject,
+          "mock",
+          input.idempotencyKey,
+          "failed",
+          "PURCHASE_FAILED"
+        );
         throw error;
       }
       response.status(result.duplicate ? 200 : 201).json({
@@ -802,10 +912,6 @@ export function createApp(dependencies: AppDependencies) {
     }
 
     const input = hivePaymentNotificationSchema.parse(request.body);
-    if (input.type === "cancelled") {
-      response.json({ result: 0, result_msg: "cancelled payment acknowledged" });
-      return;
-    }
     if (input.market_id !== "15") {
       throw new HttpError(400, "HIVE 웹 PG 결제(market_id=15)가 아닙니다.");
     }
@@ -819,51 +925,86 @@ export function createApp(dependencies: AppDependencies) {
     const product = await storeCatalog.findByMarketPid(input.market_pid, input.vid);
     if (!product) throw new HttpError(400, "등록되지 않은 HIVE 상품 PID입니다.");
 
-    const unconsumed = await billingClient.findUnconsumedPurchase({
-      playerId: input.vid,
-      serverId: input.server_id,
-      orderId: input.order_id
-    });
-    if (
-      unconsumed.marketId !== input.market_id ||
-      unconsumed.marketPid !== input.market_pid ||
-      unconsumed.orderId !== input.order_id ||
-      unconsumed.serverId !== input.server_id ||
-      unconsumed.playerId !== input.vid ||
-      unconsumed.quantity !== input.quantity ||
-      unconsumed.purchaseBypassInfo !== input.purchase_bypass_info
-    ) {
-      throw new HttpError(400, "HIVE 미소비 주문과 결제 알림 정보가 일치하지 않습니다.");
+    if (input.type === "cancelled") {
+      response.json({ result: 0, result_msg: "cancelled payment acknowledged" });
+      return;
     }
 
-    const verified = await billingClient.verifyReceipt(unconsumed.purchaseBypassInfo);
-    if (
-      verified.marketId !== input.market_id ||
-      verified.marketPid !== input.market_pid ||
-      (verified.marketTransactionId && verified.marketTransactionId !== input.order_id) ||
-      verified.quantity !== input.quantity
-    ) {
-      throw new HttpError(400, "HIVE 영수증과 결제 알림 정보가 일치하지 않습니다.");
+    let verifiedHistoryStarted = false;
+    try {
+      const unconsumed = await billingClient.findUnconsumedPurchase({
+        playerId: input.vid,
+        serverId: input.server_id,
+        orderId: input.order_id
+      });
+      if (
+        unconsumed.marketId !== input.market_id ||
+        unconsumed.marketPid !== input.market_pid ||
+        unconsumed.orderId !== input.order_id ||
+        unconsumed.serverId !== input.server_id ||
+        unconsumed.playerId !== input.vid ||
+        unconsumed.quantity !== input.quantity ||
+        unconsumed.purchaseBypassInfo !== input.purchase_bypass_info
+      ) {
+        throw new HttpError(400, "HIVE 미소비 주문과 결제 알림 정보가 일치하지 않습니다.");
+      }
+
+      const verified = await billingClient.verifyReceipt(unconsumed.purchaseBypassInfo);
+      if (
+        verified.marketId !== input.market_id ||
+        verified.marketPid !== input.market_pid ||
+        (verified.marketTransactionId && verified.marketTransactionId !== input.order_id) ||
+        verified.quantity !== input.quantity
+      ) {
+        throw new HttpError(400, "HIVE 영수증과 결제 알림 정보가 일치하지 않습니다.");
+      }
+
+      // HIVE 내역은 영수증 검증이 끝난 결제만 기록한다. 검증되지 않은
+      // 콜백 원문이나 사용자 식별 정보가 구매 원장으로 승격되면 안 된다.
+      await purchaseHistory.start(input.vid, {
+        provider: "hive-web-shop",
+        attemptId: input.order_id,
+        product,
+        quantity: input.quantity
+      });
+      verifiedHistoryStarted = true;
+
+      const result = await marketStore.grantPurchase(input.vid, product, {
+        provider: "hive-web-shop",
+        transactionId: verified.transactionId,
+        quantity: verified.quantity
+      });
+      await billingClient.confirmDelivery({
+        transactionId: verified.transactionId,
+        playerId: input.vid,
+        itemId: product.grant.itemId,
+        itemName: product.name,
+        quantity: product.grant.quantity * verified.quantity
+      });
+      await purchaseHistory.finish(
+        input.vid,
+        "hive-web-shop",
+        input.order_id,
+        "succeeded"
+      );
+
+      response.json({
+        result: 0,
+        result_msg: "success",
+        duplicate: result.duplicate
+      });
+    } catch (error) {
+      if (verifiedHistoryStarted) {
+        await purchaseHistory.finish(
+          input.vid,
+          "hive-web-shop",
+          input.order_id,
+          "failed",
+          "DELIVERY_FAILED"
+        );
+      }
+      throw error;
     }
-
-    const result = await marketStore.grantPurchase(input.vid, product, {
-      provider: "hive-web-shop",
-      transactionId: verified.transactionId,
-      quantity: verified.quantity
-    });
-    await billingClient.confirmDelivery({
-      transactionId: verified.transactionId,
-      playerId: input.vid,
-      itemId: product.grant.itemId,
-      itemName: product.name,
-      quantity: product.grant.quantity * verified.quantity
-    });
-
-    response.json({
-      result: 0,
-      result_msg: "success",
-      duplicate: result.duplicate
-    });
   });
 
   const aiLimiter = rateLimit({

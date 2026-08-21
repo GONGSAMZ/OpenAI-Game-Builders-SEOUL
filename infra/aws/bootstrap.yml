@@ -57,11 +57,24 @@ Resources:
           AttributeType: S
         - AttributeName: SK
           AttributeType: S
+        - AttributeName: subject
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
       KeySchema:
         - AttributeName: PK
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: SubjectCreatedAtIndex
+          KeySchema:
+            - AttributeName: subject
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
       TimeToLiveSpecification:
@@ -162,7 +175,9 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:UpdateItem
                   - dynamodb:TransactWriteItems
-                Resource: !GetAtt GameDataTable.Arn
+                Resource:
+                  - !GetAtt GameDataTable.Arn
+                  - !Sub "${GameDataTable.Arn}/index/*"
 
   GitHubDeployRole:
     Type: AWS::IAM::Role
@@ -215,10 +230,21 @@ Resources:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/*/*
               - Effect: Allow
                 Action:
+                  - dynamodb:DescribeTable
                   - dynamodb:DescribeContinuousBackups
                   - dynamodb:DescribeTimeToLive
+                  - dynamodb:UpdateTable
                   - dynamodb:UpdateTimeToLive
                 Resource: !GetAtt GameDataTable.Arn
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                Resource:
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/openai-game-builders-seoul-github-dev
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/openai-game-builders-seoul-bootstrap-*
               - Effect: Allow
                 Action:
                   - ec2:AuthorizeSecurityGroupIngress

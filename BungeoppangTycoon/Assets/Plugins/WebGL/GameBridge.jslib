@@ -1,4 +1,23 @@
 mergeInto(LibraryManager.library, {
+  GameBridge_RegisterSessionReceiver: function (gameObjectPointer, methodPointer) {
+    var gameObject = UTF8ToString(gameObjectPointer);
+    var method = UTF8ToString(methodPointer);
+    window.GameBridge_SendSessionToUnity = function (value) {
+      if (value === "logout") {
+        SendMessage(gameObject, "OnHiveLogoutSuccess", "");
+      } else if (value === "refresh") {
+        SendMessage(gameObject, method, value);
+      } else {
+        SendMessage(gameObject, "OnHiveLoginSuccess", value);
+      }
+    };
+    if (typeof window.GameBridge_PendingSessionValue === "string") {
+      var pendingValue = window.GameBridge_PendingSessionValue;
+      window.GameBridge_PendingSessionValue = null;
+      window.GameBridge_SendSessionToUnity(pendingValue);
+    }
+  },
+
   GameBridge_Login: function (gameObjectPointer, successMethodPointer, errorMethodPointer) {
     var gameObject = UTF8ToString(gameObjectPointer);
     var successMethod = UTF8ToString(successMethodPointer);

@@ -83,3 +83,26 @@ public sealed class InAppMarketWallet
 {
     public int testPoints;
 }
+
+[Serializable]
+public sealed class InAppMarketPurchaseHistoryResponse
+{
+    public InAppMarketPurchaseHistoryEntry[] purchases;
+    public string nextCursor;
+}
+
+[Serializable]
+public sealed class InAppMarketPurchaseHistoryEntry
+{
+    public string purchaseId;
+    public string provider;
+    public string productId;
+    public string productName;
+    public string itemId;
+    public int quantity;
+    public int amount;
+    public string currency;
+    public string status;
+    public string createdAt;
+    public string updatedAt;
+}

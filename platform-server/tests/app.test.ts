@@ -8,6 +8,7 @@ import type { NicePayGateway } from "../src/integrations/nicepay/client.js";
 import { InMemoryPlayerProgressStore } from "../src/progress/store.js";
 import { InMemorySessionStore } from "../src/session-store.js";
 import { InMemoryMarketStore } from "../src/store/store.js";
+import { InMemoryPurchaseHistoryStore } from "../src/store/purchase-history.js";
 import { InMemoryPlayerSaveStore } from "../src/save/save-store.js";
 import { createTestConfig } from "./helpers.js";
 
@@ -321,6 +322,7 @@ describe("integration API", () => {
 
   it("NICEPAY 테스트 승인 결제를 로그인 사용자에게 한 번만 지급한다", async () => {
     const marketStore = new InMemoryMarketStore();
+    const purchaseHistory = new InMemoryPurchaseHistoryStore("test-secret");
     const clientId = "S2_test-client";
     const secretKey = "test-secret";
     let approvalCalls = 0;
@@ -346,6 +348,7 @@ describe("integration API", () => {
         nicepay: { clientId, secretKey, apiBaseUrl: "https://sandbox-api.nicepay.co.kr" }
       }),
       marketStore,
+      purchaseHistory,
       nicePayGateway
     });
     const token = await login(app);
@@ -423,6 +426,9 @@ describe("integration API", () => {
     });
     expect(playerInventory).toContainEqual({ itemId: "golden-pan", quantity: 1 });
     expect(await marketStore.getInventory("another-player")).toEqual([]);
+    const history = await purchaseHistory.list("mock-hive:local-player", 20);
+    expect(history.purchases).toHaveLength(2);
+    expect(history.purchases.every((entry) => entry.status === "succeeded")).toBe(true);
   });
 
   it("NICEPAY 외부 Origin 콜백만 허용하고 일반 웹게임 요청은 계속 차단한다", async () => {
@@ -436,6 +442,7 @@ describe("integration API", () => {
 
   it("NICEPAY 콜백 금액이나 서명이 주문과 다르면 승인·지급하지 않는다", async () => {
     const marketStore = new InMemoryMarketStore();
+    const purchaseHistory = new InMemoryPurchaseHistoryStore("test-secret");
     let approvalCalls = 0;
     const nicePayGateway: NicePayGateway = {
       async approvePayment() {
@@ -453,6 +460,7 @@ describe("integration API", () => {
         }
       }),
       marketStore,
+      purchaseHistory,
       nicePayGateway
     });
     const token = await login(app);
@@ -477,6 +485,31 @@ describe("integration API", () => {
     expect(response.text).toContain("NICEPAY_PAYMENT_ERROR");
     expect(approvalCalls).toBe(0);
     expect(await marketStore.getInventory("mock-hive:local-player")).toEqual([]);
+    expect((await purchaseHistory.list("mock-hive:local-player", 20)).purchases[0]?.status)
+      .toBe("failed");
+
+    const cancelledOrder = await request(app)
+      .post("/api/v1/store/nicepay/orders")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ productId: "golden-pan" })
+      .expect(201);
+    const cancelled = await request(app)
+      .post("/api/v1/store/nicepay/callback")
+      .type("form")
+      .send({
+        authResultCode: "9999",
+        authResultMsg: "cancelled",
+        tid: "cancelled-tid",
+        clientId: "S2_test-client",
+        orderId: cancelledOrder.body.orderId,
+        amount: "3300",
+        authToken: "cancelled-token",
+        signature: "0".repeat(64)
+      })
+      .expect(200);
+    expect(cancelled.text).toContain("NICEPAY_PAYMENT_ERROR");
+    expect((await purchaseHistory.list("mock-hive:local-player", 20)).purchases
+      .map((entry) => entry.status).sort()).toEqual(["cancelled", "failed"]);
   });
 
   it("mock 결제는 사용자별 테스트 포인트를 차감하고 부족하면 지급하지 않는다", async () => {

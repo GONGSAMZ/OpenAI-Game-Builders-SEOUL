@@ -125,6 +125,25 @@ jobs:
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Update account data infrastructure
+        shell: bash
+        run: |
+          aws cloudformation deploy \
+            --stack-name "$AWS_BOOTSTRAP_STACK" \
+            --template-file infra/aws/bootstrap.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset
+
+          aws dynamodb wait table-exists --table-name "$AWS_DYNAMODB_TABLE"
+          purchase_index_status=$(aws dynamodb describe-table \
+            --table-name "$AWS_DYNAMODB_TABLE" \
+            --query "Table.GlobalSecondaryIndexes[?IndexName=='SubjectCreatedAtIndex'].IndexStatus | [0]" \
+            --output text)
+          if [[ "$purchase_index_status" != "ACTIVE" ]]; then
+            echo "DynamoDB SubjectCreatedAtIndex is not active: $purchase_index_status" >&2
+            exit 1
+          fi
+
       - name: Verify DynamoDB recovery and session expiry
         shell: bash
         run: |

@@ -250,6 +250,7 @@ interface DynamoReceiptItem extends StorePurchase {
   PK: string;
   SK: "RECEIPT";
   subject: string;
+  historyVersion?: number;
 }
 
 interface DynamoTestPointCreditItem {
@@ -390,7 +391,7 @@ export class DynamoDbMarketStore implements MarketStore {
             {
               Put: {
                 TableName: this.tableName,
-                Item: { PK: receiptKey, SK: "RECEIPT", subject, ...purchase },
+                Item: { PK: receiptKey, SK: "RECEIPT", subject, historyVersion: 1, ...purchase },
                 ConditionExpression: "attribute_not_exists(PK)"
               }
             },
@@ -465,7 +466,7 @@ export class DynamoDbMarketStore implements MarketStore {
             {
               Put: {
                 TableName: this.tableName,
-                Item: { PK: receiptKey, SK: "RECEIPT", subject, ...purchase },
+                Item: { PK: receiptKey, SK: "RECEIPT", subject, historyVersion: 1, ...purchase },
                 ConditionExpression: "attribute_not_exists(PK)"
               }
             },
@@ -587,7 +588,7 @@ export class DynamoDbMarketStore implements MarketStore {
       throw new Error("이미 다른 구매에 사용된 transactionId입니다.");
     }
 
-    const { PK: _pk, SK: _sk, subject: _subject, ...purchase } = existing;
+    const { PK: _pk, SK: _sk, subject: _subject, historyVersion: _historyVersion, ...purchase } = existing;
     return {
       purchase,
       inventory: await this.getInventory(subject),

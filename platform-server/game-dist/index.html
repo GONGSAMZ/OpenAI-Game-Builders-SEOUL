@@ -134,7 +134,7 @@
   </head>
   <body>
     <main id="unity-container">
-      <canvas id="unity-canvas" width="1920" height="1080" tabindex="-1" aria-label="ToastyFishBun 게임 화면"></canvas>
+      <canvas id="unity-canvas" width="1920" height="1080" tabindex="0" aria-label="ToastyFishBun 게임 화면"></canvas>
       <div id="unity-warning" aria-live="polite"></div>
       <div id="unity-loading" role="status" aria-live="polite">
         <p id="unity-loading-title">게임을 불러오는 중입니다</p>
@@ -151,6 +151,16 @@
       const progressFill = document.querySelector("#unity-progress-fill");
       const fullscreenButton = document.querySelector("#unity-fullscreen-button");
 
+      canvas.addEventListener("pointerdown", () => {
+        canvas.focus({ preventScroll: true });
+      });
+
+      window.addEventListener("keydown", (event) => {
+        if (document.activeElement === canvas && event.code === "Space") {
+          event.preventDefault();
+        }
+      }, { passive: false });
+
       function unityShowBanner(message, type) {
         const warning = document.querySelector("#unity-warning");
         const item = document.createElement("div");
@@ -166,9 +176,9 @@
       const buildUrl = "Build";
       const config = {
         arguments: [],
-        dataUrl: `${buildUrl}/568bc18da6716c2f269aebdfb1ddd2d9.data.unityweb`,
-        frameworkUrl: `${buildUrl}/db72e8d7686a6fc279ec7e3ddab52f0a.framework.js.unityweb`,
-        codeUrl: `${buildUrl}/6b229a063c4116eda924875e75ad53cc.wasm.unityweb`,
+        dataUrl: `${buildUrl}/af7f7cbb0f4dfaa8d95de2ddcab56179.data.unityweb`,
+        frameworkUrl: `${buildUrl}/783f7102e10c3a4680228dae4402cc45.framework.js.unityweb`,
+        codeUrl: `${buildUrl}/d2ce906e58131d3b449ceddafbf1964f.wasm.unityweb`,
         streamingAssetsUrl: "StreamingAssets",
         companyName: "FishBunFactory",
         productName: "ToastyFishBun",
@@ -178,7 +188,7 @@
       };
 
       const loaderScript = document.createElement("script");
-      loaderScript.src = `${buildUrl}/d66235933f67dad5023d7ea5139668f6.loader.js`;
+      loaderScript.src = `${buildUrl}/1a7e81cfb369242774c6b8ebc4ef5305.loader.js`;
       loaderScript.onload = () => {
         createUnityInstance(canvas, config, (progress) => {
           progressFill.style.width = `${Math.round(progress * 100)}%`;

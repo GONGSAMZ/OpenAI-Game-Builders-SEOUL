@@ -38,7 +38,7 @@ Hive 로그인 팝업에 사용할 URL을 반환합니다. 브라우저에서는
 
 ## 계정별 도감·스토리 진행
 
-도감과 스토리 진행 API는 모두 게임 세션이 필요하며, 요청에서 PlayerID를 받지 않고 인증된 세션의 `subject`만 사용합니다. 진행 상태는 감소하지 않는 방식으로 병합되므로 오래된 클라이언트가 이미 완료한 진행을 되돌릴 수 없습니다.
+도감과 스토리 진행 API는 모두 게임 세션이 필요하며, 요청에서 PlayerID를 받지 않고 인증된 세션의 `subject`만 사용합니다. 이 경로는 구버전 호환 어댑터이며 기준 데이터는 계정 저장 `PLAYER#<subject> / SAVE#MAIN`입니다. 기존 `PROGRESS#CUSTOMER` 값은 최초 접근 때 단조 병합하고 이관 표시를 남긴 뒤 읽기 기준으로 사용하지 않습니다.
 
 ### `GET /api/v1/progress`
 
@@ -147,6 +147,33 @@ PG/영수증/결제 알림 검증은 현재 개발 범위에서 영구 보류합
 }
 ```
 
+### `GET /api/v1/store/purchases?limit=20&cursor=<opaque>`
+
+로그인한 현재 계정의 구매 시도를 최신순으로 반환합니다. 기본 20개, 최대 50개이며 `nextCursor`가 있을 때만 다음 페이지를 요청합니다. cursor에는 계정 정보와 무결성 서명이 포함되어 다른 계정에서 재사용하거나 내용을 위조할 수 없습니다.
+
+```json
+{
+  "purchases": [
+    {
+      "purchaseId": "public-id",
+      "provider": "nicepay-test",
+      "productId": "golden-pan",
+      "productName": "황금 붕어빵 틀",
+      "itemId": "golden-pan",
+      "quantity": 1,
+      "amount": 3300,
+      "currency": "KRW",
+      "status": "succeeded",
+      "createdAt": "2026-08-21T00:00:00.000Z",
+      "updatedAt": "2026-08-21T00:01:00.000Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+상태는 `pending`, `succeeded`, `failed`, `cancelled`, `expired`입니다. NICEPAY 주문과 Mock 포인트 구매를 기록하며 개발용 직접 지급·테스트 포인트 충전은 제외합니다. HIVE 항목은 영수증 검증을 통과한 결제만 기록합니다. 영수증, 토큰, 거래 원문과 내부 `subject`는 응답에 포함하지 않습니다.
+
 ### `PUT /api/v1/store/equipment/mold`
 
 인증 세션의 사용자에게만 황금 틀 장착 상태를 저장합니다. 요청에서 PlayerID를 받지 않습니다.
@@ -195,7 +222,7 @@ HIVE 웹 상점의 결제 알림 URL입니다. `STORE_MODE=hive-web-shop`에서�
 4. 거래 ID를 멱등성 키로 사용해 해당 PlayerID의 인벤토리에 한 번만 지급합니다.
 5. HIVE 아이템 지급 완료 API를 호출해 거래를 완료합니다.
 
-`cancelled` 알림은 현재 지급 없이 확인 응답만 합니다. 이미 소비한 재화를 회수하는 정책은 이 초기 개발 범위에 포함되지 않습니다.
+`cancelled` 알림은 현재 지급과 구매 내역 기록 없이 확인 응답만 합니다. 이미 소비한 재화를 회수하는 정책은 이 초기 개발 범위에 포함되지 않습니다.
 
 황금 틀 장착 상태는 DynamoDB에서 `PLAYER#<subject> / EQUIPMENT#MOLD`, 테스트 포인트는 `PLAYER#<subject> / WALLET#TEST_POINTS` 레코드로 사용자별 저장됩니다. 팥 코인 소비 API는 현재 범위에 포함되지 않습니다.
 
@@ -226,3 +253,7 @@ HIVE 웹 상점의 결제 알림 URL입니다. `STORE_MODE=hive-web-shop`에서�
 - 성공하면 revision을 1 증가시킨 최신 `profile`을 반환한다.
 - 다른 기기에서 먼저 저장했다면 `409 SAVE_CONFLICT`와 서버의 최신 `profile`을 반환한다.
 - 클라이언트는 충돌 시 서버 데이터를 우선하고 로컬 데이터는 백업한다.
+
+`SaveProfile` v3는 `run`, `account`, `settings`를 저장합니다. `account`에는 업적, 손님 도감·스토리, 영혼 도감과 누적 통계가 있고 `settings`에는 `masterVolume`, `keyboardHintsEnabled`, `tutorialCompleted`가 있습니다. 일반 진행은 revision 충돌 검사를 거치며 팥 코인·구매·장비는 이 문서가 아니라 서버 권한의 상점 레코드를 기준으로 합니다.
+
+v2 계정은 최초 v3 클라이언트 접근 때만 기존 PlayerPrefs 설정을 채웁니다. 서버에 이미 v3 설정이 있으면 서버 값이 우선합니다. 손님 ID `jeonghyun`은 `jeonghyeon`으로 병합하며 복구 가능한 양쪽 진행을 합집합·최댓값으로 유지합니다.

@@ -10,6 +10,7 @@ public sealed class SaveGameData
     public string updatedAt = string.Empty;
     public RunProgressData run = new();
     public AccountProgressData account = new();
+    public UserSettingsData settings = new();
 }
 
 [Serializable]
@@ -28,7 +29,14 @@ public sealed class AccountProgressData
     public List<SoulDiscoveryData> discoveredSouls = new();
     public List<AchievementProgressData> achievements = new();
     public LifetimeStatsData lifetimeStats = new();
-    public List<string> purchasedAccountItemIds = new();
+}
+
+[Serializable]
+public sealed class UserSettingsData
+{
+    public float masterVolume = 1f;
+    public bool keyboardHintsEnabled = true;
+    public bool tutorialCompleted;
 }
 
 [Serializable]
@@ -78,7 +86,7 @@ public static class SaveIds
 {
     public static string Customer(CustomerType type) => type switch
     {
-        CustomerType.JeongHyun => "jeonghyun",
+        CustomerType.JeongHyun => "jeonghyeon",
         CustomerType.HaYoung => "hajin",
         CustomerType.MiJu => "miju",
         CustomerType.Sunja => "sunja",
@@ -118,8 +126,11 @@ public static class SaveIds
 
 public static class SaveDataFactory
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
     public const int InitialMoney = 5000;
+    public const string LegacyVolumeKey = "settings_master_volume_v1";
+    public const string LegacyKeyboardHintsKey = "settings_keyboard_hints_enabled_v1";
+    public const string LegacyTutorialCompletedKey = "tutorial_completed_v1";
 
     private static readonly string[] DefaultFillingIds =
     {
@@ -149,6 +160,7 @@ public static class SaveDataFactory
     public static void Normalize(SaveGameData data)
     {
         if (data == null) throw new ArgumentNullException(nameof(data));
+        int sourceSchemaVersion = data.schemaVersion;
         data.schemaVersion = CurrentSchemaVersion;
         data.updatedAt ??= string.Empty;
         data.run ??= new RunProgressData();
@@ -163,15 +175,68 @@ public static class SaveDataFactory
         data.account.discoveredSouls ??= new List<SoulDiscoveryData>();
         data.account.achievements ??= new List<AchievementProgressData>();
         data.account.lifetimeStats ??= new LifetimeStatsData();
-        data.account.purchasedAccountItemIds ??= new List<string>();
 
         foreach (CustomerProgressData customer in data.account.customers)
         {
+            if (customer == null) continue;
             customer.completedTopicIds ??= new List<string>();
             customer.discoveredNormalDialogueIds ??= new List<string>();
             customer.attemptedSoulIds ??= new List<string>();
         }
+        NormalizeCustomerIds(data.account.customers);
+
+        data.settings ??= new UserSettingsData();
+        if (sourceSchemaVersion < 3)
+        {
+            data.settings.masterVolume = PlayerPrefs.GetFloat(LegacyVolumeKey, data.settings.masterVolume);
+            data.settings.keyboardHintsEnabled = PlayerPrefs.GetInt(LegacyKeyboardHintsKey, data.settings.keyboardHintsEnabled ? 1 : 0) == 1;
+            data.settings.tutorialCompleted = PlayerPrefs.GetInt(LegacyTutorialCompletedKey, data.settings.tutorialCompleted ? 1 : 0) == 1;
+        }
+        data.settings.masterVolume = Mathf.Clamp01(data.settings.masterVolume);
+
         AchievementCatalog.EnsureEntries(data);
+    }
+
+    private static void NormalizeCustomerIds(List<CustomerProgressData> customers)
+    {
+        CustomerProgressData canonical = customers.Find(value => value.customerId == "jeonghyeon");
+        for (int index = customers.Count - 1; index >= 0; index--)
+        {
+            CustomerProgressData candidate = customers[index];
+            if (candidate == null || candidate.customerId != "jeonghyun") continue;
+            if (canonical == null)
+            {
+                candidate.customerId = "jeonghyeon";
+                canonical = candidate;
+                continue;
+            }
+
+            MergeCustomer(canonical, candidate);
+            customers.RemoveAt(index);
+        }
+    }
+
+    private static void MergeCustomer(CustomerProgressData target, CustomerProgressData source)
+    {
+        target.completedTopicIds ??= new List<string>();
+        target.discoveredNormalDialogueIds ??= new List<string>();
+        target.attemptedSoulIds ??= new List<string>();
+        target.met |= source.met;
+        target.visitCount = Math.Max(target.visitCount, source.visitCount);
+        target.lastTalkDay = Math.Max(target.lastTalkDay, source.lastTalkDay);
+        target.specialOrderDueDay = Math.Max(target.specialOrderDueDay, source.specialOrderDueDay);
+        target.retryAvailableDay = Math.Max(target.retryAvailableDay, source.retryAvailableDay);
+        target.storyCompleted |= source.storyCompleted;
+        MergeUnique(target.completedTopicIds, source.completedTopicIds);
+        MergeUnique(target.discoveredNormalDialogueIds, source.discoveredNormalDialogueIds);
+        MergeUnique(target.attemptedSoulIds, source.attemptedSoulIds);
+    }
+
+    private static void MergeUnique(List<string> target, List<string> source)
+    {
+        if (source == null) return;
+        foreach (string value in source)
+            if (!string.IsNullOrWhiteSpace(value) && !target.Contains(value)) target.Add(value);
     }
 
     public static SaveGameData Clone(SaveGameData source)

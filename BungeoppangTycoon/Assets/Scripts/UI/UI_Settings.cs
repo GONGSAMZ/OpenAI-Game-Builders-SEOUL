@@ -15,10 +15,12 @@ public class UI_Settings : UI_Base
         achievementButton = FindButton("AchivementButton"); documentsButton = FindButton("DocumentsButton");
         BindButton(exitButton, Close); BindButton(quitButton, Close); BindButton(settingsButton, OpenOptions);
         BindButton(documentsButton, OpenCollection);
+        BindButton(achievementButton, SaveUiFactory.ShowAchievements);
         if (helpButton != null) helpButton.gameObject.SetActive(false);
-        if (achievementButton != null) achievementButton.gameObject.SetActive(false);
+        if (achievementButton != null) achievementButton.gameObject.SetActive(true);
         SetContinueLabel(quitButton);
         SetLabel(documentsButton, "도감");
+        SetLabel(achievementButton, "업적");
     }
 
     Button FindButton(string name) => Util.Find<Button>(gameObject, name, true);

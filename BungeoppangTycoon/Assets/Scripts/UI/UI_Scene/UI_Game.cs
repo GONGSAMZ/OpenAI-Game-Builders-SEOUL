@@ -91,6 +91,8 @@ public class UI_Game : UI_Base
         //분은 10의 단위로만 바꿈
         GetTMP((int)TMP.timeText).text = ($"{Managers.Game.hour} : {minute}0");
         GetTMP((int)TMP.moneyText).text = ($"{Managers.Game.Money.ToString("N0")} 원 ");
+        // WebGL 부모 헤더의 계정 변경을 이벤트 누락과 관계없이 즉시 반영한다.
+        RefreshPlatformCurrency();
 
 
     }

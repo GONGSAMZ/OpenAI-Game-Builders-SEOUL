@@ -12,6 +12,7 @@ export interface PlayerSaveProfile {
   updatedAt: string;
   run: Record<string, unknown>;
   account: Record<string, unknown>;
+  settings?: Record<string, unknown>;
 }
 
 export class SaveRevisionConflictError extends Error {

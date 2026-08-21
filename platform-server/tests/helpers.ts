@@ -31,7 +31,8 @@ export function createTestConfig(overrides: TestConfigOverrides = {}): AppConfig
       catalogCacheSeconds: 300,
       productImageBaseUrl: "http://localhost:3000/store-products",
       devToolsEnabled: true,
-      dataStore: "memory"
+      dataStore: "memory",
+      cursorSigningSecret: "test-purchase-cursor-secret"
     },
     nicepay: {
       apiBaseUrl: "https://sandbox-api.nicepay.co.kr"

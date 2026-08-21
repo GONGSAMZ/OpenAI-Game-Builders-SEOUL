@@ -5,7 +5,9 @@ using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.Scripting;
 
+[Preserve]
 public sealed class GamePlatformClient : MonoBehaviour
 {
     private const string PlatformCurrencyItemId = "red-bean-coin";
@@ -22,6 +24,7 @@ public sealed class GamePlatformClient : MonoBehaviour
 
     private string sessionToken;
     private bool serverSessionAvailable;
+    private int sessionGeneration;
     private Coroutine inventorySyncLoop;
     private readonly Dictionary<string, int> inventory = new();
 
@@ -35,6 +38,9 @@ public sealed class GamePlatformClient : MonoBehaviour
     public static GamePlatformClient Instance { get; private set; }
 
 #if UNITY_WEBGL && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern void GameBridge_RegisterSessionReceiver(string gameObject, string method);
+
     [DllImport("__Internal")]
     private static extern void GameBridge_Login(string gameObject, string successMethod, string errorMethod);
 
@@ -73,11 +79,13 @@ public sealed class GamePlatformClient : MonoBehaviour
 #if UNITY_WEBGL && !UNITY_EDITOR
         if (Uri.TryCreate(Application.absoluteURL, UriKind.Absolute, out Uri gameUri))
             apiBaseUrl = gameUri.GetLeftPart(UriPartial.Authority);
+        GameBridge_RegisterSessionReceiver(gameObject.name, nameof(OnExternalSessionChanged));
 #endif
     }
 
     private void Start()
     {
+        StartInventorySync();
         StartCoroutine(RestoreSession());
     }
 
@@ -108,7 +116,6 @@ public sealed class GamePlatformClient : MonoBehaviour
 #else
         sessionToken = null;
         serverSessionAvailable = false;
-        StopInventorySync();
         SetSessionSubject(null);
         ClearStoreState();
 #endif
@@ -154,11 +161,21 @@ public sealed class GamePlatformClient : MonoBehaviour
 
     public IEnumerator GetInventory(Action<string> onSuccess)
     {
+        int requestGeneration = sessionGeneration;
         yield return SendJson("GET", "/api/v1/store/me", null, json =>
         {
+            if (requestGeneration != sessionGeneration || !IsLoggedIn) return;
             ApplyStoreState(json);
             onSuccess?.Invoke(json);
         });
+    }
+
+    public IEnumerator GetPurchaseHistory(string cursor, Action<string> onSuccess)
+    {
+        string path = "/api/v1/store/purchases?limit=20";
+        if (!string.IsNullOrWhiteSpace(cursor))
+            path += "&cursor=" + UnityWebRequest.EscapeURL(cursor);
+        yield return SendJson("GET", path, null, onSuccess);
     }
 
     public IEnumerator GetSaveProfile(Action<string> onSuccess, Action<long, string> onFailure)
@@ -215,36 +232,67 @@ public sealed class GamePlatformClient : MonoBehaviour
         yield return SendJson("POST", "/api/v1/store/mock-purchases", payload, onSuccess);
     }
 
+    [Preserve]
     public void OnHiveLoginSuccess(string token)
     {
+        Debug.Log("[Platform] WebGL session login received.");
+        sessionGeneration++;
         sessionToken = token;
         serverSessionAvailable = true;
         StartCoroutine(InitializeAuthenticatedState(false));
         LoginSucceeded?.Invoke(token);
     }
 
+    [Preserve]
     public void OnHiveLogoutSuccess(string _)
     {
+        Debug.Log("[Platform] WebGL session logout received; clearing account store state.");
+        sessionGeneration++;
         sessionToken = null;
         serverSessionAvailable = false;
-        StopInventorySync();
         SetSessionSubject(null);
         ClearStoreState();
     }
 
+    [Preserve]
+    public void OnExternalSessionChanged(string value)
+    {
+        Debug.Log($"[Platform] External session change received: {value}");
+        if (string.Equals(value, "logout", StringComparison.OrdinalIgnoreCase))
+        {
+            OnHiveLogoutSuccess(string.Empty);
+            return;
+        }
+
+        if (string.Equals(value, "refresh", StringComparison.OrdinalIgnoreCase))
+        {
+            sessionGeneration++;
+            sessionToken = null;
+            StartCoroutine(InitializeAuthenticatedState(false));
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(value))
+            OnHiveLoginSuccess(value);
+    }
+
+    [Preserve]
     public void OnHiveShopClosed(string _)
     {
         SyncInventoryNow();
     }
 
+    [Preserve]
     public void OnNicePayPaymentCompleted(string _)
     {
         SyncInventoryNow();
         PaymentSucceeded?.Invoke();
     }
 
+    [Preserve]
     public void OnInventoryUpdated(string json)
     {
+        if (!IsLoggedIn) return;
         ApplyStoreState(json);
     }
 
@@ -278,6 +326,7 @@ public sealed class GamePlatformClient : MonoBehaviour
         }
     }
 
+    [Preserve]
     public void OnBridgeError(string message)
     {
         Debug.LogError(message);
@@ -323,6 +372,10 @@ public sealed class GamePlatformClient : MonoBehaviour
 
         if (request.result != UnityWebRequest.Result.Success)
         {
+            // The server session is authoritative. This also clears account data if a
+            // cross-frame logout notification is missed or the session expires remotely.
+            if (request.responseCode == 401 && IsLoggedIn)
+                OnHiveLogoutSuccess(string.Empty);
             onFailure?.Invoke(request.responseCode, request.downloadHandler.text);
             yield break;
         }
@@ -337,6 +390,7 @@ public sealed class GamePlatformClient : MonoBehaviour
 
     private IEnumerator InitializeAuthenticatedState(bool notifyRestoreCompleted)
     {
+        int requestGeneration = sessionGeneration;
         bool restored = false;
         string sessionJson = null;
         yield return SendJson(
@@ -350,6 +404,9 @@ public sealed class GamePlatformClient : MonoBehaviour
             },
             false);
 
+        if (requestGeneration != sessionGeneration)
+            yield break;
+
         serverSessionAvailable = restored;
         if (!restored)
         {
@@ -359,7 +416,6 @@ public sealed class GamePlatformClient : MonoBehaviour
         else
         {
             ApplySession(sessionJson);
-            StartInventorySync();
             SyncInventoryNow();
         }
 
@@ -383,22 +439,13 @@ public sealed class GamePlatformClient : MonoBehaviour
             inventorySyncLoop = StartCoroutine(InventorySyncLoop());
     }
 
-    private void StopInventorySync()
-    {
-        if (inventorySyncLoop == null) return;
-        StopCoroutine(inventorySyncLoop);
-        inventorySyncLoop = null;
-    }
-
     private IEnumerator InventorySyncLoop()
     {
-        while (IsLoggedIn)
+        while (true)
         {
             yield return new WaitForSecondsRealtime(InventorySyncIntervalSeconds);
-            if (IsLoggedIn)
-                SyncInventoryNow();
+            yield return InitializeAuthenticatedState(false);
         }
-        inventorySyncLoop = null;
     }
 
     private void ClearStoreState()

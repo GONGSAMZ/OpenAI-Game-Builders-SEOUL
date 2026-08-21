@@ -34,6 +34,7 @@ const environmentSchema = z.object({
   STORE_DEV_TOOLS: z.stringbool().default(false),
   NICEPAY_CLIENT_ID: optionalNonEmptyString,
   NICEPAY_SECRET_KEY: optionalNonEmptyString,
+  PURCHASE_CURSOR_SECRET: optionalNonEmptyString,
   DATA_STORE: z.enum(["memory", "dynamodb"]).default("memory"),
   DYNAMODB_TABLE: optionalNonEmptyString,
   OPENAI_MODE: z.enum(["mock", "live"]).default("mock"),
@@ -74,6 +75,7 @@ export interface AppConfig {
     devToolsEnabled: boolean;
     dataStore: "memory" | "dynamodb";
     dynamodbTable?: string;
+    cursorSigningSecret: string;
   };
   nicepay: {
     clientId?: string;
@@ -146,6 +148,16 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
     throw new Error("DATA_STORE=dynamodb이면 DYNAMODB_TABLE이 필요합니다.");
   }
 
+  const cursorSigningSecret =
+    parsed.PURCHASE_CURSOR_SECRET ??
+    parsed.NICEPAY_SECRET_KEY ??
+    parsed.HIVE_BILLING_AUTH_KEY;
+  if (parsed.NODE_ENV === "production" && !cursorSigningSecret) {
+    throw new Error(
+      "운영 환경의 구매 내역 cursor 서명을 위해 PURCHASE_CURSOR_SECRET 또는 결제 비밀키가 필요합니다."
+    );
+  }
+
   return {
     nodeEnv: parsed.NODE_ENV,
     port: parsed.PORT,
@@ -176,7 +188,8 @@ export function loadConfig(environment: NodeJS.ProcessEnv = process.env): AppCon
       ).replace(/\/$/, ""),
       devToolsEnabled: parsed.STORE_DEV_TOOLS,
       dataStore: parsed.DATA_STORE,
-      dynamodbTable: parsed.DYNAMODB_TABLE
+      dynamodbTable: parsed.DYNAMODB_TABLE,
+      cursorSigningSecret: cursorSigningSecret ?? "openai-game-builders-local-cursor-key"
     },
     nicepay: {
       clientId: parsed.NICEPAY_CLIENT_ID,

@@ -85,6 +85,7 @@
           if (event.data?.type === "HIVE_AUTH_SUCCESS" && event.data.sessionToken) {
             finish(() => {
               this.sessionToken = event.data.sessionToken;
+              this.notifyParentSession(true);
               try {
                 event.source?.postMessage({ type: "HIVE_AUTH_ACK" }, event.origin);
               } catch (_error) {
@@ -111,6 +112,7 @@
             await this.getSession();
             finish(() => {
               if (!popup.closed) popup.close();
+              this.notifyParentSession(true);
               resolve(this.sessionToken);
             });
           } catch (_error) {
@@ -144,7 +146,45 @@
         await this.request("/api/v1/auth/session", { method: "DELETE" });
       } finally {
         this.sessionToken = null;
+        this.notifyParentSession(false);
       }
+    }
+
+    broadcastSession(authenticated, sessionToken = this.sessionToken) {
+      const message = {
+        type: "PLATFORM_SESSION",
+        authenticated: Boolean(authenticated),
+        sessionToken: authenticated && sessionToken ? sessionToken : null
+      };
+      const gameFrame = global.document.getElementById("game-frame");
+      if (gameFrame?.contentWindow) {
+        let deliveredDirectly = false;
+        try {
+          const frameOrigin = new URL(gameFrame.src || global.location.href, global.location.href).origin;
+          if (
+            frameOrigin === this.serverOrigin &&
+            typeof gameFrame.contentWindow.GameBridge_ApplySession === "function"
+          ) {
+            gameFrame.contentWindow.GameBridge_ApplySession(message);
+            deliveredDirectly = true;
+          }
+        } catch (_error) {
+          // Cross-origin frames use the validated postMessage path below.
+        }
+        if (!deliveredDirectly)
+          gameFrame.contentWindow.postMessage(message, this.serverOrigin);
+      } else {
+        deliverSessionToUnity(message);
+      }
+    }
+
+    notifyParentSession(authenticated) {
+      if (!global.parent || global.parent === global) return;
+      global.parent.postMessage({
+        type: "PLATFORM_SESSION",
+        authenticated: Boolean(authenticated),
+        sessionToken: authenticated && this.sessionToken ? this.sessionToken : null
+      }, this.serverOrigin);
     }
 
     getStoreCatalog() {
@@ -270,6 +310,7 @@
   global.gameBridge = new GameBridgeClient();
 
   let pendingInventoryMessage = null;
+  let pendingSessionMessage = null;
 
   function deliverInventoryToUnity(message) {
     if (!Array.isArray(message?.inventory)) return;
@@ -289,12 +330,62 @@
     pendingInventoryMessage = null;
   }
 
+  function deliverSessionToUnity(message) {
+    if (message?.type !== "PLATFORM_SESSION") return;
+    if (global.parent && global.parent !== global) {
+      if (message.authenticated && message.sessionToken) {
+        global.gameBridge.sessionToken = message.sessionToken;
+      } else if (!message.authenticated) {
+        // Each iframe has its own sessionStorage. Revoke and clear the game's
+        // bearer session as well as the shell session so stale accounts cannot linger.
+        global.gameBridge.logout().catch(() => {
+          global.gameBridge.sessionToken = null;
+        });
+      }
+    }
+    const relayValue = !message.authenticated
+      ? "logout"
+      : message.sessionToken || "refresh";
+    if (typeof global.GameBridge_SendSessionToUnity === "function") {
+      global.GameBridge_SendSessionToUnity(relayValue);
+      pendingSessionMessage = null;
+      return;
+    }
+    global.GameBridge_PendingSessionValue = relayValue;
+    if (!global.unityInstance?.SendMessage) {
+      pendingSessionMessage = message;
+      return;
+    }
+    const method = !message.authenticated
+      ? "OnHiveLogoutSuccess"
+      : message.sessionToken
+        ? "OnHiveLoginSuccess"
+        : "OnExternalSessionChanged";
+    const payload = !message.authenticated
+      ? ""
+      : message.sessionToken || "refresh";
+    global.unityInstance.SendMessage(
+      "@GamePlatformClient",
+      method,
+      payload
+    );
+    global.GameBridge_PendingSessionValue = null;
+    pendingSessionMessage = null;
+  }
+
+  // The shell and game iframe are normally same-origin. A direct entry point avoids
+  // browser-specific postMessage loss while the WebGL canvas owns pointer focus;
+  // cross-origin deployments continue to use the origin-checked message listener.
+  global.GameBridge_ApplySession = deliverSessionToUnity;
+
   global.addEventListener("message", (event) => {
     if (event.origin !== global.gameBridge.serverOrigin) return;
     if (event.data?.type === "PLATFORM_INVENTORY") deliverInventoryToUnity(event.data);
+    if (event.data?.type === "PLATFORM_SESSION") deliverSessionToUnity(event.data);
   });
 
   global.addEventListener("UNITY_INSTANCE_READY", () => {
     if (pendingInventoryMessage) deliverInventoryToUnity(pendingInventoryMessage);
+    if (pendingSessionMessage) deliverSessionToUnity(pendingSessionMessage);
   });
 })(window);

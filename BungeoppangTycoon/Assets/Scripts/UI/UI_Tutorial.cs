@@ -11,7 +11,6 @@ using UnityEngine.UI;
 /// </summary>
 public class UI_Tutorial : UI_Base
 {
-    private const string CompletedKey = "tutorial_completed_v1";
     private const int TotalSteps = 12;
 
     private enum Stage
@@ -88,7 +87,7 @@ public class UI_Tutorial : UI_Base
             return true;
         }
 
-        return PlayerPrefs.GetInt(CompletedKey, 0) == 0;
+        return SaveService.Data.settings.tutorialCompleted == false;
     }
 
     /// <summary>
@@ -711,8 +710,7 @@ public class UI_Tutorial : UI_Base
 
     private void SaveTutorialFinished()
     {
-        PlayerPrefs.SetInt(CompletedKey, 1);
-        PlayerPrefs.Save();
+        SaveService.Instance.MarkTutorialCompleted();
     }
 
     private void Skip()

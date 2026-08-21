@@ -15,6 +15,7 @@ public sealed class SaveService : MonoBehaviour
     private string accountSubject;
     private bool remoteDirty;
     private Coroutine remoteSyncRoutine;
+    private int accountLoadGeneration;
 
     public static SaveService Instance { get; private set; }
     public static SaveGameData Data => EnsureInstance().Current;
@@ -51,6 +52,7 @@ public sealed class SaveService : MonoBehaviour
         DontDestroyOnLoad(gameObject);
         localStore = new PlayerPrefsLocalSaveStore();
         Current = LoadOrCreate(GuestScope, true);
+        ApplyRuntimeSettings();
     }
 
     private void Start()
@@ -121,6 +123,29 @@ public sealed class SaveService : MonoBehaviour
     {
         AchievementCatalog.Evaluate(Current);
         Persist("손님 이야기");
+    }
+
+    public void SetMasterVolume(float value)
+    {
+        float normalized = Mathf.Clamp01(value);
+        if (Mathf.Approximately(Current.settings.masterVolume, normalized)) return;
+        Current.settings.masterVolume = normalized;
+        AudioListener.volume = normalized;
+        Persist("전체 음량 설정");
+    }
+
+    public void SetKeyboardHintsEnabled(bool enabled)
+    {
+        if (Current.settings.keyboardHintsEnabled == enabled) return;
+        Current.settings.keyboardHintsEnabled = enabled;
+        Persist("키보드 안내 설정");
+    }
+
+    public void MarkTutorialCompleted()
+    {
+        if (Current.settings.tutorialCompleted) return;
+        Current.settings.tutorialCompleted = true;
+        Persist("튜토리얼 완료");
     }
 
     public void DiscoverSoul(FillingType filling, QualityStatus bake, CustomerType? linkedCustomer = null)
@@ -254,6 +279,12 @@ public sealed class SaveService : MonoBehaviour
         localStore.Save(currentScope, Current);
     }
 
+    private void ApplyRuntimeSettings()
+    {
+        if (Current?.settings == null) return;
+        AudioListener.volume = Mathf.Clamp01(Current.settings.masterVolume);
+    }
+
     private IEnumerator RemoteSyncLoop()
     {
         yield return new WaitForSecondsRealtime(1f);
@@ -288,6 +319,8 @@ public sealed class SaveService : MonoBehaviour
         }
 
         IsRemoteSyncing = true;
+        string targetSubject = accountSubject;
+        int targetGeneration = accountLoadGeneration;
         string body = JsonUtility.ToJson(new SavePutRequest
         {
             expectedRevision = Current.revision,
@@ -298,15 +331,18 @@ public sealed class SaveService : MonoBehaviour
         yield return client.PutSaveProfile(body,
             json =>
             {
+                if (accountSubject != targetSubject || accountLoadGeneration != targetGeneration) return;
                 RemoteSaveEnvelope envelope = JsonUtility.FromJson<RemoteSaveEnvelope>(json);
                 if (envelope?.profile == null) return;
                 Current = envelope.profile;
                 SaveDataFactory.Normalize(Current);
                 PersistLocalOnly();
+                ApplyRuntimeSettings();
                 success = true;
             },
             (status, errorJson) =>
             {
+                if (accountSubject != targetSubject || accountLoadGeneration != targetGeneration) return;
                 message = status == 409
                     ? "다른 기기의 최신 저장을 불러왔습니다. 다시 확인해 주세요."
                     : "서버 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.";
@@ -316,6 +352,7 @@ public sealed class SaveService : MonoBehaviour
                 Current = conflict.profile;
                 SaveDataFactory.Normalize(Current);
                 PersistLocalOnly();
+                ApplyRuntimeSettings();
                 remoteDirty = false;
                 DataChanged?.Invoke();
             });
@@ -325,35 +362,54 @@ public sealed class SaveService : MonoBehaviour
 
     private void OnSessionChanged(string subject)
     {
+        accountLoadGeneration++;
+        remoteDirty = false;
+        if (remoteSyncRoutine != null)
+        {
+            StopCoroutine(remoteSyncRoutine);
+            remoteSyncRoutine = null;
+        }
+
         if (string.IsNullOrWhiteSpace(subject))
         {
+            IsAccountLoading = false;
             accountSubject = null;
             currentScope = GuestScope;
             Current = LoadOrCreate(currentScope, true);
+            ApplyRuntimeSettings();
             DataChanged?.Invoke();
             return;
         }
-        StartCoroutine(LoadAccount(subject));
+        StartCoroutine(LoadAccount(subject, accountLoadGeneration));
     }
 
-    private IEnumerator LoadAccount(string subject)
+    private IEnumerator LoadAccount(string subject, int generation)
     {
         GamePlatformClient client = GamePlatformClient.Instance;
         if (client == null) yield break;
         IsAccountLoading = true;
         string accountScope = "account_" + ScopeHash(subject);
+        bool hasCached = localStore.TryLoad(accountScope, out SaveGameData cached);
+        SaveGameData accountCandidate = hasCached
+            ? cached
+            : string.IsNullOrWhiteSpace(accountSubject)
+                ? SaveDataFactory.Clone(Current)
+                : SaveDataFactory.CreateDefault();
+        accountCandidate.revision = hasCached ? accountCandidate.revision : 0;
+        accountSubject = subject;
+        currentScope = accountScope;
+        Current = accountCandidate;
+        PersistLocalOnly();
+        ApplyRuntimeSettings();
+        DataChanged?.Invoke();
+
         string json = null;
         bool failed = false;
         yield return client.GetSaveProfile(value => json = value, (_, __) => failed = true);
+        if (generation != accountLoadGeneration || accountSubject != subject)
+            yield break;
         if (failed || string.IsNullOrWhiteSpace(json))
         {
-            if (localStore.TryLoad(accountScope, out SaveGameData cached))
-            {
-                accountSubject = subject;
-                currentScope = accountScope;
-                Current = cached;
-                DataChanged?.Invoke();
-            }
             IsAccountLoading = false;
             yield break;
         }
@@ -361,14 +417,18 @@ public sealed class SaveService : MonoBehaviour
         RemoteSaveEnvelope envelope = JsonUtility.FromJson<RemoteSaveEnvelope>(json);
         if (envelope?.profile != null)
         {
+            bool requiresSchemaUpgrade = envelope.profile.schemaVersion < SaveDataFactory.CurrentSchemaVersion;
             localStore.Backup(GuestScope, "guest_backup");
             Current = envelope.profile;
             SaveDataFactory.Normalize(Current);
             accountSubject = subject;
             currentScope = accountScope;
             PersistLocalOnly();
+            ApplyRuntimeSettings();
             IsAccountLoading = false;
             DataChanged?.Invoke();
+            if (requiresSchemaUpgrade)
+                Persist("저장 형식 업그레이드");
             yield break;
         }
 
@@ -378,13 +438,17 @@ public sealed class SaveService : MonoBehaviour
         currentScope = accountScope;
         Current = guest;
         PersistLocalOnly();
+        ApplyRuntimeSettings();
         bool uploaded = false;
         yield return PutRemote((success, _) => uploaded = success);
+        if (generation != accountLoadGeneration || accountSubject != subject)
+            yield break;
         if (!uploaded)
         {
             accountSubject = null;
             currentScope = GuestScope;
             Current = LoadOrCreate(GuestScope, true);
+            ApplyRuntimeSettings();
         }
         IsAccountLoading = false;
         DataChanged?.Invoke();

@@ -18,7 +18,7 @@
     loginButton.setAttribute("aria-expanded", String(nextOpen));
   }
 
-  function renderSession(nextSession) {
+  function renderSession(nextSession, notifyGame = true) {
     session = nextSession;
     const playerName = nextSession?.playerId || nextSession?.subject;
     const signedIn = Boolean(playerName);
@@ -33,15 +33,16 @@
     window.dispatchEvent(
       new CustomEvent("GAME_SESSION_CHANGED", { detail: { session: nextSession } })
     );
+    if (notifyGame) window.gameBridge.broadcastSession(signedIn);
   }
 
-  async function restoreSession() {
+  async function restoreSession(notifyGame = false) {
     try {
       const result = await window.gameBridge.getSession();
-      renderSession(result.session);
+      renderSession(result.session, notifyGame);
     } catch (_error) {
       window.gameBridge.sessionToken = null;
-      renderSession(null);
+      renderSession(null, notifyGame);
     }
   }
 
@@ -89,6 +90,17 @@
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") setMenuOpen(false);
+  });
+
+  window.addEventListener("message", (event) => {
+    const gameFrame = document.getElementById("game-frame");
+    if (
+      event.origin === window.gameBridge.serverOrigin &&
+      event.source === gameFrame?.contentWindow &&
+      event.data?.type === "PLATFORM_SESSION"
+    ) {
+      restoreSession(false);
+    }
   });
 
   configureHeader().catch(() => renderSession(null));

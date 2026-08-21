@@ -96,12 +96,12 @@ pnpm unity:verify
 
 ### 도감·스토리 계정 동기화
 
-- 로그인 후 `GET /api/v1/progress`로 현재 계정 스냅샷을 받고 이후 플랫폼 상태와 함께 5초 주기로 동기화한다.
-- 손님 첫 조우는 `POST /api/v1/progress/customers/:customerId/met`, 영구 스토리 진행은 `PUT /api/v1/progress/stories/:customerId`로 보낸다.
-- 서버는 세션의 `subject`만 사용하며 DynamoDB `PLAYER#<subject> / PROGRESS#CUSTOMER#<customerId>`에 사용자별 저장한다.
-- 조우 여부, 완료 대화 주제와 스토리 완료는 합집합 방식으로만 전진한다. 오래된 클라이언트가 완료 상태를 되돌리지 못해야 한다.
-- 특별 주문 예정일·재도전일·당일 대화 제한은 현재 플레이 날짜에 종속되므로 계정 영구 진행에 포함하지 않는다.
-- 기존 무계정 PlayerPrefs 데이터는 첫 로그인 계정에 한 번만 이전한다. 이후 로그인·로그아웃·계정 전환 때는 계정별 키를 다시 불러와 서로 섞이지 않게 한다.
+- 현재 단일 기준은 DynamoDB `PLAYER#<subject> / SAVE#MAIN`의 `SaveProfile v3`다. 영업 진행, 일반 돈, 업적, 손님 도감·스토리, 영혼 도감, 누적 통계와 설정을 revision 충돌 검사로 저장한다.
+- `/api/v1/progress`와 두 변경 경로는 구버전 호환용이다. 내부에서는 `SAVE#MAIN`만 갱신하며 기존 `PROGRESS#CUSTOMER`는 최초 접근 때 단조 병합한 뒤 기준 데이터로 사용하지 않는다.
+- `masterVolume`, `keyboardHintsEnabled`, `tutorialCompleted`도 계정 설정이다. 구버전 계정에 서버 설정이 없을 때만 기존 PlayerPrefs를 한 번 승격하고, 서버 값이 있으면 서버를 우선한다.
+- 손님 ID는 `jeonghyeon`이 표준이다. 기존 `jeonghyun` 값은 완료 항목의 합집합과 횟수·날짜 최댓값으로 병합한다.
+- 로그인·로그아웃·계정 전환 중에는 이전 계정 저장을 화면에 남기거나 새 계정에 업로드하지 않는다. 네트워크 실패 시에도 해당 계정 캐시 또는 빈 기본값만 사용한다.
+- 팥 코인, 인벤토리, 구매 내역과 황금 틀 장착은 `SAVE#MAIN`에 넣지 않고 서버 권한의 별도 레코드를 유지한다.
 
 ## 5. HIVE Console에 상품을 추가하거나 수정할 때
 
@@ -158,6 +158,8 @@ S3 객체 키: store-products/<전체-market-pid>.png
 4. `/api/v1/store/me`와 게임 HUD의 팥 코인·인벤토리가 일치하는지 확인한다.
 5. 새로고침·로그아웃·재로그인 뒤에도 같은 계정에만 지급 내역이 유지되는지 확인한다.
 6. 황금 틀은 장착·해제, 금색 외형, 성공 판정 4.8초, 타는 판정 12초를 확인한다.
+7. 장인 마켓의 `구매 내역` 탭에서 성공·실패·취소·만료·대기 상태, 더 보기와 오류 재시도를 확인한다.
+8. 계정 A의 구매 내역 cursor를 계정 B가 사용할 수 없고 응답에 subject·영수증·토큰이 없는지 확인한다.
 
 결제 창의 성공 표시만으로 지급 완료라고 판단하지 않는다. 서버 인벤토리 반영까지가 완료 기준이다. 일반 게임 돈이 팥 코인 지급으로 변하면 회귀 오류다.
 
@@ -189,7 +191,9 @@ API만 `live`로 바꾸고 게임에서 사용하지 않는 상태는 기능 완
 
 ## 9. AWS에 배포할 때
 
-일반 배포에는 AWS 콘솔 로그인이 필요하지 않다. 검증된 변경을 `DEV`에 push하면 GitHub OIDC가 자동으로 정확히 그 커밋의 Unity 원본을 WebGL로 새로 빌드하고, 서버 검사, 산출물 해시 검증, ECR 이미지 생성, CloudFormation 배포와 공개 URL Smoke Test를 실행한다. 저장소에 남아 있던 `game-dist`를 최신 빌드처럼 대신 배포하는 우회 경로는 두지 않는다.
+일반 배포에는 AWS 콘솔 로그인이 필요하지 않다. 검증된 변경을 `DEV`에 push하면 GitHub OIDC가 자동으로 정확히 그 커밋의 Unity 원본을 WebGL로 새로 빌드하고, 서버 검사, 산출물 해시 검증, bootstrap 데이터 인프라 갱신, ECR 이미지 생성, 서비스 CloudFormation 배포와 공개 URL Smoke Test를 실행한다. 저장소에 남아 있던 `game-dist`를 최신 빌드처럼 대신 배포하는 우회 경로는 두지 않는다.
+
+구매 내역은 DynamoDB `SubjectCreatedAtIndex`를 사용한다. 워크플로의 `Update account data infrastructure` 단계가 bootstrap 스택을 먼저 갱신하고 인덱스가 `ACTIVE`인지 확인한 뒤 서버를 배포하므로, 이 단계를 건너뛰어 새 서버만 배포하지 않는다.
 
 Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`와 AWS 변수 중 하나라도 없으면 preflight가 즉시 실패해야 정상이다. 누락된 Unity 빌드를 건너뛰고 이전 WebGL을 배포하도록 설정하지 않는다.
 
@@ -198,6 +202,7 @@ Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EM
 - `Verify platform server`
 - `Build Unity 6.3 WebGL`
 - `Validate rebuilt Unity WebGL build`
+- `Update account data infrastructure`
 - `Verify DynamoDB recovery and session expiry`
 - `Deploy ECS Fargate service`
 - `Publish default store product images`
@@ -238,13 +243,15 @@ Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EM
 - HIVE Production 회원가입·로그인·로그아웃과 DynamoDB 세션
 - 사용자별 팥 코인·인벤토리·황금 틀 장착 저장
 - NICEPAY 테스트 결제 후 사용자별 지급
+- SaveProfile v3 기반 영업 진행·업적·도감·스토리·영혼·설정의 계정 저장
+- 사용자별 구매 내역 API와 인게임 상품/구매 내역 탭
 - HIVE Console 상품의 인게임 카탈로그 자동 구성
 - 정확한 DEV Unity 소스를 매번 새로 빌드하는 WebGL 해시 검증과 `DEV` → AWS 자동 배포·롤백
 
 ### 아직 완료로 보면 안 되는 작업
 
 - OpenAI live 기능의 실제 게임 사용
-- 일반 게임 진행·레시피 저장과 랭킹
+- 랭킹 API와 인게임 랭킹 UI
 - 정현 외 손님의 특별 주문·이야기 콘텐츠
 - 레시피 해금 상점
 - 전체 Editor/WebGL 회귀 테스트와 출시 후보 QA

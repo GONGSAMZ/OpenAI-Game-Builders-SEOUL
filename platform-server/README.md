@@ -43,6 +43,7 @@ pnpm dev
 
 `STORE_MODE=nicepay-test`에서는 NICEPAY 테스트용 `NICEPAY_CLIENT_ID`와
 `NICEPAY_SECRET_KEY`가 필요하며, 카드 결제창의 테스트 거래는 실제 청구 없이 승인 후 팥 코인 또는 황금 틀을 지급합니다.
+계정별 구매 내역 cursor는 서버 HMAC으로 서명합니다. 별도 키를 쓰려면 `PURCHASE_CURSOR_SECRET`을 설정하고, 생략하면 현재 결제 모드의 `NICEPAY_SECRET_KEY` 또는 `HIVE_BILLING_AUTH_KEY`를 사용합니다.
 
 `STORE_CATALOG_SOURCE=hive`를 사용하면 로그인 PlayerID로 HIVE Web PG 상품 목록을 서버에서 조회해 인게임 카드를 자동 구성합니다. 새 PID는 `...coin.<item-id>.<quantity>`, `...equipment.<item-id>.1`, `...item.<item-id>.<quantity>` 규칙을 사용합니다. 이미지는 `/store-products/<전체-market-pid>.png`에서 불러오며 실패 시 기본 이미지로 대체합니다. 운영 절차는 저장소의 [`hive-store-catalog` 스킬](../skills/hive-store-catalog/SKILL.md)을 따릅니다.
 

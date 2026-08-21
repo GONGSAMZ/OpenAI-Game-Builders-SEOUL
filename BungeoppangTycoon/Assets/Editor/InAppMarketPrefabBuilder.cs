@@ -26,8 +26,6 @@ public static class InAppMarketPrefabBuilder
     public static void BuildAll()
     {
         BuildMarketPrefab();
-        AddMarketButtonToGameHud();
-        AddCurrencyToStore();
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         ValidatePrefabs();
@@ -105,10 +103,18 @@ public static class InAppMarketPrefabBuilder
         SetAnchoredRect(loginButton.GetComponent<RectTransform>(), new Vector2(1, 0.5f), new Vector2(1, 0.5f),
             new Vector2(-310, -29), new Vector2(-22, 29));
 
+        Button productTab = CreateButton("ProductTabButton", modal.transform, "상품", Brown, Color.white, out _);
+        SetAnchoredRect(productTab.GetComponent<RectTransform>(), new Vector2(0, 1), new Vector2(0.5f, 1),
+            new Vector2(36, -282), new Vector2(-7, -220));
+        Button historyTab = CreateButton("PurchaseHistoryTabButton", modal.transform, "구매 내역",
+            new Color32(235, 219, 184, 255), Brown, out _);
+        SetAnchoredRect(historyTab.GetComponent<RectTransform>(), new Vector2(0.5f, 1), new Vector2(1, 1),
+            new Vector2(7, -282), new Vector2(-36, -220));
+
         GameObject scrollObject = CreateUiObject("ProductScrollView", modal.transform);
         RectTransform scrollRectTransform = scrollObject.GetComponent<RectTransform>();
         SetAnchoredRect(scrollRectTransform, new Vector2(0, 0), new Vector2(1, 1),
-            new Vector2(36, 116), new Vector2(-36, -222));
+            new Vector2(36, 116), new Vector2(-36, -294));
         ScrollRect scrollRect = scrollObject.AddComponent<ScrollRect>();
         scrollRect.horizontal = false;
         scrollRect.vertical = true;
@@ -143,6 +149,53 @@ public static class InAppMarketPrefabBuilder
 
         CreateProductCardTemplate(contentObject.transform);
 
+        GameObject historyScrollObject = CreateUiObject("PurchaseHistoryScrollView", modal.transform);
+        RectTransform historyScrollRectTransform = historyScrollObject.GetComponent<RectTransform>();
+        SetAnchoredRect(historyScrollRectTransform, new Vector2(0, 0), new Vector2(1, 1),
+            new Vector2(36, 176), new Vector2(-36, -294));
+        ScrollRect historyScrollRect = historyScrollObject.AddComponent<ScrollRect>();
+        historyScrollRect.horizontal = false;
+        historyScrollRect.vertical = true;
+        historyScrollRect.scrollSensitivity = 32;
+
+        Image historyViewport = CreatePanel("PurchaseHistoryViewport", historyScrollObject.transform,
+            new Color32(255, 255, 255, 1));
+        Stretch(historyViewport.rectTransform);
+        historyViewport.gameObject.AddComponent<RectMask2D>();
+        historyScrollRect.viewport = historyViewport.rectTransform;
+
+        GameObject historyContentObject = CreateUiObject("PurchaseHistoryContent", historyViewport.transform);
+        RectTransform historyContent = historyContentObject.GetComponent<RectTransform>();
+        historyContent.anchorMin = new Vector2(0, 1);
+        historyContent.anchorMax = new Vector2(1, 1);
+        historyContent.pivot = new Vector2(0.5f, 1);
+        historyContent.anchoredPosition = Vector2.zero;
+        historyContent.sizeDelta = new Vector2(0, 160);
+        VerticalLayoutGroup historyLayout = historyContentObject.AddComponent<VerticalLayoutGroup>();
+        historyLayout.padding = new RectOffset(20, 20, 12, 18);
+        historyLayout.spacing = 12;
+        historyLayout.childAlignment = TextAnchor.UpperCenter;
+        historyLayout.childControlHeight = false;
+        historyLayout.childControlWidth = true;
+        historyLayout.childForceExpandHeight = false;
+        historyLayout.childForceExpandWidth = true;
+        ContentSizeFitter historyFitter = historyContentObject.AddComponent<ContentSizeFitter>();
+        historyFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        historyScrollRect.content = historyContent;
+
+        TextMeshProUGUI historyEmpty = CreateText("PurchaseHistoryEmptyText", historyViewport.transform,
+            "HIVE 로그인 후 계정 구매 내역을 확인할 수 있습니다.", 30, Brown, TextAlignmentOptions.Center);
+        Stretch(historyEmpty.rectTransform, 80, 80, 60, 60);
+        CreatePurchaseHistoryRowTemplate(historyContentObject.transform);
+
+        Button loadMore = CreateButton("LoadMorePurchasesButton", modal.transform, "더 보기", Green,
+            Color.white, out TextMeshProUGUI loadMoreText);
+        loadMoreText.name = "LoadMorePurchasesText";
+        SetAnchoredRect(loadMore.GetComponent<RectTransform>(), new Vector2(0.5f, 0), new Vector2(0.5f, 0),
+            new Vector2(-150, 116), new Vector2(150, 166));
+        loadMore.gameObject.SetActive(false);
+        historyScrollObject.SetActive(false);
+
         Image footer = CreatePanel("Footer", modal.transform, new Color32(241, 226, 195, 255));
         SetAnchoredRect(footer.rectTransform, new Vector2(0, 0), new Vector2(1, 0),
             new Vector2(24, 22), new Vector2(-24, 102));
@@ -159,6 +212,35 @@ public static class InAppMarketPrefabBuilder
         SetLayerRecursively(root, LayerMask.NameToLayer("UI"));
         PrefabUtility.SaveAsPrefabAsset(root, MarketPrefabPath);
         Object.DestroyImmediate(root);
+    }
+
+    private static void CreatePurchaseHistoryRowTemplate(Transform parent)
+    {
+        Image row = CreatePanel("PurchaseHistoryRowTemplate", parent, Card);
+        LayoutElement layout = row.gameObject.AddComponent<LayoutElement>();
+        layout.preferredHeight = 132;
+        layout.minHeight = 132;
+
+        TextMeshProUGUI date = CreateText("PurchaseDateText", row.transform, "2026.08.21 12:00", 21,
+            Brown, TextAlignmentOptions.MidlineLeft);
+        SetAnchoredRect(date.rectTransform, new Vector2(0, 0.5f), new Vector2(0.22f, 1),
+            new Vector2(24, 0), new Vector2(-8, -12));
+
+        TextMeshProUGUI product = CreateText("PurchaseProductText", row.transform, "황금 붕어빵 틀", 29,
+            Ink, TextAlignmentOptions.MidlineLeft);
+        SetAnchoredRect(product.rectTransform, new Vector2(0.22f, 0.5f), new Vector2(0.72f, 1),
+            new Vector2(10, 0), new Vector2(-8, -12));
+
+        TextMeshProUGUI detail = CreateText("PurchaseDetailText", row.transform,
+            "NICEPAY 테스트 · 1개 · ₩3,300", 21, Brown, TextAlignmentOptions.MidlineLeft);
+        SetAnchoredRect(detail.rectTransform, new Vector2(0.22f, 0), new Vector2(0.78f, 0.5f),
+            new Vector2(10, 10), new Vector2(-8, 0));
+
+        TextMeshProUGUI status = CreateText("PurchaseStatusText", row.transform, "결제 완료", 26, Green,
+            TextAlignmentOptions.Center);
+        SetAnchoredRect(status.rectTransform, new Vector2(0.78f, 0), new Vector2(1, 1),
+            new Vector2(8, 12), new Vector2(-24, -12));
+        row.gameObject.SetActive(false);
     }
 
     private static void CreateProductCardTemplate(Transform parent)
@@ -436,6 +518,9 @@ public static class InAppMarketPrefabBuilder
             throw new InvalidOperationException("UI_InAppMarket 컴포넌트가 프리팹 루트에 없습니다.");
         if (FindChild(market.transform, "ProductCardTemplate")?.GetComponent<UI_InAppMarketProductCard>() == null)
             throw new InvalidOperationException("상품 카드 템플릿 연결이 없습니다.");
+        if (FindChild(market.transform, "PurchaseHistoryRowTemplate") == null ||
+            FindChild(market.transform, "PurchaseHistoryTabButton")?.GetComponent<Button>() == null)
+            throw new InvalidOperationException("구매 내역 탭 또는 행 템플릿 연결이 없습니다.");
         if (FindChild(gameHud.transform, "inAppMarketButton")?.GetComponent<Button>() == null)
             throw new InvalidOperationException("UI_Game에 인앱 마켓 진입 버튼이 없습니다.");
         if (FindChild(gameHud.transform, "redBeanCoinText")?.GetComponent<TextMeshProUGUI>() == null)
