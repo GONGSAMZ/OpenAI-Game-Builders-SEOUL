@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
@@ -65,6 +66,7 @@ import {
 import { PlayerProfileService } from "./save/player-profile-service.js";
 
 const publicDirectory = path.resolve(process.cwd(), "public");
+const portalIndexTemplate = readFileSync(path.join(publicDirectory, "index.html"), "utf8");
 const loginCookieName = "hive_login_attempt";
 const loginCookiePath = "/";
 const sessionCookieName = "game_session";
@@ -199,7 +201,14 @@ function setUnityAssetHeaders(response: Response, filePath: string): void {
 function setPortalAssetHeaders(response: Response, filePath: string): void {
   if (path.basename(filePath) === "index.html") {
     response.setHeader("Cache-Control", "no-store");
+    return;
   }
+
+  response.setHeader("Cache-Control", "no-cache");
+}
+
+function renderPortalIndex(revision: string): string {
+  return portalIndexTemplate.replaceAll("__APP_REVISION__", encodeURIComponent(revision));
 }
 
 function sessionResponse(session: GameSession) {
@@ -1034,6 +1043,13 @@ export function createApp(dependencies: AppDependencies) {
       response.json(result);
     }
   );
+
+  app.get("/", (_request, response) => {
+    response
+      .set("Cache-Control", "no-store")
+      .type("html")
+      .send(renderPortalIndex(config.revision));
+  });
 
   app.use(
     "/game",
