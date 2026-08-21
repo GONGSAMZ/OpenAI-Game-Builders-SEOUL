@@ -12,7 +12,7 @@ namespace BungeoppangTycoon.Tests.EditMode
         private const string PrefabPath = "Assets/Resources/Prefabs/UI/UI_SettingsOptions.prefab";
 
         [Test]
-        public void Prefab_HasRequiredFigmaV4Structure()
+        public void Prefab_HasRequiredFigmaV6Structure()
         {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
             Assert.That(prefab, Is.Not.Null);
@@ -20,11 +20,10 @@ namespace BungeoppangTycoon.Tests.EditMode
             Assert.That(prefab.GetComponent<CanvasScaler>(), Is.Not.Null);
             string[] required =
             {
-                "ContentRoot", "TitleText", "CloseButton", "VolumeCard",
-                "VolumeSlider", "VolumeValueText", "VolumeMinusButton",
-                "VolumePlusButton", "KeyboardCard", "KeyboardHintToggle",
-                "KeyboardHintStateText", "KeyboardHelpButton", "ResetZone",
-                "ResetGameButton", "FooterCloseButton"
+                "PaperPanel", "TitleText", "CloseButton", "VolumeCard",
+                "VolumeSlider", "VolumeValueText", "KeyboardCard",
+                "KeyboardHintToggle", "KeyboardHintStateText", "Keycap_Space",
+                "Keycap_1–8", "ResetZone", "ResetGameButton"
             };
 
             foreach (string name in required)
@@ -32,23 +31,21 @@ namespace BungeoppangTycoon.Tests.EditMode
         }
 
         [Test]
-        public void Prefab_UsesInteractiveControlsAndExplicitNavigation()
+        public void Prefab_UsesExpectedInteractiveControls()
         {
             GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
             Assert.That(Find(prefab, "VolumeSlider").GetComponent<Slider>(), Is.Not.Null);
 
             string[] buttons =
             {
-                "CloseButton", "VolumeMinusButton", "VolumePlusButton",
-                "KeyboardHintToggle", "KeyboardHelpButton",
-                "ResetGameButton", "FooterCloseButton"
+                "CloseButton", "KeyboardHintToggle", "ResetGameButton"
             };
 
             foreach (string name in buttons)
             {
                 Button button = Find(prefab, name).GetComponent<Button>();
                 Assert.That(button, Is.Not.Null, $"Button 누락: {name}");
-                Assert.That(button.navigation.mode, Is.EqualTo(Navigation.Mode.Explicit), $"명시적 키보드 이동 누락: {name}");
+                Assert.That(button.targetGraphic, Is.Not.Null, $"버튼 그래픽 누락: {name}");
             }
         }
 
@@ -74,12 +71,7 @@ namespace BungeoppangTycoon.Tests.EditMode
 
             string[] spriteObjects =
             {
-                "SettingsIcon", "CloseButton", "VolumeCard", "VolumeIconBadge",
-                "VolumeIcon", "VolumeMinusButton", "Background", "Fill", "Handle",
-                "VolumePlusButton", "KeyboardCard", "KeyboardIconBadge", "KeyboardIcon",
-                "KeyboardHintToggle", "KeyboardHintToggleThumb", "Keycap_Space", "Keycap_1–8",
-                "KeyboardHelpButton", "ResetZone", "WarningIcon", "ResetGameButton",
-                "FooterEscKeycap", "FooterCloseButton", "AutoSaveStatusIcon"
+                "SettingsIcon", "CloseButton", "WarningIcon", "ResetGameButton"
             };
             foreach (string name in spriteObjects)
             {

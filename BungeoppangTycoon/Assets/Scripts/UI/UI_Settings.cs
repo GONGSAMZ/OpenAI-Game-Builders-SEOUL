@@ -5,17 +5,18 @@ using TMPro;
 /// <summary>설정 메인 메뉴입니다. 상세 기능은 각 전용 팝업 프리팹이 담당합니다.</summary>
 public class UI_Settings : UI_Base
 {
-    Button exitButton, quitButton, helpButton, achievementButton, documentsButton;
+    Button exitButton, quitButton, helpButton, achievementButton, documentsButton, resetButton;
     Button settingsButton;
 
     protected override void Init()
     {
         Managers.Game.isRunning = false;
         exitButton = FindButton("ExitBtn"); quitButton = FindButton("QuitBtn"); helpButton = FindButton("HelpButton"); settingsButton = FindButton("SettingBtn");
-        achievementButton = FindButton("AchivementButton"); documentsButton = FindButton("DocumentsButton");
+        achievementButton = FindButton("AchivementButton"); documentsButton = FindButton("DocumentsButton"); resetButton = FindButton("ResetButton");
         BindButton(exitButton, Close); BindButton(quitButton, Close); BindButton(settingsButton, OpenOptions);
         BindButton(documentsButton, OpenCollection);
         BindButton(achievementButton, SaveUiFactory.ShowAchievements);
+        BindButton(resetButton, SaveUiFactory.ShowResetConfirmation);
         if (helpButton != null) helpButton.gameObject.SetActive(false);
         if (achievementButton != null) achievementButton.gameObject.SetActive(true);
         SetContinueLabel(quitButton);
