@@ -207,8 +207,17 @@ function sessionResponse(session: GameSession) {
     subject: session.subject,
     provider: session.provider,
     playerId: session.playerId,
+    accountLabel: sessionAccountLabel(session),
     expiresAt: session.expiresAt
   };
+}
+
+function sessionAccountLabel(session: GameSession): string {
+  if (session.provider === "mock-hive") return "로컬 테스트 계정";
+
+  const stableId = session.playerId ?? session.idpUserId ?? session.subject;
+  const visibleSuffix = stableId.slice(-6);
+  return `HIVE 계정 · ${visibleSuffix}`;
 }
 
 function setSessionCookie(response: Response, config: AppConfig, token: string): void {

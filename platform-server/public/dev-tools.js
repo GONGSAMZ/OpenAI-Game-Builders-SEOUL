@@ -20,7 +20,12 @@
   function renderSession(nextSession) {
     session = nextSession;
     const subject = nextSession?.playerId || nextSession?.subject;
-    playerId.textContent = subject || "로그인 필요";
+    const accountLabel = nextSession?.accountLabel || (
+      nextSession?.provider === "hive" && subject
+        ? `HIVE 계정 · ${subject.slice(-6)}`
+        : subject
+    );
+    playerId.textContent = accountLabel || "로그인 필요";
     actionButtons.forEach((button) => { button.disabled = !subject; });
     if (!subject) {
       balance.textContent = "0";
