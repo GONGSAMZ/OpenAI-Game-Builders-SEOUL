@@ -16,7 +16,10 @@ public class CustomerData : ScriptableObject
     public Sprite Image { 
         get {  } }*/
     
-    public Sprite GetImage(int index = 0)
+    /// <summary>
+    /// 스프라이트 시트의 배열 순서가 아니라 Inspector에서 정한 표정 이름으로 이미지를 찾습니다.
+    /// </summary>
+    public Sprite GetImage(CustomerExpression expression = CustomerExpression.Default)
     {
         if (string.IsNullOrWhiteSpace(spriteSheetPath))
         {
@@ -24,7 +27,7 @@ public class CustomerData : ScriptableObject
             return null;
         }
 
-        return Managers.Resource.LoadSprite(spriteSheetPath, index);
+        return Managers.Resource.LoadSpriteBySuffix(spriteSheetPath, $"_{expression}");
     }
 /*    [SerializeField]
     private Sprite image; //외형 스프라이트
@@ -49,5 +52,13 @@ public class CustomerData : ScriptableObject
     [SerializeField]
     private string[] disappointingText; // 주문에 대해 실망했을 때, 할 말 저장
     public string[] DisappointingText { get { return disappointingText; } }
+}
+
+/// <summary>손님 스프라이트 시트에 저장된 표정 이름입니다.</summary>
+public enum CustomerExpression
+{
+    Default,
+    Joy,
+    Disappointed
 }
 

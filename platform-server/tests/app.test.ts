@@ -48,6 +48,11 @@ describe("integration API", () => {
         nextDay: 1,
         money: 5000,
         unlockedFillingIds: ["red-bean", "custard", "nutella", "cream-cheese"],
+        customerStories: [{
+          customerId: "jeonghyeon",
+          lastTalkDay: 1,
+          nextSpecialOrderDay: 2
+        }],
         ownedGameplayItemIds: []
       },
       account: { customers: [], discoveredSouls: [], achievements: [] }
@@ -63,7 +68,36 @@ describe("integration API", () => {
       .set(auth)
       .send({ expectedRevision: 0, profile })
       .expect(200);
-    expect(created.body.profile).toEqual(expect.objectContaining({ revision: 1 }));
+    expect(created.body.profile).toEqual(expect.objectContaining({
+      revision: 1,
+      run: expect.objectContaining({
+        customerStories: [{
+          customerId: "jeonghyeon",
+          lastTalkDay: 1,
+          nextSpecialOrderDay: 2
+        }]
+      })
+    }));
+
+    await request(app)
+      .put("/api/v1/save/profile")
+      .set(auth)
+      .send({
+        expectedRevision: 1,
+        profile: {
+          ...profile,
+          revision: 1,
+          run: {
+            ...profile.run,
+            customerStories: [{
+              customerId: "not-a-customer",
+              lastTalkDay: 1,
+              nextSpecialOrderDay: 2
+            }]
+          }
+        }
+      })
+      .expect(400);
 
     const conflict = await request(app)
       .put("/api/v1/save/profile")

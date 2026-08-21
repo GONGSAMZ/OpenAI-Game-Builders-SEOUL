@@ -16,6 +16,8 @@ public sealed class SaveService : MonoBehaviour
     private bool remoteDirty;
     private Coroutine remoteSyncRoutine;
     private int accountLoadGeneration;
+    // 원격 요청 시작 뒤에도 새 변경이 생겼는지 식별하는 로컬 변경 번호다.
+    private int localMutationVersion;
 
     public static SaveService Instance { get; private set; }
     public static SaveGameData Data => EnsureInstance().Current;
@@ -89,6 +91,12 @@ public sealed class SaveService : MonoBehaviour
         Current.run.unlockedFillingIds.Add(id);
         Persist("재료 해금");
     }
+
+    public bool IsFillingUnlocked(FillingType filling) =>
+        Current.run.unlockedFillingIds.Contains(SaveIds.Filling(filling));
+
+    public CustomerStoryRunState GetCustomerStoryRunState(CustomerType customerType) =>
+        SaveDataFactory.FindOrCreateCustomerStoryState(Current, customerType);
 
     public void AddGameplayItem(string itemId)
     {
@@ -210,7 +218,7 @@ public sealed class SaveService : MonoBehaviour
                 DataChanged?.Invoke();
             }
             onComplete?.Invoke(success, message);
-        });
+        }, preferLocalRunOnConflict: true);
     }
 
     private SaveGameData LoadOrCreate(string scope, bool migrateLegacy)
@@ -231,9 +239,11 @@ public sealed class SaveService : MonoBehaviour
             if (legacy != null)
             {
                 CustomerProgressData story = FindOrCreate(data, CustomerType.JeongHyun);
-                story.lastTalkDay = legacy.lastTalkDay;
-                story.specialOrderDueDay = legacy.specialOrderDueDay;
-                story.retryAvailableDay = legacy.retryAvailableDay;
+                CustomerStoryRunState storyRun = FindOrCreateStoryRunState(data, CustomerType.JeongHyun);
+                storyRun.lastTalkDay = legacy.lastTalkDay;
+                storyRun.nextSpecialOrderDay = legacy.specialOrderDueDay > 0
+                    ? legacy.specialOrderDueDay
+                    : legacy.retryAvailableDay;
                 story.storyCompleted = legacy.storyCompleted;
                 if (legacy.completedTopicIndexes != null)
                     foreach (int index in legacy.completedTopicIndexes)
@@ -261,11 +271,15 @@ public sealed class SaveService : MonoBehaviour
         return progress;
     }
 
+    private static CustomerStoryRunState FindOrCreateStoryRunState(SaveGameData data, CustomerType type) =>
+        SaveDataFactory.FindOrCreateCustomerStoryState(data, type);
+
     private void Persist(string reason)
     {
         PersistLocalOnly();
         DataChanged?.Invoke();
         if (!IsAccountSave) return;
+        localMutationVersion++;
         remoteDirty = true;
         if (remoteSyncRoutine == null)
             remoteSyncRoutine = StartCoroutine(RemoteSyncLoop());
@@ -290,43 +304,91 @@ public sealed class SaveService : MonoBehaviour
         yield return new WaitForSecondsRealtime(1f);
         while (remoteDirty && IsAccountSave)
         {
-            bool finished = false;
             bool success = false;
-            yield return PutRemote((ok, _) => { success = ok; finished = true; });
-            if (finished && success) remoteDirty = false;
-            if (remoteDirty) yield return new WaitForSecondsRealtime(RemoteRetrySeconds);
+            bool retryImmediately = false;
+            yield return PutRemote((ok, retryNow, _) =>
+            {
+                success = ok;
+                retryImmediately = retryNow;
+            });
+            if (success) remoteDirty = retryImmediately;
+            if (remoteDirty)
+                yield return new WaitForSecondsRealtime(retryImmediately ? 0.1f : RemoteRetrySeconds);
         }
         remoteSyncRoutine = null;
     }
 
-    private void FlushRemoteNow(Action<bool, string> onComplete)
+    private void FlushRemoteNow(
+        Action<bool, string> onComplete,
+        bool preferLocalRunOnConflict = false)
     {
         if (remoteSyncRoutine != null)
         {
             StopCoroutine(remoteSyncRoutine);
             remoteSyncRoutine = null;
         }
-        StartCoroutine(PutRemote(onComplete));
+        StartCoroutine(FlushRemoteNowRoutine(onComplete, preferLocalRunOnConflict));
     }
 
-    private IEnumerator PutRemote(Action<bool, string> onComplete)
+    private IEnumerator FlushRemoteNowRoutine(
+        Action<bool, string> onComplete,
+        bool preferLocalRunOnConflict)
+    {
+        while (IsAccountSave)
+        {
+            bool success = false;
+            bool retryImmediately = false;
+            string message = string.Empty;
+            yield return PutRemote((ok, retryNow, resultMessage) =>
+            {
+                success = ok;
+                retryImmediately = retryNow;
+                message = resultMessage;
+            }, preferLocalRunOnConflict);
+
+            if (!success)
+            {
+                onComplete?.Invoke(false, message);
+                yield break;
+            }
+
+            if (!retryImmediately)
+            {
+                remoteDirty = false;
+                onComplete?.Invoke(true, string.Empty);
+                yield break;
+            }
+
+            remoteDirty = true;
+            yield return new WaitForSecondsRealtime(0.1f);
+        }
+
+        onComplete?.Invoke(false, "로그인 계정이 변경되어 저장을 완료하지 못했습니다.");
+    }
+
+    private IEnumerator PutRemote(
+        Action<bool, bool, string> onComplete,
+        bool preferLocalRunOnConflict = false)
     {
         GamePlatformClient client = GamePlatformClient.Instance;
         if (client == null || !client.IsLoggedIn)
         {
-            onComplete?.Invoke(false, "서버에 연결할 수 없습니다. 로그인 상태를 확인해 주세요.");
+            onComplete?.Invoke(false, false, "서버에 연결할 수 없습니다. 로그인 상태를 확인해 주세요.");
             yield break;
         }
 
         IsRemoteSyncing = true;
         string targetSubject = accountSubject;
         int targetGeneration = accountLoadGeneration;
+        int requestMutationVersion = localMutationVersion;
+        SaveGameData snapshot = SaveDataFactory.Clone(Current);
         string body = JsonUtility.ToJson(new SavePutRequest
         {
-            expectedRevision = Current.revision,
-            profile = Current
+            expectedRevision = snapshot.revision,
+            profile = snapshot
         });
         bool success = false;
+        bool retryImmediately = false;
         string message = string.Empty;
         yield return client.PutSaveProfile(body,
             json =>
@@ -334,30 +396,47 @@ public sealed class SaveService : MonoBehaviour
                 if (accountSubject != targetSubject || accountLoadGeneration != targetGeneration) return;
                 RemoteSaveEnvelope envelope = JsonUtility.FromJson<RemoteSaveEnvelope>(json);
                 if (envelope?.profile == null) return;
-                Current = envelope.profile;
+                bool hasNewerLocalChanges = localMutationVersion != requestMutationVersion;
+                if (hasNewerLocalChanges)
+                {
+                    // 요청 중 바뀐 값은 유지하고, 다음 PUT에서 사용할 서버 revision만 갱신한다.
+                    Current.revision = envelope.profile.revision;
+                    Current.updatedAt = envelope.profile.updatedAt;
+                }
+                else
+                {
+                    Current = envelope.profile;
+                }
                 SaveDataFactory.Normalize(Current);
                 PersistLocalOnly();
                 ApplyRuntimeSettings();
                 success = true;
+                retryImmediately = hasNewerLocalChanges;
             },
             (status, errorJson) =>
             {
                 if (accountSubject != targetSubject || accountLoadGeneration != targetGeneration) return;
                 message = status == 409
-                    ? "다른 기기의 최신 저장을 불러왔습니다. 다시 확인해 주세요."
+                    ? "다른 기기의 저장과 합친 뒤 다시 저장합니다."
                     : "서버 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.";
                 if (status != 409) return;
                 RemoteSaveEnvelope conflict = JsonUtility.FromJson<RemoteSaveEnvelope>(errorJson);
                 if (conflict?.profile == null) return;
-                Current = conflict.profile;
+                Current = SaveDataFactory.MergeAfterRemoteConflict(
+                    conflict.profile,
+                    Current,
+                    preferLocalRunOnConflict);
                 SaveDataFactory.Normalize(Current);
                 PersistLocalOnly();
                 ApplyRuntimeSettings();
-                remoteDirty = false;
+                localMutationVersion++;
+                remoteDirty = true;
                 DataChanged?.Invoke();
+                success = true;
+                retryImmediately = true;
             });
         IsRemoteSyncing = false;
-        onComplete?.Invoke(success, message);
+        onComplete?.Invoke(success, retryImmediately, message);
     }
 
     private void OnSessionChanged(string subject)
@@ -440,7 +519,7 @@ public sealed class SaveService : MonoBehaviour
         PersistLocalOnly();
         ApplyRuntimeSettings();
         bool uploaded = false;
-        yield return PutRemote((success, _) => uploaded = success);
+        yield return PutRemote((success, _, __) => uploaded = success);
         if (generation != accountLoadGeneration || accountSubject != subject)
             yield break;
         if (!uploaded)

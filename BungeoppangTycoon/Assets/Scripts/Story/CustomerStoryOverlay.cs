@@ -7,23 +7,17 @@ public sealed class CustomerStoryOverlay : MonoBehaviour
 {
     private static CustomerStoryOverlay instance;
     private Canvas canvas;
+    private GameObject overlayRoot;
     private GameObject panel;
     private TextMeshProUGUI title;
     private TextMeshProUGUI body;
     private Button closeButton;
-    private CustomerController currentCustomer;
     private bool wasRunning;
-
-    public static void ShowSpecialIntro(CustomerController customer)
-    {
-        CustomerStoryOverlay overlay = Ensure();
-        overlay.OpenMessage(customer, "특별 손님", CustomerStoryProgress.ActiveStory.SpecialIntro, "특별 주문을 받을게요");
-    }
 
     public static void ShowResult(string name, string message, bool success)
     {
         CustomerStoryOverlay overlay = Ensure();
-        overlay.OpenMessage(null, success ? name + "의 이야기 해금" : name + "의 다음 힌트", message, "정산으로 이동");
+        overlay.OpenMessage(success ? name + "의 이야기 해금" : name + "의 다음 힌트", message, "정산으로 이동");
     }
 
     private static CustomerStoryOverlay Ensure()
@@ -46,9 +40,13 @@ public sealed class CustomerStoryOverlay : MonoBehaviour
         scaler.referenceResolution = new Vector2(1920, 1080);
         scaler.matchWidthOrHeight = .5f;
 
-        GameObject dim = CreateImage("Dim", transform, new Color(0.08f, .05f, .04f, .72f));
+        overlayRoot = new GameObject("OverlayRoot", typeof(RectTransform));
+        overlayRoot.transform.SetParent(transform, false);
+        Stretch(overlayRoot.GetComponent<RectTransform>());
+
+        GameObject dim = CreateImage("Dim", overlayRoot.transform, new Color(0.08f, .05f, .04f, .72f));
         Stretch(dim.GetComponent<RectTransform>());
-        panel = CreateImage("TalkPanel", transform, new Color(1f, .97f, .87f, 1f));
+        panel = CreateImage("TalkPanel", overlayRoot.transform, new Color(1f, .97f, .87f, 1f));
         RectTransform panelRect = panel.GetComponent<RectTransform>();
         panelRect.anchorMin = panelRect.anchorMax = new Vector2(.5f, .5f);
         panelRect.sizeDelta = new Vector2(860, 500);
@@ -69,14 +67,13 @@ public sealed class CustomerStoryOverlay : MonoBehaviour
         closeRect.anchorMin = closeRect.anchorMax = new Vector2(.5f, 0);
         closeRect.anchoredPosition = new Vector2(0, 28); closeRect.sizeDelta = new Vector2(220, 58);
         closeButton.onClick.AddListener(Close);
-        panel.SetActive(false);
+        overlayRoot.SetActive(false);
     }
 
-    private void OpenMessage(CustomerController customer, string heading, string message, string closeLabel)
+    private void OpenMessage(string heading, string message, string closeLabel)
     {
-        currentCustomer = customer;
         Pause();
-        panel.SetActive(true);
+        overlayRoot.SetActive(true);
         title.text = heading;
         body.text = message;
         closeButton.gameObject.SetActive(true);
@@ -86,10 +83,8 @@ public sealed class CustomerStoryOverlay : MonoBehaviour
     private void Pause() { wasRunning = Managers.Game.isRunning; Managers.Game.isRunning = false; }
     private void Close()
     {
-        panel.SetActive(false);
+        overlayRoot.SetActive(false);
         Managers.Game.isRunning = wasRunning;
-        currentCustomer?.OnStoryOverlayClosed();
-        currentCustomer = null;
     }
 
     private static GameObject CreateImage(string name, Transform parent, Color color)

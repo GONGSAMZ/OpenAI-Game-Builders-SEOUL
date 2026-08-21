@@ -92,6 +92,12 @@ const moldEquipmentSchema = z.object({
 
 const progressCustomerIdSchema = z.enum(playerProgressCustomerIds);
 
+const customerStoryRunStateSchema = z.object({
+  customerId: progressCustomerIdSchema,
+  lastTalkDay: z.number().int().min(-1).max(1_000_000),
+  nextSpecialOrderDay: z.number().int().min(-1).max(1_000_000)
+});
+
 const storyProgressSchema = z.object({
   completedTopicIndexes: z.array(z.number().int().min(0).max(63)).max(64),
   storyCompleted: z.boolean()
@@ -105,7 +111,9 @@ const saveProfileSchema = z.object({
     nextDay: z.number().int().min(1).max(1_000_000),
     money: z.number().int().min(-1_000_000_000).max(1_000_000_000),
     unlockedFillingIds: z.array(z.string().min(1).max(100)).max(100),
-    ownedGameplayItemIds: z.array(z.string().min(1).max(100)).max(500)
+    customerStories: z.array(customerStoryRunStateSchema).max(8).optional(),
+    // 기존 클라이언트 호환용이며, 실제 상점 인벤토리의 기준 데이터는 별도 서버 저장소다.
+    ownedGameplayItemIds: z.array(z.string().min(1).max(100)).max(500).optional()
   }).passthrough(),
   account: z.object({
     customers: z.array(z.object({ customerId: z.string().min(1).max(100) }).passthrough()).max(100),

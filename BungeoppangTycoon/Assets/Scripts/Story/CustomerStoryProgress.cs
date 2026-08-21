@@ -13,6 +13,10 @@ public static class CustomerStoryProgress
         value => value.customerId == SaveIds.Customer(CustomerType.JeongHyun))
         ?? SaveService.Instance.GetCustomer(CustomerType.JeongHyun);
 
+    // 당일 대화·특별 주문 날짜는 계정 수집 기록이 아니라 현재 영업 회차에 속한다.
+    private static CustomerStoryRunState RunState =>
+        SaveService.Instance.GetCustomerStoryRunState(CustomerType.JeongHyun);
+
     public static event Action Changed
     {
         add
@@ -29,10 +33,20 @@ public static class CustomerStoryProgress
     public static CustomerStoryData ActiveStory { get; private set; }
     public static bool IsSpecialOrderActive { get; private set; }
     public static bool IsStoryCompleted => IsStoryCompletedFor(CustomerType.JeongHyun);
-    public static int SpecialOrderDueDay => SaveData.specialOrderDueDay;
-    public static int RetryAvailableDay => SaveData.retryAvailableDay;
+    public static int SpecialOrderDueDay => RunState.nextSpecialOrderDay;
+    public static int RetryAvailableDay => RunState.nextSpecialOrderDay;
     public static IReadOnlyCollection<int> CompletedTopics =>
         CompletedTopicsFor(CustomerType.JeongHyun);
+
+    /// <summary>해당 손님에게 아직 처음 듣지 않은 유효한 대화 주제가 남아 있는지 확인합니다.</summary>
+    public static bool HasRemainingTopics(CustomerType customerType)
+    {
+        CustomerStoryData story = CustomerStoryCatalog.Get(customerType);
+        if (story?.Topics == null || story.Topics.Length == 0)
+            return false;
+
+        return CompletedTopicsFor(customerType).Count < story.Topics.Length;
+    }
 
     public static bool IsStoryCompletedFor(CustomerType customerType) =>
         SaveService.Instance.GetCustomer(customerType).storyCompleted;
@@ -55,11 +69,7 @@ public static class CustomerStoryProgress
     {
         guaranteedCustomerSpawned = false;
         IsSpecialOrderActive = false;
-        int previousLastTalkDay = SaveData.lastTalkDay;
-
-        // 게임 날짜는 새 게임마다 다시 시작하므로 "하루 한 번" 제한만 초기화합니다.
-        // 완료한 대화와 스토리는 계정 저장 데이터에 그대로 유지됩니다.
-        SaveData.lastTalkDay = -1;
+        int previousLastTalkDay = RunState.lastTalkDay;
 
         CustomerStoryData jeongHyun = CustomerStoryCatalog.Get(CustomerType.JeongHyun);
         bool fillingAvailable = jeongHyun != null && IsFillingAvailable(jeongHyun.RequiredFilling);
@@ -73,26 +83,29 @@ public static class CustomerStoryProgress
             $" | 필요한 맛={(jeongHyun != null ? Define.FillingText[(int)jeongHyun.RequiredFilling] : "없음")}" +
             $" | 필요한 맛 사용 가능={(fillingAvailable ? "예" : "아니요")}" +
             $" | 이전 플레이 마지막 대화 날짜={(previousLastTalkDay > 0 ? previousLastTalkDay + "일차" : "없음")}" +
-            $" | 새 게임 대화 제한 초기화=예" +
+            $" | 같은 날 재접속 대화 제한 유지=예" +
             $" | 완료한 대화={CompletedTopics.Count}/{(jeongHyun != null ? jeongHyun.Topics.Length : 0)}" +
-            $" | 특별 주문 예정일={(SaveData.specialOrderDueDay > 0 ? SaveData.specialOrderDueDay + "일차" : "없음")}" +
-            $" | 재도전 가능일={(SaveData.retryAvailableDay > 0 ? SaveData.retryAvailableDay + "일차" : "없음")}");
+            $" | 특별 주문 예정일={(RunState.nextSpecialOrderDay > 0 ? RunState.nextSpecialOrderDay + "일차" : "없음")}");
     }
 
     public static void BeginDay(int day)
     {
-        if (SaveData.lastTalkDay != day)
-            Persist();
+        // 이야기 손님 우선 등장은 게임 실행 전체가 아니라 하루마다 한 번 판정해야 한다.
+        guaranteedCustomerSpawned = false;
     }
 
     public static bool TryGetGuaranteedCustomer(int totalCustomers, out CustomerType customerType)
     {
         customerType = default;
-        if (ActiveStory == null || guaranteedCustomerSpawned || totalCustomers >= 3)
+        bool hasRemainingTopics = ActiveStory != null && HasRemainingTopics(ActiveStory.CustomerType);
+        bool specialOrderScheduled = RunState.nextSpecialOrderDay >= 0;
+        if (!hasRemainingTopics || specialOrderScheduled || guaranteedCustomerSpawned || totalCustomers >= 3)
         {
             Debug.Log(
                 $"[손님 이야기] 이야기 손님 우선 등장 생략" +
                 $" | 활성 이야기 존재={(ActiveStory != null ? "예" : "아니요")}" +
+                $" | 남은 대화 존재={(hasRemainingTopics ? "예" : "아니요")}" +
+                $" | 특별 주문 예약됨={(specialOrderScheduled ? "예" : "아니요")}" +
                 $" | 이미 우선 등장함={(guaranteedCustomerSpawned ? "예" : "아니요")}" +
                 $" | 현재까지 등장한 손님 수={totalCustomers}명");
             return false;
@@ -110,7 +123,10 @@ public static class CustomerStoryProgress
         ActiveStory != null && !SaveData.storyCompleted && ActiveStory.CustomerType == customerType;
 
     public static bool CanTalkToday(CustomerType customerType) =>
-        IsTalkTarget(customerType) && SaveData.lastTalkDay != Managers.Game.Day;
+        IsTalkTarget(customerType) &&
+        HasRemainingTopics(customerType) &&
+        RunState.nextSpecialOrderDay < 0 &&
+        RunState.lastTalkDay != Managers.Game.Day;
 
     public static bool CompleteTalkTopic(CustomerType customerType, int topicIndex)
     {
@@ -124,21 +140,22 @@ public static class CustomerStoryProgress
 
         string topicId = SaveIds.Topic(topicIndex);
         bool isNew = !SaveData.completedTopicIds.Contains(topicId);
-        SaveData.lastTalkDay = Managers.Game.Day;
+        RunState.lastTalkDay = Managers.Game.Day;
         if (isNew)
             SaveData.completedTopicIds.Add(topicId);
-        if (SaveData.completedTopicIds.Count >= ActiveStory.Topics.Length &&
-            SaveData.specialOrderDueDay < 0 &&
+        int validCompletedTopicCount = CompletedTopicsFor(customerType).Count;
+        if (validCompletedTopicCount >= ActiveStory.Topics.Length &&
+            RunState.nextSpecialOrderDay < 0 &&
             IsFillingAvailable(ActiveStory.RequiredFilling))
-            SaveData.specialOrderDueDay = Managers.Game.Day + 1;
+            RunState.nextSpecialOrderDay = Managers.Game.Day + 1;
 
         Persist();
         Debug.Log(
             $"[손님 이야기] 대화 주제 완료 | 손님={ActiveStory.DisplayName} | 선택지 번호={topicIndex + 1}" +
             $" | 처음 들은 주제={(isNew ? "예" : "아니요")}" +
-            $" | 완료한 대화={SaveData.completedTopicIds.Count}/{ActiveStory.Topics.Length}" +
-            $" | 마지막 대화 날짜={SaveData.lastTalkDay}일차" +
-            $" | 특별 주문 예정일={(SaveData.specialOrderDueDay > 0 ? SaveData.specialOrderDueDay + "일차" : "없음")}");
+            $" | 완료한 대화={validCompletedTopicCount}/{ActiveStory.Topics.Length}" +
+            $" | 마지막 대화 날짜={RunState.lastTalkDay}일차" +
+            $" | 특별 주문 예정일={(RunState.nextSpecialOrderDay > 0 ? RunState.nextSpecialOrderDay + "일차" : "없음")}");
         return isNew;
     }
 
@@ -146,14 +163,18 @@ public static class CustomerStoryProgress
     {
         bool hasActiveStory = ActiveStory != null;
         bool isTarget = hasActiveStory && !SaveData.storyCompleted && ActiveStory.CustomerType == customerType;
-        bool alreadyTalkedToday = SaveData.lastTalkDay == Managers.Game.Day;
-        bool canTalk = isTarget && !alreadyTalkedToday;
+        bool hasRemainingTopics = isTarget && HasRemainingTopics(customerType);
+        bool specialOrderScheduled = RunState.nextSpecialOrderDay >= 0;
+        bool alreadyTalkedToday = RunState.lastTalkDay == Managers.Game.Day;
+        bool canTalk = isTarget && hasRemainingTopics && !specialOrderScheduled && !alreadyTalkedToday;
         string customerName = CustomerCollectionCatalog.Get(customerType)?.DisplayName ?? customerType.ToString();
         return $"손님={customerName} | 현재 날짜={Managers.Game.Day}일차" +
             $" | 활성 이야기={(hasActiveStory ? ActiveStory.DisplayName : "없음")}" +
             $" | 이야기 완료={(SaveData.storyCompleted ? "예" : "아니요")}" +
             $" | 이야기 대상 손님={(isTarget ? "예" : "아니요")}" +
-            $" | 마지막 대화 날짜={(SaveData.lastTalkDay > 0 ? SaveData.lastTalkDay + "일차" : "없음")}" +
+            $" | 남은 대화 존재={(hasRemainingTopics ? "예" : "아니요")}" +
+            $" | 특별 주문 예약됨={(specialOrderScheduled ? "예" : "아니요")}" +
+            $" | 마지막 대화 날짜={(RunState.lastTalkDay > 0 ? RunState.lastTalkDay + "일차" : "없음")}" +
             $" | 오늘 이미 대화함={(alreadyTalkedToday ? "예" : "아니요")}" +
             $" | 지금 대화 가능={(canTalk ? "예" : "아니요")}";
     }
@@ -163,8 +184,7 @@ public static class CustomerStoryProgress
         return ActiveStory != null &&
             !SaveData.storyCompleted &&
             !IsSpecialOrderActive &&
-            SaveData.specialOrderDueDay == Managers.Game.Day &&
-            (SaveData.retryAvailableDay < 0 || Managers.Game.Day >= SaveData.retryAvailableDay);
+            CustomerStorySchedule.IsOrderDue(RunState.nextSpecialOrderDay, Managers.Game.Day);
     }
 
     public static void BeginSpecialOrder() => IsSpecialOrderActive = true;
@@ -180,15 +200,13 @@ public static class CustomerStoryProgress
         if (fillingMatch && bakeMatch)
         {
             SaveData.storyCompleted = true;
-            SaveData.specialOrderDueDay = -1;
-            SaveData.retryAvailableDay = -1;
+            RunState.nextSpecialOrderDay = -1;
             Persist();
             RefreshActiveStory();
             return true;
         }
 
-        SaveData.specialOrderDueDay = -1;
-        SaveData.retryAvailableDay = Managers.Game.Day + 2;
+        RunState.nextSpecialOrderDay = CustomerStorySchedule.RetryDayAfterFailure(Managers.Game.Day);
         CustomerStoryOverlay.ShowResult(
             ActiveStory.DisplayName,
             fillingMatch || bakeMatch ? ActiveStory.NearMissMessage : ActiveStory.FailureMessage,
@@ -207,10 +225,10 @@ public static class CustomerStoryProgress
     public static void ResetForDebug()
     {
         CustomerProgressData state = SaveData;
-        state.lastTalkDay = -1;
+        CustomerStoryRunState runState = RunState;
+        runState.lastTalkDay = -1;
         state.completedTopicIds.Clear();
-        state.specialOrderDueDay = -1;
-        state.retryAvailableDay = -1;
+        runState.nextSpecialOrderDay = -1;
         state.storyCompleted = false;
         ActiveStory = null;
         IsSpecialOrderActive = false;
@@ -220,7 +238,7 @@ public static class CustomerStoryProgress
     }
 
     private static bool IsFillingAvailable(FillingType filling) =>
-        (int)filling < Managers.Game.NumOfFilling;
+        SaveService.Instance.IsFillingUnlocked(filling);
 
     private static void RefreshActiveStory()
     {

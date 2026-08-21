@@ -32,6 +32,7 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
     private bool wasGameRunning;
     private bool isVisible;
     private bool isReplyVisible;
+    private readonly int[] visibleTopicIndices = { -1, -1, -1 };
 
 #if UNITY_EDITOR
     /// <summary>프리팹 생성기가 실제 UI 자식들을 이 컴포넌트에 저장할 때 사용한다.</summary>
@@ -170,22 +171,42 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
         currentCustomer = customer;
         wasGameRunning = Managers.Game.isRunning;
         Managers.Game.isRunning = false;
+        isVisible = true;
         isReplyVisible = false;
 
         UpdateFocusedCustomer(customer);
 
-        for (int i = 0; i < choiceButtons.Length; i++)
+        int visibleChoiceCount = 0;
+        for (int topicIndex = 0; topicIndex < story.Topics.Length && visibleChoiceCount < choiceButtons.Length; topicIndex++)
         {
-            bool completed = CustomerStoryProgress.CompletedTopics.Contains(i);
-            choiceLabels[i].text = $"{i + 1}. {(completed ? "(완료) " : string.Empty)}{story.Topics[i].Choice}";
-            choiceButtons[i].gameObject.SetActive(true);
+            if (CustomerStoryProgress.CompletedTopics.Contains(topicIndex))
+                continue;
+
+            visibleTopicIndices[visibleChoiceCount] = topicIndex;
+            choiceLabels[visibleChoiceCount].text = $"{visibleChoiceCount + 1}. {story.Topics[topicIndex].Choice}";
+            choiceButtons[visibleChoiceCount].gameObject.SetActive(true);
+            visibleChoiceCount++;
         }
+
+        for (int slot = visibleChoiceCount; slot < choiceButtons.Length; slot++)
+        {
+            visibleTopicIndices[slot] = -1;
+            choiceButtons[slot].gameObject.SetActive(false);
+        }
+
+        if (visibleChoiceCount == 0)
+        {
+            Debug.LogWarning("[손님 이야기] 표시할 미완료 대화 주제가 없습니다.", customer);
+            customer.CancelStoryDialogueSelection();
+            return;
+        }
+
+        UpdateVisibleNavigation(visibleChoiceCount);
 
         ApplySafeArea();
         focusRoot.SetActive(true);
         choicePanel.SetActive(true);
         replyBubble.SetActive(false);
-        isVisible = true;
 
         if (EventSystem.current != null)
             EventSystem.current.SetSelectedGameObject(choiceButtons[0].gameObject);
@@ -209,10 +230,28 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
 
     private void SelectChoice(int index)
     {
-        if (!isVisible || isReplyVisible || index < 0 || index >= choiceButtons.Length)
+        if (!isVisible || isReplyVisible || index < 0 || index >= visibleTopicIndices.Length)
             return;
 
-        currentCustomer?.SelectStoryTopic(index);
+        int topicIndex = visibleTopicIndices[index];
+        if (topicIndex >= 0)
+            currentCustomer?.SelectStoryTopic(topicIndex);
+    }
+
+    private void UpdateVisibleNavigation(int visibleChoiceCount)
+    {
+        for (int slot = 0; slot < choiceButtons.Length; slot++)
+        {
+            Navigation navigation = new() { mode = Navigation.Mode.None };
+            if (slot < visibleChoiceCount)
+            {
+                navigation.mode = Navigation.Mode.Explicit;
+                navigation.selectOnUp = choiceButtons[(slot + visibleChoiceCount - 1) % visibleChoiceCount];
+                navigation.selectOnDown = choiceButtons[(slot + 1) % visibleChoiceCount];
+            }
+
+            choiceButtons[slot].navigation = navigation;
+        }
     }
 
     private void HideInternal(bool restoreGame)
@@ -230,6 +269,8 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
         isVisible = false;
         isReplyVisible = false;
         replyOpenedFrame = -1;
+        for (int i = 0; i < visibleTopicIndices.Length; i++)
+            visibleTopicIndices[i] = -1;
     }
 
     /// <summary>

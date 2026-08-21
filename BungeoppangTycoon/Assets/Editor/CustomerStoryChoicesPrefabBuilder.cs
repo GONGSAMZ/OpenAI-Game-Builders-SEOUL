@@ -11,7 +11,7 @@ using UnityEngine.UI;
 public static class CustomerStoryChoicesPrefabBuilder
 {
     private const string PrefabPath = "Assets/Resources/Prefabs/UI/UI_CustomerStoryChoices.prefab";
-    private const int PrefabBuildVersion = 2;
+    private const int PrefabBuildVersion = 3;
     private const string SessionBuildVersionKey = "Bungeoppang.CustomerStoryChoicesPrefabBuildVersion";
 
     [DidReloadScripts]
@@ -52,7 +52,9 @@ public static class CustomerStoryChoicesPrefabBuilder
             choicePanelRect.anchoredPosition = new Vector2(64f, 0f);
             choicePanelRect.sizeDelta = new Vector2(560f, 790f);
 
-            Sprite balloon = Resources.Load<Sprite>("UI/DialogueBallon");
+            Sprite balloon = Resources.Load<Sprite>("Sprites/UI/DialogueBallon");
+            if (balloon == null)
+                throw new System.InvalidOperationException("필수 말풍선 이미지를 찾지 못했습니다: Resources/Sprites/UI/DialogueBallon.png");
             TMP_FontAsset font = Resources.Load<TMP_FontAsset>("omyuPretty SDF") ?? TMP_Settings.defaultFontAsset;
             Button[] buttons = new Button[3];
             TextMeshProUGUI[] labels = new TextMeshProUGUI[3];

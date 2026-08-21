@@ -19,6 +19,9 @@ public sealed class RunProgressData
     public int nextDay = 1;
     public int money = SaveDataFactory.InitialMoney;
     public List<string> unlockedFillingIds = new();
+    // 날짜 기반 이야기 상태는 새 게임마다 함께 초기화된다.
+    public List<CustomerStoryRunState> customerStories = new();
+    // 서버 상점 인벤토리로 완전히 이전되기 전까지 기존 저장을 읽기 위한 호환 필드다.
     public List<string> ownedGameplayItemIds = new();
 }
 
@@ -52,6 +55,23 @@ public sealed class CustomerProgressData
     public int specialOrderDueDay = -1;
     public int retryAvailableDay = -1;
     public bool storyCompleted;
+}
+
+[Serializable]
+public sealed class CustomerStoryRunState
+{
+    public string customerId;
+    public int lastTalkDay = -1;
+    public int nextSpecialOrderDay = -1;
+}
+
+public static class CustomerStorySchedule
+{
+    public static int RetryDayAfterFailure(int currentDay) => Mathf.Max(1, currentDay) + 2;
+
+    // 예정일을 놓쳐도 특별 주문이 영구히 사라지지 않게 한다.
+    public static bool IsOrderDue(int nextSpecialOrderDay, int currentDay) =>
+        nextSpecialOrderDay > 0 && currentDay >= nextSpecialOrderDay;
 }
 
 [Serializable]
@@ -126,7 +146,7 @@ public static class SaveIds
 
 public static class SaveDataFactory
 {
-    public const int CurrentSchemaVersion = 3;
+    public const int CurrentSchemaVersion = 4;
     public const int InitialMoney = 5000;
     public const string LegacyVolumeKey = "settings_master_volume_v1";
     public const string LegacyKeyboardHintsKey = "settings_keyboard_hints_enabled_v1";
@@ -153,6 +173,7 @@ public static class SaveDataFactory
             nextDay = 1,
             money = InitialMoney,
             unlockedFillingIds = new List<string>(DefaultFillingIds),
+            customerStories = new List<CustomerStoryRunState>(),
             ownedGameplayItemIds = new List<string>()
         };
     }
@@ -166,9 +187,11 @@ public static class SaveDataFactory
         data.run ??= new RunProgressData();
         data.run.nextDay = Mathf.Max(1, data.run.nextDay);
         data.run.unlockedFillingIds ??= new List<string>();
+        data.run.customerStories ??= new List<CustomerStoryRunState>();
         data.run.ownedGameplayItemIds ??= new List<string>();
         foreach (string id in DefaultFillingIds)
             if (!data.run.unlockedFillingIds.Contains(id)) data.run.unlockedFillingIds.Add(id);
+        NormalizeStoryStates(data.run.customerStories);
 
         data.account ??= new AccountProgressData();
         data.account.customers ??= new List<CustomerProgressData>();
@@ -184,6 +207,8 @@ public static class SaveDataFactory
             customer.attemptedSoulIds ??= new List<string>();
         }
         NormalizeCustomerIds(data.account.customers);
+        if (sourceSchemaVersion < 4 || HasLegacyStoryDates(data.account.customers))
+            MigrateLegacyStoryDatesToRun(data);
 
         data.settings ??= new UserSettingsData();
         if (sourceSchemaVersion < 3)
@@ -216,6 +241,85 @@ public static class SaveDataFactory
         }
     }
 
+    public static CustomerStoryRunState FindOrCreateCustomerStoryState(
+        SaveGameData data,
+        CustomerType customerType)
+    {
+        if (data == null) throw new ArgumentNullException(nameof(data));
+        data.run ??= new RunProgressData();
+        data.run.customerStories ??= new List<CustomerStoryRunState>();
+
+        string customerId = SaveIds.Customer(customerType);
+        CustomerStoryRunState state = data.run.customerStories.Find(value => value.customerId == customerId);
+        if (state != null) return state;
+
+        state = new CustomerStoryRunState { customerId = customerId };
+        data.run.customerStories.Add(state);
+        return state;
+    }
+
+    private static void MigrateLegacyStoryDatesToRun(SaveGameData data)
+    {
+        foreach (CustomerProgressData customer in data.account.customers)
+        {
+            if (customer == null || string.IsNullOrWhiteSpace(customer.customerId)) continue;
+            if (customer.lastTalkDay < 0 && customer.specialOrderDueDay < 0 && customer.retryAvailableDay < 0)
+                continue;
+
+            CustomerStoryRunState state = data.run.customerStories.Find(value => value.customerId == customer.customerId);
+            if (state == null)
+            {
+                state = new CustomerStoryRunState { customerId = customer.customerId };
+                data.run.customerStories.Add(state);
+            }
+
+            state.lastTalkDay = Mathf.Max(state.lastTalkDay, customer.lastTalkDay);
+            int legacyNextOrderDay = customer.specialOrderDueDay > 0
+                ? customer.specialOrderDueDay
+                : customer.retryAvailableDay;
+            state.nextSpecialOrderDay = Mathf.Max(state.nextSpecialOrderDay, legacyNextOrderDay);
+            customer.lastTalkDay = -1;
+            customer.specialOrderDueDay = -1;
+            customer.retryAvailableDay = -1;
+        }
+        NormalizeStoryStates(data.run.customerStories);
+    }
+
+    private static bool HasLegacyStoryDates(List<CustomerProgressData> customers)
+    {
+        foreach (CustomerProgressData customer in customers)
+        {
+            if (customer != null &&
+                (customer.lastTalkDay >= 0 || customer.specialOrderDueDay >= 0 || customer.retryAvailableDay >= 0))
+                return true;
+        }
+        return false;
+    }
+
+    private static void NormalizeStoryStates(List<CustomerStoryRunState> states)
+    {
+        for (int index = states.Count - 1; index >= 0; index--)
+        {
+            CustomerStoryRunState state = states[index];
+            if (state == null || string.IsNullOrWhiteSpace(state.customerId))
+            {
+                states.RemoveAt(index);
+                continue;
+            }
+
+            if (state.customerId == "jeonghyun") state.customerId = "jeonghyeon";
+            state.lastTalkDay = Mathf.Max(-1, state.lastTalkDay);
+            state.nextSpecialOrderDay = Mathf.Max(-1, state.nextSpecialOrderDay);
+            int firstIndex = states.FindIndex(value => value != null && value != state && value.customerId == state.customerId);
+            if (firstIndex < 0) continue;
+
+            CustomerStoryRunState target = states[firstIndex];
+            target.lastTalkDay = Mathf.Max(target.lastTalkDay, state.lastTalkDay);
+            target.nextSpecialOrderDay = Mathf.Max(target.nextSpecialOrderDay, state.nextSpecialOrderDay);
+            states.RemoveAt(index);
+        }
+    }
+
     private static void MergeCustomer(CustomerProgressData target, CustomerProgressData source)
     {
         target.completedTopicIds ??= new List<string>();
@@ -231,6 +335,155 @@ public static class SaveDataFactory
         MergeUnique(target.discoveredNormalDialogueIds, source.discoveredNormalDialogueIds);
         MergeUnique(target.attemptedSoulIds, source.attemptedSoulIds);
     }
+
+    /// <summary>
+    /// 동시 저장 충돌에서는 영업 회차(run)는 서버 값을 기본으로 유지하고,
+    /// 계정 해금·수집·업적은 합쳐서 어느 한쪽의 진행도가 사라지지 않게 한다.
+    /// 새 게임 버튼처럼 사용자의 의도가 명확한 경우에만 로컬 회차를 우선한다.
+    /// </summary>
+    public static SaveGameData MergeAfterRemoteConflict(
+        SaveGameData remote,
+        SaveGameData local,
+        bool preferLocalRun = false)
+    {
+        if (remote == null) throw new ArgumentNullException(nameof(remote));
+        if (local == null) throw new ArgumentNullException(nameof(local));
+
+        SaveGameData merged = Clone(remote);
+        SaveGameData localCopy = Clone(local);
+        if (preferLocalRun)
+            merged.run = CopyRun(localCopy.run);
+
+        MergeAccount(merged.account, localCopy.account);
+        merged.settings = new UserSettingsData
+        {
+            masterVolume = localCopy.settings.masterVolume,
+            keyboardHintsEnabled = localCopy.settings.keyboardHintsEnabled,
+            tutorialCompleted = localCopy.settings.tutorialCompleted
+        };
+        merged.revision = remote.revision;
+        merged.updatedAt = remote.updatedAt;
+        Normalize(merged);
+        return merged;
+    }
+
+    private static RunProgressData CopyRun(RunProgressData source) => new()
+    {
+        nextDay = source.nextDay,
+        money = source.money,
+        unlockedFillingIds = new List<string>(source.unlockedFillingIds ?? new List<string>()),
+        customerStories = CopyStoryStates(source.customerStories),
+        ownedGameplayItemIds = new List<string>(source.ownedGameplayItemIds ?? new List<string>())
+    };
+
+    private static List<CustomerStoryRunState> CopyStoryStates(List<CustomerStoryRunState> source)
+    {
+        List<CustomerStoryRunState> copied = new();
+        if (source == null) return copied;
+        foreach (CustomerStoryRunState state in source)
+        {
+            if (state == null) continue;
+            copied.Add(new CustomerStoryRunState
+            {
+                customerId = state.customerId,
+                lastTalkDay = state.lastTalkDay,
+                nextSpecialOrderDay = state.nextSpecialOrderDay
+            });
+        }
+        return copied;
+    }
+
+    private static void MergeAccount(AccountProgressData target, AccountProgressData source)
+    {
+        target.customers ??= new List<CustomerProgressData>();
+        source.customers ??= new List<CustomerProgressData>();
+        foreach (CustomerProgressData localCustomer in source.customers)
+        {
+            if (localCustomer == null || string.IsNullOrWhiteSpace(localCustomer.customerId)) continue;
+            CustomerProgressData remoteCustomer = target.customers.Find(
+                value => value != null && value.customerId == localCustomer.customerId);
+            if (remoteCustomer == null)
+            {
+                target.customers.Add(CloneCustomer(localCustomer));
+                continue;
+            }
+            MergeCustomer(remoteCustomer, localCustomer);
+        }
+
+        target.discoveredSouls ??= new List<SoulDiscoveryData>();
+        source.discoveredSouls ??= new List<SoulDiscoveryData>();
+        foreach (SoulDiscoveryData localSoul in source.discoveredSouls)
+        {
+            if (localSoul == null || string.IsNullOrWhiteSpace(localSoul.soulId)) continue;
+            SoulDiscoveryData remoteSoul = target.discoveredSouls.Find(value => value?.soulId == localSoul.soulId);
+            if (remoteSoul == null)
+            {
+                target.discoveredSouls.Add(CloneSoul(localSoul));
+                continue;
+            }
+            if (string.IsNullOrEmpty(remoteSoul.fillingId)) remoteSoul.fillingId = localSoul.fillingId;
+            if (string.IsNullOrEmpty(remoteSoul.bakeStateId)) remoteSoul.bakeStateId = localSoul.bakeStateId;
+            if (string.IsNullOrEmpty(remoteSoul.linkedCustomerId)) remoteSoul.linkedCustomerId = localSoul.linkedCustomerId;
+            if (remoteSoul.firstDiscoveredDay <= 0 ||
+                (localSoul.firstDiscoveredDay > 0 && localSoul.firstDiscoveredDay < remoteSoul.firstDiscoveredDay))
+                remoteSoul.firstDiscoveredDay = localSoul.firstDiscoveredDay;
+        }
+
+        target.achievements ??= new List<AchievementProgressData>();
+        source.achievements ??= new List<AchievementProgressData>();
+        foreach (AchievementProgressData localAchievement in source.achievements)
+        {
+            if (localAchievement == null || string.IsNullOrWhiteSpace(localAchievement.achievementId)) continue;
+            AchievementProgressData remoteAchievement = target.achievements.Find(
+                value => value?.achievementId == localAchievement.achievementId);
+            if (remoteAchievement == null)
+            {
+                target.achievements.Add(CloneAchievement(localAchievement));
+                continue;
+            }
+            remoteAchievement.progress = Math.Max(remoteAchievement.progress, localAchievement.progress);
+            remoteAchievement.unlocked |= localAchievement.unlocked;
+            if (string.IsNullOrEmpty(remoteAchievement.unlockedAt)) remoteAchievement.unlockedAt = localAchievement.unlockedAt;
+        }
+
+        target.lifetimeStats ??= new LifetimeStatsData();
+        source.lifetimeStats ??= new LifetimeStatsData();
+        target.lifetimeStats.totalSales = Math.Max(target.lifetimeStats.totalSales, source.lifetimeStats.totalSales);
+        target.lifetimeStats.totalCustomers = Math.Max(target.lifetimeStats.totalCustomers, source.lifetimeStats.totalCustomers);
+        target.lifetimeStats.totalRevenue = Math.Max(target.lifetimeStats.totalRevenue, source.lifetimeStats.totalRevenue);
+        target.lifetimeStats.bestDailyProfit = Math.Max(target.lifetimeStats.bestDailyProfit, source.lifetimeStats.bestDailyProfit);
+    }
+
+    private static CustomerProgressData CloneCustomer(CustomerProgressData source) => new()
+    {
+        customerId = source.customerId,
+        met = source.met,
+        visitCount = source.visitCount,
+        lastTalkDay = source.lastTalkDay,
+        completedTopicIds = new List<string>(source.completedTopicIds ?? new List<string>()),
+        discoveredNormalDialogueIds = new List<string>(source.discoveredNormalDialogueIds ?? new List<string>()),
+        attemptedSoulIds = new List<string>(source.attemptedSoulIds ?? new List<string>()),
+        specialOrderDueDay = source.specialOrderDueDay,
+        retryAvailableDay = source.retryAvailableDay,
+        storyCompleted = source.storyCompleted
+    };
+
+    private static SoulDiscoveryData CloneSoul(SoulDiscoveryData source) => new()
+    {
+        soulId = source.soulId,
+        fillingId = source.fillingId,
+        bakeStateId = source.bakeStateId,
+        firstDiscoveredDay = source.firstDiscoveredDay,
+        linkedCustomerId = source.linkedCustomerId
+    };
+
+    private static AchievementProgressData CloneAchievement(AchievementProgressData source) => new()
+    {
+        achievementId = source.achievementId,
+        progress = source.progress,
+        unlocked = source.unlocked,
+        unlockedAt = source.unlockedAt
+    };
 
     private static void MergeUnique(List<string> target, List<string> source)
     {

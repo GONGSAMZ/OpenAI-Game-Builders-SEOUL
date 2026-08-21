@@ -10,7 +10,7 @@ import {
   type PlayerSaveStore
 } from "./save-store.js";
 
-const currentSchemaVersion = 3;
+const currentSchemaVersion = 4;
 const progressMigrationId = "progress-v1";
 const defaultFillings = ["red-bean", "custard", "nutella", "cream-cheese"];
 

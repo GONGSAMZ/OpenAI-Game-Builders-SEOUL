@@ -12,6 +12,9 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     GameObject storyBubble;
     bool isStoryChoiceOpen;
     bool isStoryReplyVisible;
+    string[] specialIntroLines = System.Array.Empty<string>();
+    int specialIntroLineIndex = -1;
+    int specialIntroAdvanceFrame = -1;
 /*    static int level = 1; //손님 레벨
     static int Ex; //누적 손님 만족도*/
 
@@ -117,11 +120,18 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        // 완성된 붕어빵을 선택한 상태라면 주문 받기나 대화보다 전달을 우선합니다.
-        if (InputManager.Instance != null && InputManager.Instance.TryHandleSelectedFishBun(Customer))
+        if (isLeaving == true)
             return;
 
-        if (isLeaving == true)
+        // 특별 주문 대화 중에는 이전에 선택해 둔 붕어빵 전달보다 대화 진행을 우선한다.
+        if (isSpecialOrder && !didAcceptOrder && specialIntroLineIndex >= 0)
+        {
+            AdvanceSpecialIntro();
+            return;
+        }
+
+        // 완성된 붕어빵을 선택한 상태라면 주문 받기나 대화보다 전달을 우선합니다.
+        if (InputManager.Instance != null && InputManager.Instance.TryHandleSelectedFishBun(Customer))
             return;
 
         if (isStoryChoiceOpen)
@@ -139,15 +149,26 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
             return;
         }
 
-        //주문
+        AcceptOrder();
+    }
+
+    /// <summary>일반 주문과 특별 주문이 같은 접수 경로를 한 번만 사용하게 합니다.</summary>
+    private void AcceptOrder()
+    {
+        if (didAcceptOrder || isLeaving)
+            return;
+
+        if (isSpecialOrder)
+            startTime = Managers.Game.delta;
+
         Order();
-        //주문 받음
         Managers.Game.acceptOrder(order);
         didAcceptOrder = true;
         TutorialSignals.Raise(TutorialEvent.CustomerOrderAccepted, Customer);
         string customerName = CustomerCollectionCatalog.Get(customerType)?.DisplayName ?? customerType.ToString();
         Debug.Log(
             $"[손님 이야기] 주문 수락 | 손님={customerName}" +
+            $" | 특별 주문={(isSpecialOrder ? "예" : "아니요")}" +
             $" | 튜토리얼 진행 중={(UI_Tutorial.IsRunning ? "예" : "아니요")}" +
             $" | {CustomerStoryProgress.GetTalkDebugState(customerType)}");
         RefreshStoryBubble();
@@ -209,8 +230,6 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         RefreshStoryBubble();
     }
 
-    public void OnStoryOverlayClosed() => RefreshStoryBubble();
-
     public void OnStoryReplyFinished()
     {
         if (!isStoryReplyVisible)
@@ -258,7 +277,9 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         yield return new WaitForSeconds(1f);
 
-        if (didAcceptOrder == true)
+        if (isSpecialOrder && !didAcceptOrder && specialIntroLineIndex >= 0)
+            ShowCurrentSpecialIntroLine();
+        else if (didAcceptOrder == true)
             UI_order.SetOrderText(order);
         else
             UI_order.gameObject.SetActive(false);
@@ -283,6 +304,10 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     void Update()
     {
         if (Managers.Game.isRunning == false)
+            return;
+
+        // 특별 대사를 읽는 시간은 손님의 대기 시간으로 계산하지 않는다.
+        if (isSpecialOrder && !didAcceptOrder)
             return;
 
 
@@ -339,6 +364,9 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         didAcceptOrder = false;
         isLeaving = false;
         isSpecialOrder = false;
+        specialIntroLines = System.Array.Empty<string>();
+        specialIntroLineIndex = -1;
+        specialIntroAdvanceFrame = -1;
         EnsureStoryBubble();
         RefreshStoryBubble();
         ++Managers.Game.numsOfCurCustomers;
@@ -372,9 +400,10 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         //맛 중복 방지를 위한 범위 리스트
         List<int> orderableFillingType = new List<int>();
 
-        //주문 가능한 맛 범위(orderableFillingType)에 대해 초기화
-        for (int i = 0; i < Managers.Game.NumOfFilling; ++i)
-            orderableFillingType.Add(i);
+        // 해금 개수가 아니라 저장된 재료 ID를 기준으로 주문 가능한 맛을 만든다.
+        for (int i = 0; i < Util.GetEnumSize(typeof(FillingType)); ++i)
+            if (Managers.Game.IsFillingUnlocked((FillingType)i))
+                orderableFillingType.Add(i);
 
         //1. 주문할 붕어빵 개수
         NumOfFishBun = UnityEngine.Random.Range(minFishBun, maxFishBun + 1);
@@ -517,6 +546,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
             return;
 
         isLeaving = true;
+        specialIntroLineIndex = -1;
         if (isStoryChoiceOpen)
         {
             isStoryChoiceOpen = false;
@@ -535,12 +565,12 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         Sprite reaction;
         if (isAngry == true)
         {
-            reaction = CustomerData.GetImage(2); //불만족
+            reaction = CustomerData.GetImage(CustomerExpression.Disappointed);
             if(didAcceptOrder == true)
                 Managers.Game.cancelOrder(order); //주문 취소
         }
         else
-            reaction = CustomerData.GetImage(1); //만족
+            reaction = CustomerData.GetImage(CustomerExpression.Joy);
 
         // 주문 또는 낮 대화 답변 말풍선 없애기
         UI_order.gameObject.SetActive(false);
@@ -616,9 +646,50 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         CustomerData = Managers.Resource.LoadCustomerSO(customerType);
         Customer.GetComponent<SpriteRenderer>().sprite = CustomerData.GetImage();
         pay = 0; didAcceptOrder = false; isLeaving = false; isSpecialOrder = true;
+        orderAngryPoint = 0;
+        startTime = Managers.Game.delta;
+        UI_order.slider.value = 0f;
         customer.gameObject.SetActive(true);
-        EnsureStoryBubble(); RefreshStoryBubble();
-        CustomerStoryOverlay.ShowSpecialIntro(this);
+        EnsureStoryBubble();
+
+        // 화면 전체 팝업 대신 손님에게 붙어 있는 기존 주문 말풍선에서 한 문장씩 진행한다.
+        specialIntroLines = story.SpecialIntro
+            .Split('\n')
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .ToArray();
+        specialIntroLineIndex = specialIntroLines.Length > 0 ? 0 : -1;
+        if (specialIntroLineIndex >= 0)
+            ShowCurrentSpecialIntroLine();
+        else
+            AcceptOrder();
+    }
+
+    private void ShowCurrentSpecialIntroLine()
+    {
+        bool isLastLine = specialIntroLineIndex >= specialIntroLines.Length - 1;
+        string prompt = isLastLine ? "눌러서 특별 주문 받기" : "눌러서 계속";
+        UI_order.SetMessage($"{specialIntroLines[specialIntroLineIndex]}\n\n{prompt}", AdvanceSpecialIntro);
+        UI_order.gameObject.SetActive(true);
+    }
+
+    private void AdvanceSpecialIntro()
+    {
+        if (specialIntroAdvanceFrame == Time.frameCount)
+            return;
+
+        specialIntroAdvanceFrame = Time.frameCount;
+        if (!isSpecialOrder || didAcceptOrder || isLeaving || specialIntroLineIndex < 0)
+            return;
+
+        if (specialIntroLineIndex < specialIntroLines.Length - 1)
+        {
+            specialIntroLineIndex++;
+            ShowCurrentSpecialIntroLine();
+            return;
+        }
+
+        specialIntroLineIndex = -1;
+        AcceptOrder();
     }
 
     private void EnsureStoryBubble()

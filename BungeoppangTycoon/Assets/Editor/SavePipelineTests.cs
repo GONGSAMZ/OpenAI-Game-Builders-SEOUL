@@ -12,6 +12,12 @@ public sealed class SavePipelineTests
         SaveGameData data = SaveDataFactory.CreateDefault();
         data.run.nextDay = 7;
         data.run.money = 12345;
+        data.run.customerStories.Add(new CustomerStoryRunState
+        {
+            customerId = "jeonghyeon",
+            lastTalkDay = 3,
+            nextSpecialOrderDay = 4
+        });
         data.account.discoveredSouls.Add(new SoulDiscoveryData { soulId = "soul:red-bean:soft" });
         data.account.lifetimeStats.totalSales = 50;
 
@@ -20,6 +26,7 @@ public sealed class SavePipelineTests
         Assert.That(data.run.nextDay, Is.EqualTo(1));
         Assert.That(data.run.money, Is.EqualTo(SaveDataFactory.InitialMoney));
         Assert.That(data.run.unlockedFillingIds.Count, Is.EqualTo(4));
+        Assert.That(data.run.customerStories, Is.Empty);
         Assert.That(data.account.discoveredSouls.Count, Is.EqualTo(1));
         Assert.That(data.account.lifetimeStats.totalSales, Is.EqualTo(50));
     }
@@ -71,7 +78,7 @@ public sealed class SavePipelineTests
             SaveGameData legacy = new() { schemaVersion = 2 };
             SaveDataFactory.Normalize(legacy);
 
-            Assert.That(legacy.schemaVersion, Is.EqualTo(3));
+            Assert.That(legacy.schemaVersion, Is.EqualTo(4));
             Assert.That(legacy.settings.masterVolume, Is.EqualTo(0.35f).Within(0.001f));
             Assert.That(legacy.settings.keyboardHintsEnabled, Is.False);
             Assert.That(legacy.settings.tutorialCompleted, Is.True);
@@ -138,6 +145,75 @@ public sealed class SavePipelineTests
         Assert.That(merged.storyCompleted, Is.True);
         Assert.That(merged.visitCount, Is.EqualTo(3));
         Assert.That(merged.completedTopicIds, Is.EquivalentTo(new[] { "topic-1", "topic-2" }));
+    }
+
+    [Test]
+    public void Normalize_V3StoryDates_MovesDatesIntoRunState()
+    {
+        SaveGameData data = SaveDataFactory.CreateDefault();
+        data.schemaVersion = 3;
+        data.account.customers.Add(new CustomerProgressData
+        {
+            customerId = "jeonghyeon",
+            lastTalkDay = 2,
+            retryAvailableDay = 5
+        });
+
+        SaveDataFactory.Normalize(data);
+
+        CustomerStoryRunState state = data.run.customerStories.Find(
+            value => value.customerId == "jeonghyeon");
+        CustomerProgressData customer = data.account.customers.Find(
+            value => value.customerId == "jeonghyeon");
+        Assert.That(state, Is.Not.Null);
+        Assert.That(state.lastTalkDay, Is.EqualTo(2));
+        Assert.That(state.nextSpecialOrderDay, Is.EqualTo(5));
+        Assert.That(customer.lastTalkDay, Is.EqualTo(-1));
+        Assert.That(customer.retryAvailableDay, Is.EqualTo(-1));
+    }
+
+    [Test]
+    public void CustomerStorySchedule_FailureRetriesInTwoDaysAndStaysDue()
+    {
+        int retryDay = CustomerStorySchedule.RetryDayAfterFailure(3);
+
+        Assert.That(retryDay, Is.EqualTo(5));
+        Assert.That(CustomerStorySchedule.IsOrderDue(retryDay, 4), Is.False);
+        Assert.That(CustomerStorySchedule.IsOrderDue(retryDay, 5), Is.True);
+        Assert.That(CustomerStorySchedule.IsOrderDue(retryDay, 6), Is.True);
+    }
+
+    [Test]
+    public void MergeAfterRemoteConflict_PreservesAccountUnlocksAndUsesRemoteRun()
+    {
+        SaveGameData remote = SaveDataFactory.CreateDefault();
+        remote.revision = 7;
+        remote.run.nextDay = 8;
+        remote.run.money = 17000;
+        remote.account.discoveredSouls.Add(new SoulDiscoveryData { soulId = "soul:remote" });
+        remote.account.lifetimeStats.totalSales = 20;
+
+        SaveGameData local = SaveDataFactory.CreateDefault();
+        local.run.nextDay = 3;
+        local.run.money = 8000;
+        local.account.discoveredSouls.Add(new SoulDiscoveryData { soulId = "soul:local" });
+        local.account.customers.Add(new CustomerProgressData
+        {
+            customerId = "jeonghyeon",
+            storyCompleted = true,
+            completedTopicIds = new() { "topic-1" }
+        });
+        local.account.lifetimeStats.totalSales = 25;
+
+        SaveGameData merged = SaveDataFactory.MergeAfterRemoteConflict(remote, local);
+
+        Assert.That(merged.revision, Is.EqualTo(7));
+        Assert.That(merged.run.nextDay, Is.EqualTo(8));
+        Assert.That(merged.run.money, Is.EqualTo(17000));
+        Assert.That(merged.account.discoveredSouls.Exists(value => value.soulId == "soul:remote"), Is.True);
+        Assert.That(merged.account.discoveredSouls.Exists(value => value.soulId == "soul:local"), Is.True);
+        Assert.That(merged.account.customers.Find(value => value.customerId == "jeonghyeon").storyCompleted, Is.True);
+        Assert.That(merged.account.lifetimeStats.totalSales, Is.EqualTo(25));
     }
 
     [Test]

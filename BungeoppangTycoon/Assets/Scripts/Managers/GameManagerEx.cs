@@ -3,35 +3,27 @@ using System.Collections.Generic;
 using UnityEngine;
 using static Util;
 
+/// <summary>
+/// 게임 씬이 열려 있는 동안만 사용하는 영업 상태입니다.
+/// 저장이 필요한 도감·손님 이야기·해금 재료·설정은 SaveService.Data에 보관합니다.
+/// 이 객체의 값은 하루가 끝날 때 GameManagerEx가 SaveService로 정산하여 저장합니다.
+/// </summary>
 public class GameData
 {
+    /// <summary>현재 영업 중인 날짜입니다. 저장 데이터의 nextDay와는 의미가 다릅니다.</summary>
     public int day;
 
+    /// <summary>재료비를 빼기 전후로 영업 중 변하는 현재 보유 금액입니다.</summary>
     public int money;
-    //public int spritPiece;
-
-    //해금된 재료 개수
-    public int numOfFilling;
-
-    //도감
-
-    //스토리 진행률
-
-    //아이템
-    
-   
 }
 
 public class GameManagerEx
 {
-    GameData gameData = new GameData();
-    GameData CurData
-    {
-        get { return gameData; }
-        set { gameData = value; }
-    }
+    // SaveGameData를 영업 중에 바로 수정하지 않도록, 씬 안에서는 이 임시 상태만 갱신한다.
+    readonly GameData gameData = new GameData();
+    GameData CurData => gameData;
 
-    #region GameData
+    #region 영업 중 임시 상태
     public int Day
     {
         get { return CurData.day; }
@@ -44,11 +36,9 @@ public class GameManagerEx
         set { CurData.money = value; }
     }
 
-    public int NumOfFilling
-    {
-        get { return CurData.numOfFilling; }
-        set { CurData.numOfFilling = value; }
-    }
+    // 실제 재료 해금 여부는 저장된 재료 ID를 기준으로 판정한다.
+    public bool IsFillingUnlocked(FillingType filling) =>
+        SaveService.Instance.IsFillingUnlocked(filling);
     #endregion
 
     #region 시간 관련 변수
@@ -170,11 +160,10 @@ public class GameManagerEx
         for (int i = 0; i < GetEnumSize(typeof(FillingType)); ++i)
             fillingArr[i] = FindObject(ParentGo, $"{(FillingType)i}", true);
 
-        //2. 데이터 초기화
-        // 저장값의 nextDay는 다음에 시작할 영업일이다. Opening에서 1 증가시키므로 여기서는 1을 뺀다.
+        //2. 저장된 영업 기록을 이번 씬의 임시 상태로 복사한다.
+        // nextDay는 "다음에 시작할 날"이고, Opening에서 Day를 1 올리므로 여기서는 1을 뺀다.
         SaveGameData saved = SaveService.Data;
         CurData.day = Mathf.Max(1, saved.run.nextDay) - 1;
-        CurData.numOfFilling = Mathf.Clamp(saved.run.unlockedFillingIds.Count, 1, GetEnumSize(typeof(FillingType)));
         CurData.money = saved.run.money;
         CustomerStoryProgress.InitializeGame();
 
@@ -218,6 +207,10 @@ public class GameManagerEx
                         break;
                     if (isAllExited == true && CustomerStoryProgress.IsSpecialOrderDue())
                     {
+                        // 마감 안내가 닫힌 다음 특별 대화를 시작해 두 입력 차단 UI가 겹치지 않게 한다.
+                        if (UI_AlertClosingTime.IsVisible)
+                            break;
+
                         CustomerStoryProgress.BeginSpecialOrder();
                         CustomerController controller = UnityEngine.Object.FindFirstObjectByType<CustomerController>();
                         if (controller != null)
@@ -295,7 +288,7 @@ public class GameManagerEx
         //4. 필링 활성화/비활성화
         for (int i = 0; i < GetEnumSize(typeof(FillingType)); ++i)
         {
-            if (i < Managers.Game.CurData.numOfFilling)
+            if (IsFillingUnlocked((FillingType)i))
                 fillingArr[i].SetActive(true);
             else
                 fillingArr[i].SetActive(false);

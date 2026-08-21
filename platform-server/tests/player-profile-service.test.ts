@@ -59,7 +59,7 @@ describe("PlayerProfileService", () => {
     }));
   });
 
-  it("구버전 설정은 클라이언트 이관 전까지 v2로 유지하고 PUT에서 v3가 된다", async () => {
+  it("구버전 설정은 클라이언트 이관 전까지 v2로 유지하고 PUT에서 v4가 된다", async () => {
     const saves = new InMemoryPlayerSaveStore();
     const service = new PlayerProfileService(saves, new InMemoryPlayerProgressStore());
     await saves.put("player-a", 0, profile(2));
@@ -71,7 +71,7 @@ describe("PlayerProfileService", () => {
       ...legacy!,
       settings: { masterVolume: 0.25, keyboardHintsEnabled: false, tutorialCompleted: true }
     });
-    expect(upgraded.schemaVersion).toBe(3);
+    expect(upgraded.schemaVersion).toBe(4);
     expect((await service.get("player-a"))?.settings).toEqual(upgraded.settings);
   });
 
