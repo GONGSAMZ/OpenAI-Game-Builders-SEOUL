@@ -84,10 +84,18 @@ jobs:
           fi
 
           aws dynamodb wait table-exists --table-name "$AWS_DYNAMODB_TABLE"
-          purchase_index_status=$(aws dynamodb describe-table \
-            --table-name "$AWS_DYNAMODB_TABLE" \
-            --query "Table.GlobalSecondaryIndexes[?IndexName=='SubjectCreatedAtIndex'].IndexStatus | [0]" \
-            --output text)
+          purchase_index_status=""
+          for attempt in {1..80}; do
+            purchase_index_status=$(aws dynamodb describe-table \
+              --table-name "$AWS_DYNAMODB_TABLE" \
+              --query "Table.GlobalSecondaryIndexes[?IndexName=='SubjectCreatedAtIndex'].IndexStatus | [0]" \
+              --output text)
+            if [[ "$purchase_index_status" == "ACTIVE" ]]; then
+              break
+            fi
+            echo "Waiting for SubjectCreatedAtIndex: $purchase_index_status (attempt $attempt/80)"
+            sleep 15
+          done
           if [[ "$purchase_index_status" != "ACTIVE" ]]; then
             echo "DynamoDB SubjectCreatedAtIndex is not active: $purchase_index_status" >&2
             exit 1
