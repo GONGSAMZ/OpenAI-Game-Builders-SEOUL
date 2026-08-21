@@ -50,8 +50,51 @@ jobs:
             exit 1
           fi
 
-  build-and-deploy:
+  update-infrastructure:
     needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
+      AWS_BOOTSTRAP_STACK: openai-game-builders-seoul-bootstrap
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update account data infrastructure
+        shell: bash
+        run: |
+          if ! aws cloudformation deploy \
+            --stack-name "$AWS_BOOTSTRAP_STACK" \
+            --template-file infra/aws/bootstrap.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset; then
+            echo "### Bootstrap stack update failed" >> "$GITHUB_STEP_SUMMARY"
+            aws cloudformation describe-stack-events \
+              --stack-name "$AWS_BOOTSTRAP_STACK" \
+              --max-items 30 \
+              --query 'StackEvents[].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+              --output table || true
+            exit 1
+          fi
+
+          aws dynamodb wait table-exists --table-name "$AWS_DYNAMODB_TABLE"
+          purchase_index_status=$(aws dynamodb describe-table \
+            --table-name "$AWS_DYNAMODB_TABLE" \
+            --query "Table.GlobalSecondaryIndexes[?IndexName=='SubjectCreatedAtIndex'].IndexStatus | [0]" \
+            --output text)
+          if [[ "$purchase_index_status" != "ACTIVE" ]]; then
+            echo "DynamoDB SubjectCreatedAtIndex is not active: $purchase_index_status" >&2
+            exit 1
+          fi
+
+  build-and-deploy:
+    needs: [preflight, update-infrastructure]
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -124,25 +167,6 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Update account data infrastructure
-        shell: bash
-        run: |
-          aws cloudformation deploy \
-            --stack-name "$AWS_BOOTSTRAP_STACK" \
-            --template-file infra/aws/bootstrap.yml \
-            --capabilities CAPABILITY_NAMED_IAM \
-            --no-fail-on-empty-changeset
-
-          aws dynamodb wait table-exists --table-name "$AWS_DYNAMODB_TABLE"
-          purchase_index_status=$(aws dynamodb describe-table \
-            --table-name "$AWS_DYNAMODB_TABLE" \
-            --query "Table.GlobalSecondaryIndexes[?IndexName=='SubjectCreatedAtIndex'].IndexStatus | [0]" \
-            --output text)
-          if [[ "$purchase_index_status" != "ACTIVE" ]]; then
-            echo "DynamoDB SubjectCreatedAtIndex is not active: $purchase_index_status" >&2
-            exit 1
-          fi
 
       - name: Verify DynamoDB recovery and session expiry
         shell: bash
