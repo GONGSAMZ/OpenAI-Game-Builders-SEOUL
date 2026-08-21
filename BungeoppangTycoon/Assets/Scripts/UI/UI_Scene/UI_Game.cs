@@ -21,6 +21,8 @@ public class UI_Game : UI_Base
 
     static GameObject ordersPanel;
 
+    GameObject viewHintPanel;
+    GameObject shortcutHintPanel;
     TextMeshProUGUI viewHintText;
     TextMeshProUGUI shortcutHintText;
     TextMeshProUGUI selectedFishBunText;
@@ -143,6 +145,7 @@ public class UI_Game : UI_Base
             new Vector2(24f, -150f),
             new Vector2(470f, 58f),
             28f);
+        viewHintPanel = viewHintText.transform.parent.gameObject;
 
         shortcutHintText = CreateHintPanel(
             "CookingShortcutHint",
@@ -151,6 +154,7 @@ public class UI_Game : UI_Base
             new Vector2(0f, 22f),
             new Vector2(1740f, 58f),
             25f);
+        shortcutHintPanel = shortcutHintText.transform.parent.gameObject;
         shortcutHintText.text = "Q  주전자   |   1  팥   2  슈크림   3  누텔라   4  크림치즈   5  피자   6  민트   7  녹차   8  고구마";
 
         selectedFishBunText = CreateHintPanel(
@@ -211,7 +215,7 @@ public class UI_Game : UI_Base
 
     void RefreshViewHints(GameplayView view)
     {
-        if (viewHintText == null || shortcutHintText == null)
+        if (viewHintPanel == null || shortcutHintPanel == null || viewHintText == null || shortcutHintText == null)
             return;
 
         bool touchMode = InputManager.Instance != null && InputManager.Instance.IsTouchMode;
@@ -219,8 +223,10 @@ public class UI_Game : UI_Base
         string viewName = view == GameplayView.Customer ? "손님 화면" : "조리대 화면";
         string controlHint = touchMode ? "위아래로 밀거나 전환 버튼" : "SPACE  화면 전환";
         viewHintText.text = $"{viewName}  ·  {controlHint}";
-        viewHintText.gameObject.SetActive(touchMode || showKeyboardHints);
-        shortcutHintText.gameObject.SetActive(showKeyboardHints && view == GameplayView.Cooking);
+        // 텍스트만 끄면 부모 패널의 Image가 남아 빈 회색 박스로 보인다.
+        // 안내 UI는 배경 패널 전체를 함께 숨긴다.
+        viewHintPanel.SetActive(touchMode || showKeyboardHints);
+        shortcutHintPanel.SetActive(showKeyboardHints && view == GameplayView.Cooking);
     }
 
     void RefreshTouchMode(bool touchMode)
