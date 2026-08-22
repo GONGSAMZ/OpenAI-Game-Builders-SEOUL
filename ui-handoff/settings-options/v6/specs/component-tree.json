@@ -1,0 +1,16 @@
+{"coordinateSpace":{"width":1920,"height":1080,"origin":"top-left"},"components":[
+{"id":"settings-options-root","name":"UI_SettingsOptions","parentId":null,"order":0,"implementation":"native","rect":[0,0,1920,1080],"anchors":"stretch","pivot":[0.5,0.5],"states":["default"],"dynamicContent":false},
+{"id":"paper-panel","name":"PaperPanel","parentId":"settings-options-root","order":0,"implementation":"image","rect":[330,120,1260,840],"anchors":"center","pivot":[0.5,0.5],"states":["default"],"dynamicContent":false},
+{"id":"header","name":"Header","parentId":"paper-panel","order":1,"implementation":"native","rect":[60,64,992,112],"anchors":"top-center","pivot":[0.5,1],"states":["default"],"dynamicContent":false},
+{"id":"settings-icon","name":"SettingsIcon","parentId":"header","order":0,"implementation":"image","rect":[0,28,56,56],"anchors":"top-left","pivot":[0,1],"states":["default"],"dynamicContent":false,"asset":"assets/settings-icon-watercolor.png"},
+{"id":"close-button","name":"CloseButton","parentId":"header","order":1,"implementation":"hybrid","rect":[936,28,56,56],"anchors":"top-right","pivot":[1,1],"states":["default","hover","pressed","focused"],"dynamicContent":false,"asset":"assets/close-button-watercolor.png"},
+{"id":"volume-card","name":"VolumeCard","parentId":"paper-panel","order":2,"implementation":"native","rect":[60,250,540,220],"anchors":"top-left","pivot":[0,1],"states":["default"],"dynamicContent":false},
+{"id":"volume-slider","name":"VolumeSlider","parentId":"volume-card","order":0,"implementation":"hybrid","rect":[52,140,430,34],"anchors":"bottom-center","pivot":[0.5,0],"states":["default","focused","disabled"],"dynamicContent":true},
+{"id":"keyboard-card","name":"KeyboardCard","parentId":"paper-panel","order":3,"implementation":"native","rect":[660,250,540,220],"anchors":"top-right","pivot":[1,1],"states":["default"],"dynamicContent":false},
+{"id":"keyboard-toggle","name":"KeyboardHintToggle","parentId":"keyboard-card","order":0,"implementation":"native","rect":[370,20,118,48],"anchors":"top-right","pivot":[1,1],"states":["on","off","hover","pressed","focused"],"dynamicContent":true},
+{"id":"keycap-space","name":"KeycapSpace","parentId":"keyboard-card","order":1,"implementation":"native","rect":[32,130,190,46],"anchors":"bottom-left","pivot":[0,0],"states":["default"],"dynamicContent":false},
+{"id":"keycap-1-8","name":"Keycap1To8","parentId":"keyboard-card","order":2,"implementation":"native","rect":[250,130,190,46],"anchors":"bottom-left","pivot":[0,0],"states":["default"],"dynamicContent":false},
+{"id":"reset-zone","name":"ResetZone","parentId":"paper-panel","order":4,"implementation":"native","rect":[60,504,1140,138],"anchors":"bottom-center","pivot":[0.5,0],"states":["default"],"dynamicContent":false},
+{"id":"warning-icon","name":"WarningIcon","parentId":"reset-zone","order":0,"implementation":"image","rect":[32,43,52,52],"anchors":"left-center","pivot":[0,0.5],"states":["default"],"dynamicContent":false,"asset":"assets/icon-warning-triangle.png"},
+{"id":"reset-button","name":"ResetGameButton","parentId":"reset-zone","order":1,"implementation":"hybrid","rect":[818,28,270,82],"anchors":"right-center","pivot":[1,0.5],"states":["default","hover","pressed","disabled","focused"],"dynamicContent":false,"asset":"assets/button-reset-watercolor.png"}
+]}

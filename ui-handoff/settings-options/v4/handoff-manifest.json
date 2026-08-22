@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "1.0",
+  "status": "HANDOFF_READY",
+  "screenId": "settings-options",
+  "prefabName": "UI_SettingsOptions",
+  "designVersion": "v4",
+  "figma": {
+    "fileKey": "Yrun8rClSF4bLDLSsDDjuQ",
+    "pageId": "247:2",
+    "nodeId": "247:2",
+    "nodeName": "Settings content · V4",
+    "sourceFrame": [1260, 900]
+  },
+  "unity": {
+    "projectRoot": "C:/DevHub/02_GameDev/GONGSAMZ/BungeoppangTycoon",
+    "uiSystem": "UGUI",
+    "referenceResolution": [1920, 1080],
+    "supportedRatios": ["16:9", "16:10", "21:9"],
+    "canvasScalerMatch": 0.5,
+    "prefabPath": "Assets/Resources/Prefabs/UI/UI_SettingsOptions.prefab"
+  },
+  "specs": {
+    "componentTree": "specs/component-tree.json",
+    "importSettings": "specs/import-settings.json",
+    "interactionStates": "specs/interaction-states.json",
+    "visualDiffPolicy": "specs/visual-diff-policy.json",
+    "approval": "review/approval.json"
+  },
+  "references": [
+    "reference/default-1260x900.png"
+  ],
+  "artifacts": [
+    {"path":"reference/default-1260x900.png","kind":"reference","sha256":"36e7eadd6f73c091e192ebf6e4cd59968d2aa557eda92f6cbc3d2fac6c5b0a92"},
+    {"path":"review/approval.json","kind":"approval","sha256":"df8002a09bed45a0679ef0563a6c4cb3c6a2d3e43bb314d8d33241649d93b43f"},
+    {"path":"specs/planning.json","kind":"planning","sha256":"e3f1f7721d1c3e38c7f33be63396638382aba652651aab04e84f8d7ab8da5887"},
+    {"path":"specs/component-tree.json","kind":"spec","sha256":"304326cd7e1ebae9e44beba8a61a4d26b5dd5f91da70050898a2b45822d4f12c"},
+    {"path":"specs/import-settings.json","kind":"spec","sha256":"863af44a561095c2bde23d547dab2639705ace90bd02c547f648d1637333d0fd"},
+    {"path":"specs/interaction-states.json","kind":"spec","sha256":"8fa42e8d5a62fa3b180d74b1d678f5cd8d87beb231f9a6ed2aec62ed4ee5d1fd"},
+    {"path":"specs/visual-diff-policy.json","kind":"spec","sha256":"ba44bad0ed1196513bacde26a0e1926580c0902db255a86176544b7136309011"},
+    {"path":"assets/button-controls-watercolor.png","kind":"unity-sprite","sha256":"fb9313e6560d2bcdfcbb716f6a3884f1294e698ccc46e0cb074e245e18132997"},
+    {"path":"assets/button-reset-watercolor.png","kind":"unity-sprite","sha256":"71aabb49cc8379284cf91a421fbce77cc323fd7231ace34a206482489d95419d"},
+    {"path":"assets/settings-icon-watercolor.png","kind":"unity-sprite","sha256":"382d90ff7a98d3f53ac2233fbeaaa195a908271e458537aa3dd60f89d61c963c"},
+    {"path":"assets/close-button-watercolor.png","kind":"unity-sprite","sha256":"1d12d008c1197e67292226435c6f8fbd87230425c123dfd9b415f20a8f6a0ebc"},
+    {"path":"assets/sound-icon-badge.png","kind":"unity-sprite","sha256":"b63dccccbbce7f92e483c68149d6709e7df2ba2067600b0fe19e9db92d2a1125"},
+    {"path":"assets/sound-icon.png","kind":"unity-sprite","sha256":"1cf5891b3ea88541baefff0d2e4c6ee0b6eb6ee514654a3898a96e70fa0925a6"},
+    {"path":"assets/volume-down.png","kind":"unity-sprite","sha256":"cfff1ae58707c9a326c185872c41e46cacd59d6bc0d27c8f31088709b399cbd3"},
+    {"path":"assets/volume-knob.png","kind":"unity-sprite","sha256":"55cb7750b79b3872c244d9dc7aeb089b5da41d61616ce9e0760dddf3efcc7038"},
+    {"path":"assets/keyboard-icon-badge.png","kind":"unity-sprite","sha256":"797ad572c85ed63b180fc2156e0064a80e327542078d5b6f9665e1724c4958f5"},
+    {"path":"assets/keyboard-icon.png","kind":"unity-sprite","sha256":"a4e6db2aafeb223d97bdb17e4850d2dfc6db4ca0f9c060ac0c1ab1e2f70bf775"},
+    {"path":"assets/toggle-thumb.png","kind":"unity-sprite","sha256":"ecafad7f53af203e7ddf32ee977ae74589599102a4dc39127a99521a2d89ee87"},
+    {"path":"assets/warning-icon.png","kind":"unity-sprite","sha256":"940be9f56db542ee8aa2338f0618cf31c8fcbceaaefac161e5d2d99b43673da0"},
+    {"path":"assets/autosave-status.png","kind":"unity-sprite","sha256":"a9109061148450524131599bc702d34cdd9cb5a0e156c822356a755c622a2806"},
+    {"path":"assets/sound-icon-badge.svg","kind":"figma-vector-source","sha256":"20ec9887aaa8509f084ea6c33b3f9dceee668fe729b2925288dc573a14637fa5"},
+    {"path":"assets/sound-icon.svg","kind":"figma-vector-source","sha256":"77a2030f5e90bc14120d2dc39b5bb844627fa362a9d79fb27353442ef1609e45"},
+    {"path":"assets/volume-down.svg","kind":"figma-vector-source","sha256":"b9e1850abfaa01b620c4d2d766d79275907bcee2c5fc5898e50b0851e05f7213"},
+    {"path":"assets/volume-knob.svg","kind":"figma-vector-source","sha256":"daa16df7b43024764d2f69d6103adc26ef56584ec5f8f0121086c73769f3dc05"},
+    {"path":"assets/keyboard-icon-badge.svg","kind":"figma-vector-source","sha256":"ce62ff5f537ddb9e9b6687404f673142c62af88e52ada761000924a3e75aee03"},
+    {"path":"assets/keyboard-icon.svg","kind":"figma-vector-source","sha256":"2565a1297eda331e4a95f72b361d10d78ec286ad3aa519efad0b49f6ee4e186a"},
+    {"path":"assets/toggle-thumb.svg","kind":"figma-vector-source","sha256":"8d88741a7b8e856793ba42ccbd4ccbbf7df5c8e29b2fc34ebbe4df1335aed940"},
+    {"path":"assets/warning-icon.svg","kind":"figma-vector-source","sha256":"3aea348ed8c6dcd2f0406b3ae89eac5336000a4d7ac6325a1bffdea0e79d38c9"},
+    {"path":"assets/autosave-status.svg","kind":"figma-vector-source","sha256":"efc88eb2f6305d99f2c5e171abeedf3de0e35fb739022fc8205aac3b6fcf5096"}
+  ],
+  "knownExceptions": [
+    "Figma node 247:2는 투명 콘텐츠 프레임이며 Unity에서는 기존 StoreV2 종이 패널과 게임 배경 위에 배치한다."
+  ]
+}
