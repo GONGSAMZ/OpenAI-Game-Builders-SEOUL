@@ -157,6 +157,9 @@ jobs:
           unityVersion: 6000.3.22f1
           targetPlatform: WebGL
           buildMethod: WebGLBuildCommand.Build
+          # Unity가 리소스 가져오기 중 생성하는 메타데이터는 배포 산출물에 포함되지 않는다.
+          # 이 자동 변경 때문에 빌드 자체를 중단하지 않도록 허용한다.
+          allowDirtyBuild: true
 
       - name: Stage Unity build in the server image
         shell: bash
