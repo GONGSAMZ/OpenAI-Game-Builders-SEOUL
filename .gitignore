@@ -20,6 +20,7 @@
 .codex/
 _codex-backups/
 tmp/
+artifacts/
 BungeoppangTycoon/webgl-*.log
 
 # The verified WebGL package is tracked so AWS deploys do not depend on a
