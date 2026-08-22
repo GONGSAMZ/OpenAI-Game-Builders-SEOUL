@@ -35,7 +35,9 @@ public enum QualityStatus
     //조리 정도에 대한 판정 기준 종류
     None,
     insufficient, //부족
+    soft, //말랑
     perfect, //완벽
+    crisp, //바삭
     excessive, //과함
 }
 
@@ -45,6 +47,11 @@ public enum CustomerType
     JeongHyun,
     HaYoung,
     MiJu,
+    Sunja,
+    Geonwoo,
+    Taesu,
+    Nari,
+    Junho,
 }
 
 public enum EndingType
@@ -103,7 +110,7 @@ public class Define
         "재료",
         "스킬",
         "도구",
-        "홍보",
+        "팥 코인 충전",
     };
 
     public static string[] UI_Settings =

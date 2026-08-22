@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: HaYoung
   m_EditorClassIdentifier: 
   _customer: 1
-  image: {fileID: -569492294, guid: 6375e4d8d2dd8aa4493c30901efec3b5, type: 3}
+  spriteSheetPath: Customers/02_HaYoung
   flavor: 1
   greetingText:
   - "\uC548\uB155\uD558\uC138\uC694!"

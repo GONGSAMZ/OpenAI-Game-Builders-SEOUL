@@ -3,52 +3,47 @@ using System.Collections.Generic;
 using UnityEngine;
 using static Util;
 
+/// <summary>
+/// 게임 씬이 열려 있는 동안만 사용하는 영업 상태입니다.
+/// 저장이 필요한 도감·손님 이야기·해금 재료·설정은 SaveService.Data에 보관합니다.
+/// 이 객체의 값은 하루가 끝날 때 GameManagerEx가 SaveService로 정산하여 저장합니다.
+/// </summary>
 public class GameData
 {
+    /// <summary>현재 영업 중인 날짜입니다. 저장 데이터의 nextDay와는 의미가 다릅니다.</summary>
     public int day;
 
+    /// <summary>재료비를 빼기 전후로 영업 중 변하는 현재 보유 금액입니다.</summary>
     public int money;
-    //public int spritPiece;
-
-    //해금된 재료 개수
-    public int numOfFilling;
 }
 
 public class GameManagerEx
 {
-    GameData gameData = new GameData();
-    GameData CurData
-    {
-        get { return gameData; }
-        set { gameData = value; }
-    }
+    // SaveGameData를 영업 중에 바로 수정하지 않도록, 씬 안에서는 이 임시 상태만 갱신한다.
+    readonly GameData gameData = new GameData();
+    GameData CurData => gameData;
 
-    #region GameData
+    #region 영업 중 임시 상태
     public int Day
     {
-        get { 
-            return CurData.day + Managers.Instance.day; }
+        get { return CurData.day; }
         set { CurData.day = value; }
     }
 
     public int Money
     {
-        get { return CurData.money + Managers.Instance.money; }
-        set {
-            Debug.Log($"돈 바뀜 {value}");
-            CurData.money = value; }
+        get { return CurData.money; }
+        set { CurData.money = value; }
     }
 
-    public int NumOfFilling
-    {
-        get { return CurData.numOfFilling; }
-        set { CurData.numOfFilling = value; }
-    }
+    // 실제 재료 해금 여부는 저장된 재료 ID를 기준으로 판정한다.
+    public bool IsFillingUnlocked(FillingType filling) =>
+        SaveService.Instance.IsFillingUnlocked(filling);
     #endregion
 
     #region 시간 관련 변수
-    readonly int startHour = 18;
-    readonly int endHour = 23;
+    readonly int startHour = 19;
+    readonly int endHour = 22;
     public int hour
     { get { return (int)delta / 60 + startHour; } }
 
@@ -68,6 +63,10 @@ public class GameManagerEx
 
     bool didAlertClosingTime = false; // 가게 운영종료 알려줬는지
     public bool isRunning = true; //가게 운영 중인지(정지 여부 포함)
+
+    // 튜토리얼 안내를 읽는 동안에는 영업 시계와 손님 대기 게이지만 멈춘다.
+    // 조리 입력은 isRunning을 유지하므로 계속 받을 수 있다.
+    public bool IsTutorialClockPaused { get; set; }
 
     public int numsOfCurCustomers = 0;
     public bool isAllExited
@@ -104,7 +103,7 @@ public class GameManagerEx
     public int totalFishBunsSold;      // 판매한 붕어빵 수
     public int totalCustomers;         // 방문한 손님 수
 
-    public int yesterdayProfit;      // 어제 수익
+    int openingMoney;                // 오늘 영업을 시작할 때의 보유금
     private int ingredientCost;         // 재료 비용
     public int IngredientCost
     {
@@ -123,13 +122,10 @@ public class GameManagerEx
     #endregion
 
     #region 엔딩 관련 변수
-    int clearCondition = 40000;
-    int endingDay = 5;
-    
-    bool isEndingDay { get { return Day >= endingDay;  } }
     bool isOver { get { return Money <= 0;  } }
-    bool isClear { get { return Money > clearCondition; } }
     #endregion
+
+    bool hasFinalizedDaily;
 
     //현재 주문
     Dictionary<FillingType, int> order = new Dictionary<FillingType, int>();
@@ -141,6 +137,20 @@ public class GameManagerEx
 
     public event Action InitAction;
 
+    /// <summary>
+    /// 같은 GameScene을 새 게임으로 다시 불러오기 전에 이전 씬 오브젝트의 구독을 정리한다.
+    /// 새 씬의 Awake에서 현재 오브젝트들이 다시 등록된다.
+    /// </summary>
+    public void PrepareForSceneReload()
+    {
+        InitAction = null;
+        parentGo = null;
+        order.Clear();
+        numsOfCurCustomers = 0;
+        IsTutorialClockPaused = false;
+        isRunning = false;
+    }
+
     //게임 생성 시 초기화 메서드
     public void InitGame()
     {
@@ -150,12 +160,17 @@ public class GameManagerEx
         for (int i = 0; i < GetEnumSize(typeof(FillingType)); ++i)
             fillingArr[i] = FindObject(ParentGo, $"{(FillingType)i}", true);
 
-        //2. 데이터 초기화
-        CurData.day = 0;
-        CurData.numOfFilling = 4;
-        CurData.money = 0;
+        //2. 저장된 영업 기록을 이번 씬의 임시 상태로 복사한다.
+        // nextDay는 "다음에 시작할 날"이고, Opening에서 Day를 1 올리므로 여기서는 1을 뺀다.
+        SaveGameData saved = SaveService.Data;
+        CurData.day = Mathf.Max(1, saved.run.nextDay) - 1;
+        CurData.money = saved.run.money;
+        CustomerStoryProgress.InitializeGame();
 
         isRunning = true;
+        IsTutorialClockPaused = false;
+        dayState = DayState.Opening;
+        hasFinalizedDaily = false;
 
         numsOfCurCustomers = 0;
 
@@ -177,8 +192,9 @@ public class GameManagerEx
 
             case DayState.Running:
 
-                //시간 측정
-                delta += Time.deltaTime * GameSpeed;
+                //시간 측정: 튜토리얼 안내 중에는 클릭 입력은 유지하고 시계만 멈춘다.
+                if (IsTutorialClockPaused == false)
+                    delta += Time.deltaTime * GameSpeed;
 
                 if(isClosingTime == true)
                 {
@@ -187,7 +203,20 @@ public class GameManagerEx
                         () => { Managers.UI.ShowUI<UI_AlertClosingTime>(false); }, 
                         ref didAlertClosingTime, false);
 
-                    if(isAllExited == true)
+                    if (CustomerStoryProgress.IsSpecialOrderActive)
+                        break;
+                    if (isAllExited == true && CustomerStoryProgress.IsSpecialOrderDue())
+                    {
+                        // 마감 안내가 닫힌 다음 특별 대화를 시작해 두 입력 차단 UI가 겹치지 않게 한다.
+                        if (UI_AlertClosingTime.IsVisible)
+                            break;
+
+                        CustomerStoryProgress.BeginSpecialOrder();
+                        CustomerController controller = UnityEngine.Object.FindFirstObjectByType<CustomerController>();
+                        if (controller != null)
+                            controller.BeginSpecialOrder(CustomerStoryProgress.ActiveStory);
+                    }
+                    else if (isAllExited == true)
                         dayState = DayState.Closing;
                 }
 
@@ -239,11 +268,14 @@ public class GameManagerEx
         //1. 데이터 초기화
         delta = 0; 
         ++CurData.day;
+        CustomerStoryProgress.BeginDay(CurData.day);
 
         totalFishBunsSold = 0;      
         totalCustomers = 0;         
         ingredientCost = 0;
-        yesterdayProfit = CurData.money;
+        todayRevenue = 0;
+        openingMoney = Money;
+        hasFinalizedDaily = false;
         didAlertClosingTime = false;
 
         //2. UI화면
@@ -256,7 +288,7 @@ public class GameManagerEx
         //4. 필링 활성화/비활성화
         for (int i = 0; i < GetEnumSize(typeof(FillingType)); ++i)
         {
-            if (i < Managers.Game.CurData.numOfFilling)
+            if (IsFillingUnlocked((FillingType)i))
                 fillingArr[i].SetActive(true);
             else
                 fillingArr[i].SetActive(false);
@@ -265,15 +297,28 @@ public class GameManagerEx
 
     void FinalizeDaily()
     {
+        if (hasFinalizedDaily == true)
+            return;
+
+        hasFinalizedDaily = true;
         Debug.Log("2. 하루 끝 & 엔딩 체크");
         isRunning = false;
+        IsTutorialClockPaused = false;
         order.Clear();
 
         //정산
-        todayRevenue = Money - yesterdayProfit;
-        //Debug.Log($"현재 돈: {Money} - 어제 매출{yesterdayProfit}");
+        todayRevenue = Money - openingMoney;
+        //Debug.Log($"현재 돈: {Money} - 오늘 시작 보유금 {openingMoney}");
         //Debug.Log($"오늘 매출: {todayRevenue} - 재료비: {ingredientCost} = 오늘 순수익 {netProfit}");
         Money -= ingredientCost;
+
+        SaveService.Instance.CommitDay(
+            Day,
+            Money,
+            totalFishBunsSold,
+            totalCustomers,
+            todayRevenue,
+            netProfit);
 
 
 
@@ -297,35 +342,21 @@ public class GameManagerEx
 
     }
 
+    public void CompleteSpecialOrder()
+    {
+        dayState = DayState.Closing;
+    }
+
     public bool IsEnding()
     {
         Debug.Log("IsEnding 진입");
 
-        if (isOver == true)
-        {
-            Managers.UI.CloseUI();
-            Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Over);
-            return true;
-        }
-        else
-        {
-            Debug.Log($"{Day} VS {endingDay}");
+        if (isOver == false)
+            return false;
 
-            if (isEndingDay == false)
-                return false;
-
-            Debug.Log("5일차다");
-
-            Managers.UI.CloseUI();
-
-            if (isClear == true)
-                Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Clear);
-            else
-                Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Normal);
-
-            return true;
-        }
-
+        Managers.UI.CloseUI();
+        Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Over);
+        return true;
     }
 
     #endregion

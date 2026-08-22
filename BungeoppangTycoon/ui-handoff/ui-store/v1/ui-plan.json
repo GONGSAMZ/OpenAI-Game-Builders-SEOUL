@@ -1,0 +1,46 @@
+{
+  "screen": {
+    "id": "ui-store",
+    "purpose": "영업 종료 뒤 다음 날 사용할 붕어빵 소와 조리 아이템을 확인·구매하고 다음 영업일을 시작한다.",
+    "prefabName": "UI_Store",
+    "referenceResolution": [1920, 1080],
+    "supportedRatios": ["16:9", "21:9"],
+    "platforms": ["PC", "WebGL"]
+  },
+  "projectContext": {
+    "uiSystem": "UGUI",
+    "canvasScaler": "ScaleWithScreenSize / 1920x1080 / match 0.5",
+    "fonts": ["Gowun Batang Bold: 제목·가격·탭", "Gowun Dodum Regular: 설명·상태"],
+    "reusedAssets": ["Sprites/UI/StoreV2/store-scene-fillings", "panel-skin", "card-surface", "button-paper", "button-primary", "filling-art-sheet"]
+  },
+  "content": {
+    "staticText": ["내일 장사 준비", "붕어빵 소", "아이템", "구매 가능", "구매를 마치고 다음 영업일"],
+    "dynamicFields": ["MoneyNum", "BeanCoinNum", "상품명", "설명", "가격", "구매 상태"],
+    "longTextSamples": ["조리 흐름을 바꾸는 도구와 일시 효과를 골라 보세요.", "새 조리 아이템을 위한 확장 슬롯"],
+    "emptyAndErrorStates": ["재화 부족 시 구매 버튼 disabled", "잠긴 상품은 잠김 상태" ]
+  },
+  "layout": {
+    "sections": ["전면 배경", "1560x896 중앙 종이 패널", "헤더·재화", "카테고리 탭", "4열 상품 카드", "안내문과 다음 영업일 버튼"],
+    "safeArea": true,
+    "responsiveRules": ["패널은 화면 중앙 고정", "21:9 여백에는 배경만 확장", "카드는 1920 기준 4열을 유지하고 좁은 화면은 가로 스크롤 또는 축소 대신 기준 해상도 스케일을 따른다"]
+  },
+  "components": [
+    {"id": "store-panel", "role": "상점 종이 패널", "implementation": "image", "states": ["default"], "dynamicContent": false, "asset": "panel-skin.png", "nineSlice": null, "anchorIntent": "center", "minHitSize": null},
+    {"id": "money-chip", "role": "보유금 표시", "implementation": "hybrid", "states": ["default"], "dynamicContent": true, "asset": "button-paper.png", "nineSlice": null, "anchorIntent": "top-right", "minHitSize": null},
+    {"id": "bean-coin-chip", "role": "팥코인 표시", "implementation": "hybrid", "states": ["default"], "dynamicContent": true, "asset": "button-paper.png", "nineSlice": null, "anchorIntent": "top-right", "minHitSize": null},
+    {"id": "category-tabs", "role": "붕어빵 소/아이템 전환", "implementation": "hybrid", "states": ["selected", "default", "focused"], "dynamicContent": false, "asset": "button-paper.png", "nineSlice": null, "anchorIntent": "top-center", "minHitSize": [380, 76]},
+    {"id": "product-card", "role": "상품 정보와 구매 상태", "implementation": "hybrid", "states": ["available", "locked", "owned", "focused"], "dynamicContent": true, "asset": "card-surface.png", "nineSlice": null, "anchorIntent": "content-grid", "minHitSize": [272, 52]},
+    {"id": "next-day-button", "role": "다음 영업일 시작", "implementation": "hybrid", "states": ["default", "hover", "pressed", "disabled", "focused"], "dynamicContent": false, "asset": "button-primary.png", "nineSlice": null, "anchorIntent": "bottom-center", "minHitSize": [480, 94]}
+  ],
+  "interactions": ["FillingButton: 재료 카드 표시", "SkillButton: 아이템 카드 표시", "PurchaseButton: 구매 처리(현재 데이터 연결 전에는 상태 표시만)", "NextDayButton: Managers.Game.StartNextDay"],
+  "artDirection": {
+    "palette": ["잉크 #1D282A", "종이 #FFF7E2", "청록 버튼", "고추장빛 강조 버튼"],
+    "textures": ["한지 종이", "수채화 천 버튼", "한국 야시장 배경"],
+    "exclude": ["일본풍 목재 프레임", "기본 Unity 단색 버튼", "이미지 안에 구운 동적 텍스트"]
+  },
+  "export": {
+    "assets": ["store-scene-fillings.png", "panel-skin.png", "card-surface.png", "button-paper.png", "button-primary.png", "filling-art-sheet.png"]
+  },
+  "acceptanceCriteria": ["1920x1080에서 Figma 기준 이미지와 패널·카드·텍스트 경계가 일치한다", "모든 동적 TMP 텍스트가 보인다", "소 이미지는 66x180 세로 슬롯에 한 개만 보인다", "탭·다음 영업일 버튼이 키보드와 마우스로 동작한다"],
+  "assumptions": ["사용자가 ‘피그마 시안이랑 똑같이 작업’하라고 승인한 Fillings/Items 화면을 v1 기준으로 기록한다", "상점 구매 경제 로직은 이 UI 교체 범위 밖이다"]
+}

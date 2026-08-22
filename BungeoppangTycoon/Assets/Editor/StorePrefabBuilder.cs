@@ -8,26 +8,38 @@ using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
 /// <summary>
-/// UI_Store를 피그마 시안의 큰 제목, 이중 보유 재화, 탭, 상품 카드 구조로 다시 만듭니다.
-/// Unity가 닫힌 상태에서는 -executeMethod StorePrefabBuilder.BuildFromCommandLine으로도 실행할 수 있습니다.
+/// 피그마 Store UI · PC 시안을 기준으로 UI_Store를 빈 루트부터 다시 생성합니다.
+/// 실행 전 기존 프리팹은 UI_Store_Legacy로 백업하고, 백업본에서는 UI_Store를 제거합니다.
 /// </summary>
 public static class StorePrefabBuilder
 {
     private const string StorePrefabPath = "Assets/Resources/Prefabs/UI/UI_Store.prefab";
+    private const string LegacyPrefabPath = "Assets/Resources/Prefabs/UI/UI_Store_Legacy.prefab";
+    private const string HandoffManifestPath = "ui-handoff/ui-store/v1/handoff-manifest.json";
+    private const string VerificationDirectory = "ui-handoff/ui-store/v1/verification";
+    private const string AssetRoot = "Sprites/UI/StoreV2/";
+    private const string TitleFontPath = "Assets/Resources/Fonts/StoreV2/GowunBatang-Bold.ttf";
+    private const string BodyFontPath = "Assets/Resources/Fonts/StoreV2/GowunDodum-Regular.ttf";
+    private const string TitleFontAssetPath = "Assets/Resources/Fonts/StoreV2/GowunBatang-Bold SDF.asset";
+    private const string BodyFontAssetPath = "Assets/Resources/Fonts/StoreV2/GowunDodum-Regular SDF.asset";
+    private const string StoreGlyphs = "내일 장사 준비 도구 붕어빵 소 아이템 보유금 팥코인 팥 슈크림 초코 크림치즈 황금 틀 동시 붓기 조리 피버 다음 상품 구매 가능 조건 필요 잠김 포근하고 진한 기본 단맛 부드럽고 달콤한 크림 짭짤하고 두 마리를 한 번에 구울 수 있는 한 번에 두 칸 반죽 잠시 동안 굽는 속도가 빨라짐 새 조리 아이템을 위한 확장 슬롯 골라 보세요 흐름을 바꾸는 일시 효과를 구매한 속은 주문에 등장합니다 도구는 영업일부터 사용할 수 있습니다 마치고 영업일₩0123456789,·—";
 
-    private static readonly Color32 Ink = new(52, 43, 30, 255);
-    private static readonly Color32 Teal = new(24, 91, 97, 255);
-    private static readonly Color32 TealDark = new(16, 66, 72, 255);
-    private static readonly Color32 Paper = new(255, 247, 226, 255);
-    private static readonly Color32 PaperDark = new(238, 220, 179, 255);
-    private static readonly Color32 Orange = new(196, 71, 30, 255);
-    private static readonly Color32 OrangeDark = new(150, 46, 21, 255);
-    private static readonly Color32 Muted = new(108, 91, 64, 255);
-    private static TMP_FontAsset cachedFont;
+    private static readonly Color Ink = new(0.114f, 0.157f, 0.165f, 1f);
+    private static readonly Color Muted = new(0.459f, 0.420f, 0.365f, 1f);
+    private static readonly Color Paper = new(1f, 0.969f, 0.886f, 1f);
+    private static readonly Color Inverse = Color.white;
+    private static TMP_FontAsset titleFont;
+    private static TMP_FontAsset bodyFont;
 
-    [MenuItem("Tools/GONGSAMZ/Rebuild Store UI")]
+    [MenuItem("Tools/GONGSAMZ/Rebuild Store UI from Figma")]
     public static void BuildAll()
     {
+        titleFont = null;
+        bodyFont = null;
+        BackupLegacyPrefab();
+        EnsureStoreGlyphs(TitleFont);
+        EnsureStoreGlyphs(BodyFont);
+
         GameObject root = BuildStorePrefab();
         PrefabUtility.SaveAsPrefabAsset(root, StorePrefabPath);
         Object.DestroyImmediate(root);
@@ -35,91 +47,91 @@ public static class StorePrefabBuilder
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         ValidatePrefab();
-        Debug.Log("UI_Store 프리팹을 장사 준비 상점 시안으로 다시 만들었습니다.");
+        Debug.Log("피그마 시안 기준의 새 UI_Store 프리팹을 만들었습니다.");
     }
 
+    /// <summary>
+    /// CI 또는 닫힌 Unity Editor에서 호출하는 진입점입니다.
+    /// 승인된 전달 패키지가 아닐 때는 프리팹을 바꾸지 않습니다.
+    /// </summary>
     public static void BuildFromCommandLine()
     {
+        ValidateHandoffReady();
         BuildAll();
     }
 
-    public static void CapturePreviewFromCommandLine()
+    /// <summary>
+    /// 최종 프로젝트 안에서 프리팹을 생성한 뒤 두 탭 상태를 1920x1080 PNG로 렌더합니다.
+    /// </summary>
+    public static void BuildAndCaptureFromCommandLine()
     {
-        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(StorePrefabPath);
-        if (prefab == null)
-            throw new InvalidOperationException("미리보기용 UI_Store 프리팹을 찾지 못했습니다.");
+        BuildFromCommandLine();
+        CaptureStoreTab("fillings", true);
+        CaptureStoreTab("items", false);
+    }
 
-        GameObject instance = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
-        instance.GetComponent<UI_Store>().enabled = false;
-        Canvas canvas = instance.GetComponent<Canvas>();
+    private static void BackupLegacyPrefab()
+    {
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(StorePrefabPath) == null ||
+            AssetDatabase.LoadAssetAtPath<GameObject>(LegacyPrefabPath) != null)
+            return;
 
-        GameObject cameraObject = new("StorePreviewCamera");
-        Camera camera = cameraObject.AddComponent<Camera>();
-        camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = new Color32(18, 50, 57, 255);
-        camera.transform.position = new Vector3(0, 0, -10);
-        camera.cullingMask = 1 << LayerMask.NameToLayer("UI");
+        if (AssetDatabase.CopyAsset(StorePrefabPath, LegacyPrefabPath) == false)
+            throw new InvalidOperationException("기존 UI_Store 프리팹을 백업하지 못했습니다.");
 
-        canvas.renderMode = RenderMode.ScreenSpaceCamera;
-        canvas.worldCamera = camera;
-        canvas.planeDistance = 1;
+        GameObject legacyRoot = PrefabUtility.LoadPrefabContents(LegacyPrefabPath);
+        try
+        {
+            UI_Store storeController = legacyRoot.GetComponent<UI_Store>();
+            if (storeController != null)
+                Object.DestroyImmediate(storeController);
 
-        string outputDirectory = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "resources", "ui-qa");
-        Directory.CreateDirectory(outputDirectory);
-        CaptureAtSize(camera, instance.GetComponent<RectTransform>(), 1920, 1080,
-            Path.Combine(outputDirectory, "store-1920x1080.png"));
-        CaptureAtSize(camera, instance.GetComponent<RectTransform>(), 2560, 1080,
-            Path.Combine(outputDirectory, "store-2560x1080.png"));
+            PrefabUtility.SaveAsPrefabAsset(legacyRoot, LegacyPrefabPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(legacyRoot);
+        }
+    }
 
-        Object.DestroyImmediate(instance);
-        Object.DestroyImmediate(cameraObject);
-        Debug.Log($"상점 UI 미리보기를 저장했습니다: {outputDirectory}");
+    private static void ValidateHandoffReady()
+    {
+        string manifestPath = Path.Combine(Directory.GetParent(Application.dataPath)!.FullName, HandoffManifestPath);
+        if (!File.Exists(manifestPath))
+            throw new InvalidOperationException($"상점 UI 전달 패키지를 찾지 못했습니다: {manifestPath}");
+
+        string manifest = File.ReadAllText(manifestPath);
+        if (!manifest.Contains("\"status\": \"HANDOFF_READY\"", StringComparison.Ordinal))
+            throw new InvalidOperationException("상점 UI 전달 패키지가 HANDOFF_READY 상태가 아닙니다.");
     }
 
     private static GameObject BuildStorePrefab()
     {
-        GameObject root = CreateUiObject("UI_Store", null);
+        GameObject root = CreateObject("UI_Store", null);
         Canvas canvas = root.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         root.AddComponent<GraphicRaycaster>();
+
         CanvasScaler scaler = root.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-        scaler.matchWidthOrHeight = 0.45f;
+        scaler.matchWidthOrHeight = .5f;
+
         root.AddComponent<UI_Store>();
         Stretch(root.GetComponent<RectTransform>());
 
-        Image backdrop = CreatePanel("Backdrop", root.transform, new Color32(18, 50, 57, 235));
-        Stretch(backdrop.rectTransform);
-        backdrop.raycastTarget = true;
+        RawImage sceneBackground = CreateRaw("StoreSceneBackground", root.transform, "store-scene-fillings");
+        Stretch(sceneBackground.rectTransform);
 
-        GameObject safeArea = CreateUiObject("SafeAreaPanel", root.transform);
-        Stretch(safeArea.GetComponent<RectTransform>());
-        safeArea.AddComponent<UI_SafeArea>();
+        RawImage panel = CreateRaw("StorePanel", root.transform, "panel-skin");
+        Center(panel.rectTransform, new Vector2(1560, 896), Vector2.zero);
 
-        Image shadow = CreatePanel("PaperShadow", safeArea.transform, new Color32(8, 35, 39, 130));
-        Center(shadow.rectTransform, new Vector2(1570, 910), new Vector2(12, -14));
-        shadow.raycastTarget = false;
-
-        Image frame = CreatePanel("StoreFrame", safeArea.transform, TealDark);
-        Center(frame.rectTransform, new Vector2(1570, 910), Vector2.zero);
-        AddOutline(frame, PaperDark, new Vector2(3, -3));
-
-        Image paperPanel = CreatePanel("StorePaperPanel", frame.transform, Color.white);
-        Sprite storeBackground = Resources.Load<Sprite>("Sprites/UI/storeBackground");
-        if (storeBackground != null)
-            paperPanel.sprite = storeBackground;
-        else
-            paperPanel.color = Paper;
-        Stretch(paperPanel.rectTransform, 16, 16, 16, 16);
-        AddOutline(paperPanel, Teal, new Vector2(2, -2));
-
-        CreateHeader(paperPanel.transform);
-        CreateTabs(paperPanel.transform);
-        CreateCards(paperPanel.transform);
-        CreateFooter(paperPanel.transform);
+        CreateHeader(panel.transform);
+        CreateTabs(panel.transform);
+        CreateFillings(panel.transform);
+        CreateItems(panel.transform);
+        CreateFooter(panel.transform);
 
         int uiLayer = LayerMask.NameToLayer("UI");
         if (uiLayer >= 0)
@@ -129,181 +141,178 @@ public static class StorePrefabBuilder
 
     private static void CreateHeader(Transform parent)
     {
-        TextMeshProUGUI title = CreateText("TitleText", parent, "내일 장사 준비", 56, Ink, TextAlignmentOptions.MidlineLeft);
-        TopLeft(title.rectTransform, new Vector2(620, 70), new Vector2(92, -48));
+        TextMeshProUGUI title = CreateText("TitleText", parent, "내일 장사 준비", 56, Ink, TextAlignmentOptions.Left, true);
+        TopLeft(title.rectTransform, new Vector2(560, 70), new Vector2(142, -51));
 
-        TextMeshProUGUI subtitle = CreateText("SubtitleText", parent,
-            "팔고 싶은 붕어빵 소를 골라 보세요.", 24, Muted, TextAlignmentOptions.MidlineLeft);
-        TopLeft(subtitle.rectTransform, new Vector2(650, 40), new Vector2(96, -126));
+        TextMeshProUGUI subtitle = CreateText("SubtitleText", parent, "팔고 싶은 붕어빵 소를 골라 보세요.", 24, Muted, TextAlignmentOptions.Left, false);
+        TopLeft(subtitle.rectTransform, new Vector2(650, 36), new Vector2(150, -106));
 
-        CreateBalanceChip(parent, "MoneyPanel", "MoneyText", "MoneyNum", "보유금", "12,800원", new Vector2(-430, -54), null);
-        CreateBalanceChip(parent, "BeanCoinPanel", "BeanCoinText", "BeanCoinNum", "팥코인", "0개", new Vector2(-44, -54),
-            Resources.Load<Sprite>("Sprites/UI/coin"));
+        CreateBalanceChip(parent, "MoneyPanel", "MoneyText", "MoneyNum", "₩", "보유금", "12,800원", new Vector2(740, -20));
+        CreateBalanceChip(parent, "BeanCoinPanel", "BeanCoinText", "BeanCoinNum", "●", "팥코인", "24개", new Vector2(1120, -20));
     }
 
-    private static void CreateBalanceChip(
-        Transform parent,
-        string panelName,
-        string labelName,
-        string valueName,
-        string label,
-        string value,
-        Vector2 topRightPosition,
-        Sprite iconSprite)
+    private static void CreateBalanceChip(Transform parent, string panelName, string labelName, string valueName, string icon, string label, string value, Vector2 position)
     {
-        Image chip = CreatePanel(panelName, parent, Teal);
-        TopRight(chip.rectTransform, new Vector2(360, 104), topRightPosition);
-        AddOutline(chip, PaperDark, new Vector2(2, -2));
+        GameObject chip = CreateObject(panelName, parent);
+        TopLeft(chip.GetComponent<RectTransform>(), new Vector2(360, 104), position);
+        RawImage surface = CreateRaw("Surface", chip.transform, "button-paper");
+        Stretch(surface.rectTransform);
 
-        if (iconSprite != null)
-        {
-            Image icon = CreatePanel("Icon", chip.transform, Color.white);
-            icon.sprite = iconSprite;
-            icon.preserveAspect = true;
-            SetAnchoredRect(icon.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f),
-                new Vector2(30, -24), new Vector2(78, 24));
-        }
+        TextMeshProUGUI iconText = CreateText("Icon", chip.transform, icon, 28, Paper, TextAlignmentOptions.Center, true);
+        SetRect(iconText.rectTransform, new Vector2(26, 32), new Vector2(22, 35));
 
-        float left = iconSprite == null ? 34 : 94;
-        // 칩 안에서 설명과 수치를 각기 다른 세로 줄에 두어 서로 겹치지 않게 합니다.
-        TextMeshProUGUI labelText = CreateText(labelName, chip.transform, label, 18, PaperDark, TextAlignmentOptions.MidlineLeft);
-        SetAnchoredRect(labelText.rectTransform, new Vector2(0, 0), new Vector2(1, 1),
-            new Vector2(left, 61), new Vector2(-26, -12));
+        TextMeshProUGUI labelText = CreateText(labelName, chip.transform, label, 20, new Color(1, 1, 1, .72f), TextAlignmentOptions.Left, false);
+        SetRect(labelText.rectTransform, new Vector2(222, 28), new Vector2(82, 58));
 
-        TextMeshProUGUI valueText = CreateText(valueName, chip.transform, value, 29, Paper, TextAlignmentOptions.MidlineLeft);
-        SetAnchoredRect(valueText.rectTransform, new Vector2(0, 0), new Vector2(1, 1),
-            new Vector2(left, 14), new Vector2(-26, -45));
+        TextMeshProUGUI valueText = CreateText(valueName, chip.transform, value, 28, Paper, TextAlignmentOptions.Left, true);
+        SetRect(valueText.rectTransform, new Vector2(222, 40), new Vector2(82, 18));
     }
 
     private static void CreateTabs(Transform parent)
     {
-        Button fillingButton = CreateButton("FillingButton", parent, "붕어빵 소", Teal, Paper, 29, out TextMeshProUGUI fillingLabel);
-        fillingLabel.name = "Text (TMP)";
-        TopCenter(fillingButton.GetComponent<RectTransform>(), new Vector2(380, 76), new Vector2(-206, -196));
-        AddOutline(fillingButton.GetComponent<Image>(), PaperDark, new Vector2(2, -2));
-
-        Button itemButton = CreateButton("SkillButton", parent, "아이템", PaperDark, Ink, 29, out TextMeshProUGUI itemLabel);
-        itemLabel.name = "Text (TMP)";
-        TopCenter(itemButton.GetComponent<RectTransform>(), new Vector2(380, 76), new Vector2(206, -196));
-        AddOutline(itemButton.GetComponent<Image>(), Teal, new Vector2(2, -2));
+        CreateTab("FillingButton", "FillingTabSurface", parent, "붕어빵 소", new Vector2(320, -158));
+        CreateTab("SkillButton", "ItemTabSurface", parent, "아이템", new Vector2(740, -158));
     }
 
-    private static void CreateCards(Transform parent)
+    private static void CreateTab(string name, string surfaceName, Transform parent, string label, Vector2 position)
     {
-        Sprite[] fillingSprites = Resources.LoadAll<Sprite>("Sprites/fillings");
-        GameObject fillingCards = CreateCardRow("FillingCards", parent);
-        CreateProductCard(fillingCards.transform, "팥", "고소하고 달콤한 기본 붕어빵 소", "1,200원", SpriteAt(fillingSprites, 0));
-        CreateProductCard(fillingCards.transform, "슈크림", "부드러운 우유 향이 나는 인기 소", "1,500원", SpriteAt(fillingSprites, 1));
-        CreateProductCard(fillingCards.transform, "초콜릿", "진한 달콤함을 좋아하는 손님용", "1,700원", SpriteAt(fillingSprites, 2));
-        CreateProductCard(fillingCards.transform, "크림치즈", "새콤달콤하게 녹아드는 특별한 소", "1,800원", SpriteAt(fillingSprites, 3));
-
-        GameObject itemCards = CreateCardRow("ItemCards", parent);
-        CreateProductCard(itemCards.transform, "두 칸 반죽통", "한 번에 두 마리의 붕어빵을 만들어요.", "준비 중", null);
-        CreateProductCard(itemCards.transform, "조리 피버", "짧은 시간 동안 조리 속도가 빨라져요.", "준비 중", null);
-        CreateProductCard(itemCards.transform, "따뜻한 보온등", "진열대 붕어빵을 더 오래 따뜻하게 지켜요.", "준비 중", null);
-        CreateProductCard(itemCards.transform, "손님 메모판", "손님의 취향을 더 쉽게 확인할 수 있어요.", "준비 중", null);
-        itemCards.SetActive(false);
+        Button tab = CreateButton(name, parent, new Vector2(380, 76), position, out TextMeshProUGUI tabLabel);
+        RawImage surface = CreateRaw(surfaceName, tab.transform, "button-paper");
+        surface.rectTransform.SetAsFirstSibling();
+        Stretch(surface.rectTransform);
+        tabLabel.name = name == "FillingButton" ? "FillingTabLabel" : "ItemTabLabel";
+        tabLabel.text = label;
+        tabLabel.fontSize = 28;
+        tabLabel.font = BodyFont;
+        tabLabel.fontStyle = FontStyles.Bold;
+        tabLabel.color = name == "FillingButton" ? Inverse : Ink;
+        surface.color = name == "FillingButton" ? Color.white : new Color(1, 1, 1, .48f);
     }
 
-    private static GameObject CreateCardRow(string name, Transform parent)
+    private static void CreateFillings(Transform parent)
     {
-        GameObject row = CreateUiObject(name, parent);
-        Center(row.GetComponent<RectTransform>(), new Vector2(1350, 440), new Vector2(0, -28));
-        HorizontalLayoutGroup layout = row.AddComponent<HorizontalLayoutGroup>();
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.spacing = 22;
-        layout.childControlWidth = false;
-        layout.childControlHeight = false;
-        layout.childForceExpandWidth = false;
-        layout.childForceExpandHeight = false;
-        return row;
+        GameObject row = CreateObject("FillingCards", parent);
+        Stretch(row.GetComponent<RectTransform>());
+
+        CreateProductCard(row.transform, "RedBeanCard", "팥", "포근하고 진한 기본 단맛", "1,200원", 0, null, false, new Vector2(110, -258));
+        CreateProductCard(row.transform, "CustardCard", "슈크림", "부드럽고 달콤한 크림", "1,400원", 1, null, false, new Vector2(450, -258));
+        CreateProductCard(row.transform, "ChocolateCard", "초코", "진한 초콜릿의 달콤함", "1,600원", 2, null, false, new Vector2(790, -258));
+        CreateProductCard(row.transform, "CreamCheeseCard", "크림치즈", "짭짤하고 부드러운 맛", "1,800원", 3, null, false, new Vector2(1130, -258));
     }
 
-    private static void CreateProductCard(Transform parent, string name, string description, string price, Sprite artSprite)
+    private static void CreateItems(Transform parent)
     {
-        Image card = CreatePanel($"{name}Card", parent, Paper);
-        card.rectTransform.sizeDelta = new Vector2(321, 440);
-        AddOutline(card, Teal, new Vector2(2, -2));
+        GameObject row = CreateObject("ItemCards", parent);
+        Stretch(row.GetComponent<RectTransform>());
 
-        Image artPanel = CreatePanel("ArtPanel", card.transform, new Color32(247, 230, 192, 255));
-        SetAnchoredRect(artPanel.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1),
-            new Vector2(-138, -190), new Vector2(138, -20));
-        AddOutline(artPanel, PaperDark, new Vector2(1, -1));
+        CreateProductCard(row.transform, "GoldenPanCard", "황금 붕어빵 틀", "두 마리를 한 번에 구울 수 있는 틀", "4,800원", -1, "item-golden-pan", false, new Vector2(110, -258));
+        CreateProductCard(row.transform, "DualPourCard", "동시 붓기", "두 칸에 반죽을 한 번에 붓기", "3,200원", -1, "item-dual-pour", false, new Vector2(450, -258));
+        CreateProductCard(row.transform, "CookingFeverCard", "조리 피버", "잠시 동안 굽는 속도가 빨라짐", "2,800원", -1, "item-cooking-fever", false, new Vector2(790, -258));
+        CreateProductCard(row.transform, "NextItemCard", "다음 아이템", "새 조리 아이템을 위한 확장 슬롯", "조건 필요", -1, "item-golden-pan", true, new Vector2(1130, -258));
+        row.SetActive(false);
+    }
 
-        if (artSprite != null)
+    private static void CreateProductCard(Transform parent, string cardName, string productName, string description, string price, int fillingIndex, string itemArt, bool locked, Vector2 position)
+    {
+        GameObject card = CreateObject(cardName, parent);
+        TopLeft(card.GetComponent<RectTransform>(), new Vector2(320, 440), position);
+
+        RawImage cardSurface = CreateRaw("CardSurface", card.transform, "card-surface");
+        Stretch(cardSurface.rectTransform);
+
+        if (fillingIndex >= 0)
         {
-            Image art = CreatePanel("ProductArt", artPanel.transform, Color.white);
-            art.sprite = artSprite;
-            art.preserveAspect = true;
-            Stretch(art.rectTransform, 14, 14, 12, 12);
+            RawImage fillingArt = CreateRaw("ProductArt", card.transform, "filling-art-sheet");
+            // 소 주머니 원본은 세로로 긴 비율입니다. 카드 폭에 맞춰 늘리지 않고
+            // 중앙의 세로 슬롯 안에 두어 원본 비율에 가깝게 표시합니다.
+            // 카드 안쪽 여백과 피그마 시안의 상단 정렬을 맞춘 좌표입니다.
+            SetRect(fillingArt.rectTransform, new Vector2(80, 184), new Vector2(120, 240));
+            // 4열×2행 원본의 윗줄만 사용합니다. 높이를 1로 두면 두 개의 소가 한 카드에 함께 보입니다.
+            fillingArt.uvRect = new Rect(fillingIndex * .25f, .5f, .25f, .5f);
         }
         else
         {
-            TextMeshProUGUI placeholder = CreateText("ItemMark", artPanel.transform, "준비 중", 25, Muted, TextAlignmentOptions.Center);
-            Stretch(placeholder.rectTransform, 14, 14, 14, 14);
+            RawImage itemImage = CreateRaw("ProductArt", card.transform, itemArt);
+            SetRect(itemImage.rectTransform, new Vector2(180, 180), new Vector2(70, 244));
         }
 
-        TextMeshProUGUI productName = CreateText("ProductNameText", card.transform, name, 28, Ink, TextAlignmentOptions.Center);
-        SetAnchoredRect(productName.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
-            new Vector2(18, -238), new Vector2(-18, -196));
+        TextMeshProUGUI title = CreateText("ProductNameText", card.transform, productName, 28, Ink, TextAlignmentOptions.Left, true);
+        SetRect(title.rectTransform, new Vector2(272, 40), new Vector2(24, 196));
 
-        TextMeshProUGUI productDescription = CreateText("ProductDescriptionText", card.transform, description, 18, Muted, TextAlignmentOptions.Center);
-        productDescription.enableWordWrapping = true;
-        SetAnchoredRect(productDescription.rectTransform, new Vector2(0, 1), new Vector2(1, 1),
-            new Vector2(22, -304), new Vector2(-22, -244));
+        TextMeshProUGUI body = CreateText("ProductDescriptionText", card.transform, description, 19, Muted, TextAlignmentOptions.TopLeft, false);
+        body.textWrappingMode = TextWrappingModes.Normal;
+        SetRect(body.rectTransform, new Vector2(272, 58), new Vector2(24, 120));
 
-        TextMeshProUGUI priceText = CreateText("PriceText", card.transform, price, 24, OrangeDark, TextAlignmentOptions.Center);
-        SetAnchoredRect(priceText.rectTransform, new Vector2(0, 0), new Vector2(1, 0),
-            new Vector2(18, 86), new Vector2(-18, 122));
+        TextMeshProUGUI priceText = CreateText("PriceText", card.transform, price, 24, Ink, TextAlignmentOptions.Left, true);
+        SetRect(priceText.rectTransform, new Vector2(272, 34), new Vector2(24, 76));
 
-        Button purchaseButton = CreateButton("PurchaseButton", card.transform, price == "준비 중" ? "준비 중" : "구매 가능", Orange, Paper, 22, out TextMeshProUGUI purchaseLabel);
-        purchaseLabel.name = "Text (TMP)";
-        SetAnchoredRect(purchaseButton.GetComponent<RectTransform>(), new Vector2(0, 0), new Vector2(1, 0),
-            new Vector2(18, 20), new Vector2(-18, 72));
-        AddOutline(purchaseButton.GetComponent<Image>(), OrangeDark, new Vector2(1, -1));
+        Button purchase = CreateButton("PurchaseButton", card.transform, new Vector2(272, 52), new Vector2(24, 20), out TextMeshProUGUI purchaseLabel);
+        // CreateButton은 상단 기준 버튼(탭·다음 영업일)에 쓰입니다.
+        // 카드의 구매 버튼만 하단 기준이므로 좌표계를 여기서 명시적으로 바꿉니다.
+        SetRect(purchase.GetComponent<RectTransform>(), new Vector2(272, 52), new Vector2(24, 16));
+        RawImage purchaseSurface = CreateRaw("PurchaseSurface", purchase.transform, locked ? "button-paper" : "button-primary");
+        purchaseSurface.rectTransform.SetAsFirstSibling();
+        Stretch(purchaseSurface.rectTransform);
+        purchaseSurface.color = locked ? new Color(1, 1, 1, .45f) : Color.white;
+        purchaseLabel.text = locked ? "잠김" : "구매 가능";
+        purchaseLabel.font = BodyFont;
+        purchaseLabel.fontSize = 20;
+        purchaseLabel.color = locked ? Ink : Inverse;
     }
 
     private static void CreateFooter(Transform parent)
     {
-        TextMeshProUGUI note = CreateText("StoreNoteText", parent,
-            "새로운 소와 아이템은 다음 영업일부터 사용할 수 있어요.", 19, Muted, TextAlignmentOptions.MidlineLeft);
-        SetAnchoredRect(note.rectTransform, new Vector2(0, 0), new Vector2(0.5f, 0),
-            new Vector2(96, 34), new Vector2(500, 68));
+        TextMeshProUGUI note = CreateText("StoreNote", parent, "구매한 속은 내일부터 주문에 등장합니다.", 19, Muted, TextAlignmentOptions.Left, false);
+        TopLeft(note.rectTransform, new Vector2(900, 29), new Vector2(110, -716));
 
-        Button nextDayButton = CreateButton("NextDayButton", parent, "구매를 마치고 다음 영업일", Orange, Paper, 29, out TextMeshProUGUI nextDayLabel);
-        nextDayLabel.name = "NextDayButtonText";
-        Center(nextDayButton.GetComponent<RectTransform>(), new Vector2(480, 94), new Vector2(396, -360));
-        AddOutline(nextDayButton.GetComponent<Image>(), OrangeDark, new Vector2(2, -2));
+        Button nextDay = CreateButton("NextDayButton", parent, new Vector2(480, 94), new Vector2(540, -758), out TextMeshProUGUI label);
+        RawImage surface = CreateRaw("NextDaySurface", nextDay.transform, "button-primary");
+        surface.rectTransform.SetAsFirstSibling();
+        Stretch(surface.rectTransform);
+        label.name = "NextDayButtonText";
+        label.text = "구매를 마치고 다음 영업일";
+        label.font = BodyFont;
+        label.fontStyle = FontStyles.Bold;
+        label.fontSize = 28;
+        label.color = Inverse;
     }
 
-    private static Sprite SpriteAt(Sprite[] sprites, int index)
+    private static Button CreateButton(string name, Transform parent, Vector2 size, Vector2 position, out TextMeshProUGUI label)
     {
-        return sprites != null && index >= 0 && index < sprites.Length ? sprites[index] : null;
+        GameObject buttonObject = CreateObject(name, parent);
+        TopLeft(buttonObject.GetComponent<RectTransform>(), size, position);
+
+        Image hitTarget = buttonObject.AddComponent<Image>();
+        hitTarget.color = new Color(1, 1, 1, 0);
+        Button button = buttonObject.AddComponent<Button>();
+        button.targetGraphic = hitTarget;
+
+        label = CreateText("Label", buttonObject.transform, string.Empty, 28, Inverse, TextAlignmentOptions.Center, true);
+        Stretch(label.rectTransform, 12, 12, 6, 6);
+        return button;
     }
 
-    private static GameObject CreateUiObject(string name, Transform parent)
+    private static RawImage CreateRaw(string name, Transform parent, string resourceName)
     {
-        GameObject value = new(name, typeof(RectTransform));
-        if (parent != null)
-            value.transform.SetParent(parent, false);
-        return value;
-    }
-
-    private static Image CreatePanel(string name, Transform parent, Color color)
-    {
-        GameObject value = CreateUiObject(name, parent);
-        Image image = value.AddComponent<Image>();
-        image.color = color;
+        GameObject value = CreateObject(name, parent);
+        RawImage image = value.AddComponent<RawImage>();
+        image.texture = Resources.Load<Texture2D>(AssetRoot + resourceName);
+        if (image.texture == null)
+            throw new InvalidOperationException($"상점 UI 이미지가 없습니다: {AssetRoot}{resourceName}");
+        image.raycastTarget = false;
         return image;
     }
 
-    private static TextMeshProUGUI CreateText(string name, Transform parent, string value, float fontSize, Color color, TextAlignmentOptions alignment)
+    private static TextMeshProUGUI CreateText(string name, Transform parent, string value, float size, Color color, TextAlignmentOptions alignment, bool isTitle)
     {
-        GameObject textObject = CreateUiObject(name, parent);
+        GameObject textObject = CreateObject(name, parent);
         TextMeshProUGUI text = textObject.AddComponent<TextMeshProUGUI>();
-        text.font = Font;
+        // Gowun Batang은 프리팹 편집 화면에서 일부 한글이 그려지지 않는 문제가 있어,
+        // 상점의 모든 동적 문구를 검증된 Gowun Dodum으로 통일하고 제목만 굵게 처리합니다.
+        text.font = BodyFont;
+        text.fontStyle = isTitle ? FontStyles.Bold : FontStyles.Normal;
         text.text = value;
-        text.fontSize = fontSize;
+        text.fontSize = size;
         text.color = color;
         text.alignment = alignment;
         text.raycastTarget = false;
@@ -312,73 +321,78 @@ public static class StorePrefabBuilder
         return text;
     }
 
-    private static Button CreateButton(string name, Transform parent, string label, Color background, Color foreground, float fontSize, out TextMeshProUGUI labelText)
-    {
-        Image image = CreatePanel(name, parent, background);
-        Button button = image.gameObject.AddComponent<Button>();
-        button.targetGraphic = image;
-        ColorBlock colors = button.colors;
-        colors.normalColor = Color.white;
-        colors.highlightedColor = new Color(1f, 0.93f, 0.8f, 1f);
-        colors.selectedColor = new Color(1f, 0.93f, 0.8f, 1f);
-        colors.pressedColor = new Color(0.78f, 0.78f, 0.78f, 1f);
-        colors.colorMultiplier = 1f;
-        button.colors = colors;
+    private static TMP_FontAsset TitleFont => titleFont ??= LoadFont(TitleFontPath, TitleFontAssetPath);
+    private static TMP_FontAsset BodyFont => bodyFont ??= LoadFont(BodyFontPath, BodyFontAssetPath);
 
-        labelText = CreateText("Label", image.transform, label, fontSize, foreground, TextAlignmentOptions.Center);
-        Stretch(labelText.rectTransform, 12, 12, 6, 6);
-        return button;
-    }
-
-    private static TMP_FontAsset Font
+    private static TMP_FontAsset LoadFont(string sourcePath, string fontAssetPath)
     {
-        get
+        TMP_FontAsset existing = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(fontAssetPath);
+        if (IsUsableFont(existing))
+            return existing;
+
+        if (existing != null)
         {
-            if (cachedFont == null)
-                cachedFont = Resources.Load<TMP_FontAsset>("omyuPretty SDF") ?? TMP_Settings.defaultFontAsset;
-            return cachedFont;
+            Debug.LogWarning(
+                $"상점 TMP 폰트의 atlas/material 참조가 없어 안전한 기본 폰트로 대체합니다: {fontAssetPath}");
         }
+        else if (AssetDatabase.LoadAssetAtPath<Font>(sourcePath) == null)
+        {
+            Debug.LogWarning($"상점 원본 폰트가 없어 안전한 기본 폰트로 대체합니다: {sourcePath}");
+        }
+
+        TMP_FontAsset fallback = Resources.Load<TMP_FontAsset>("omyuPretty SDF") ?? TMP_Settings.defaultFontAsset;
+        if (!IsUsableFont(fallback))
+            throw new InvalidOperationException("상점 UI에서 사용할 수 있는 TMP 폰트와 재질을 찾지 못했습니다.");
+
+        return fallback;
     }
 
-    private static void AddOutline(Graphic graphic, Color color, Vector2 distance)
+    private static bool IsUsableFont(TMP_FontAsset font)
     {
-        Outline outline = graphic.gameObject.AddComponent<Outline>();
-        outline.effectColor = color;
-        outline.effectDistance = distance;
+        return font != null &&
+               font.material != null &&
+               font.atlasTextures != null &&
+               font.atlasTextures.Length > 0 &&
+               font.atlasTextures[0] != null;
+    }
+
+    private static void EnsureStoreGlyphs(TMP_FontAsset font)
+    {
+        if (!font.TryAddCharacters(StoreGlyphs, out string missingCharacters))
+            Debug.LogWarning($"상점 폰트에서 만들지 못한 글자: {missingCharacters}");
+
+        EditorUtility.SetDirty(font);
+    }
+
+    private static GameObject CreateObject(string name, Transform parent)
+    {
+        GameObject value = new(name, typeof(RectTransform));
+        if (parent != null)
+            value.transform.SetParent(parent, false);
+        return value;
     }
 
     private static void TopLeft(RectTransform rect, Vector2 size, Vector2 position)
     {
-        rect.anchorMin = Vector2.up;
-        rect.anchorMax = Vector2.up;
+        rect.anchorMin = new Vector2(0, 1);
+        rect.anchorMax = new Vector2(0, 1);
         rect.pivot = new Vector2(0, 1);
-        rect.sizeDelta = size;
-        rect.anchoredPosition = position;
-    }
-
-    private static void TopRight(RectTransform rect, Vector2 size, Vector2 position)
-    {
-        rect.anchorMin = Vector2.one;
-        rect.anchorMax = Vector2.one;
-        rect.pivot = new Vector2(1, 1);
-        rect.sizeDelta = size;
-        rect.anchoredPosition = position;
-    }
-
-    private static void TopCenter(RectTransform rect, Vector2 size, Vector2 position)
-    {
-        rect.anchorMin = new Vector2(0.5f, 1);
-        rect.anchorMax = new Vector2(0.5f, 1);
-        rect.pivot = new Vector2(0.5f, 1);
         rect.sizeDelta = size;
         rect.anchoredPosition = position;
     }
 
     private static void Center(RectTransform rect, Vector2 size, Vector2 position)
     {
-        rect.anchorMin = new Vector2(0.5f, 0.5f);
-        rect.anchorMax = new Vector2(0.5f, 0.5f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchorMin = rect.anchorMax = new Vector2(.5f, .5f);
+        rect.pivot = new Vector2(.5f, .5f);
+        rect.sizeDelta = size;
+        rect.anchoredPosition = position;
+    }
+
+    private static void SetRect(RectTransform rect, Vector2 size, Vector2 position)
+    {
+        rect.anchorMin = rect.anchorMax = Vector2.zero;
+        rect.pivot = Vector2.zero;
         rect.sizeDelta = size;
         rect.anchoredPosition = position;
     }
@@ -391,19 +405,117 @@ public static class StorePrefabBuilder
         rect.offsetMax = new Vector2(-right, -top);
     }
 
-    private static void SetAnchoredRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
-    {
-        rect.anchorMin = anchorMin;
-        rect.anchorMax = anchorMax;
-        rect.offsetMin = offsetMin;
-        rect.offsetMax = offsetMax;
-    }
-
     private static void SetLayerRecursively(GameObject root, int layer)
     {
         root.layer = layer;
         foreach (Transform child in root.transform)
             SetLayerRecursively(child.gameObject, layer);
+    }
+
+    private static void ValidatePrefab()
+    {
+        GameObject store = AssetDatabase.LoadAssetAtPath<GameObject>(StorePrefabPath);
+        if (store == null || store.GetComponent<UI_Store>() == null)
+            throw new InvalidOperationException("새 UI_Store 프리팹에 UI_Store 스크립트가 없습니다.");
+
+        string[] requiredNames = { "NextDayButton", "FillingButton", "SkillButton", "FillingCards", "ItemCards", "MoneyNum", "BeanCoinNum" };
+        foreach (string requiredName in requiredNames)
+        {
+            if (FindChild(store.transform, requiredName) == null)
+                throw new InvalidOperationException($"새 UI_Store 프리팹에서 {requiredName}을(를) 찾지 못했습니다.");
+        }
+
+        foreach (TextMeshProUGUI text in store.GetComponentsInChildren<TextMeshProUGUI>(true))
+        {
+            if (!IsUsableFont(text.font) || text.fontSharedMaterial == null)
+                throw new InvalidOperationException($"새 UI_Store 프리팹의 {text.name}에 TMP 폰트 재질이 없습니다.");
+        }
+    }
+
+    private static void CaptureStoreTab(string tabName, bool showFillings)
+    {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(StorePrefabPath);
+        if (prefab == null)
+            throw new InvalidOperationException("렌더링할 UI_Store 프리팹을 찾지 못했습니다.");
+
+        GameObject instance = PrefabUtility.InstantiatePrefab(prefab) as GameObject;
+        if (instance == null)
+            throw new InvalidOperationException("UI_Store 프리팹 인스턴스를 만들지 못했습니다.");
+
+        try
+        {
+            ConfigureCaptureTab(instance, showFillings);
+            Canvas canvas = instance.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+
+            GameObject cameraObject = new("StoreUiVerificationCamera");
+            Camera camera = cameraObject.AddComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.055f, 0.106f, 0.149f, 1f);
+            camera.cullingMask = 1 << LayerMask.NameToLayer("UI");
+            camera.transform.position = new Vector3(0, 0, -10);
+            canvas.worldCamera = camera;
+            canvas.planeDistance = 1;
+
+            string outputDirectory = Path.Combine(Directory.GetParent(Application.dataPath)!.FullName, VerificationDirectory);
+            Directory.CreateDirectory(outputDirectory);
+            string outputPath = Path.Combine(outputDirectory, $"unity-{tabName}-1920x1080.png");
+            CaptureAtSize(camera, instance.GetComponent<RectTransform>(), 1920, 1080, outputPath);
+            Object.DestroyImmediate(cameraObject);
+        }
+        finally
+        {
+            Object.DestroyImmediate(instance);
+        }
+    }
+
+    private static void ConfigureCaptureTab(GameObject instance, bool showFillings)
+    {
+        Transform fillingCards = FindChild(instance.transform, "FillingCards");
+        Transform itemCards = FindChild(instance.transform, "ItemCards");
+        if (fillingCards != null)
+            fillingCards.gameObject.SetActive(showFillings);
+        if (itemCards != null)
+            itemCards.gameObject.SetActive(!showFillings);
+
+        SetCaptureText(instance.transform, "TitleText", showFillings ? "내일 장사 준비" : "내일 장사 도구");
+        SetCaptureText(instance.transform, "SubtitleText", showFillings
+            ? "팔고 싶은 붕어빵 소를 골라 보세요."
+            : "조리 흐름을 바꾸는 도구와 일시 효과를 골라 보세요.");
+        SetCaptureText(instance.transform, "StoreNote", showFillings
+            ? "카드를 눌러 구매 · 상품이 늘어나면 카드 영역만 세로로 스크롤"
+            : "영구 도구와 소모성 효과를 같은 카드 목록으로 확장 · 카드 영역만 세로로 스크롤");
+
+        RectTransform titleRect = FindChild(instance.transform, "TitleText")?.GetComponent<RectTransform>();
+        if (titleRect != null)
+            titleRect.anchoredPosition = showFillings ? new Vector2(142f, -51f) : new Vector2(150f, -51f);
+
+        RectTransform noteRect = FindChild(instance.transform, "StoreNote")?.GetComponent<RectTransform>();
+        if (noteRect != null)
+            noteRect.sizeDelta = new Vector2(showFillings ? 800f : 900f, noteRect.sizeDelta.y);
+
+        RawImage fillingSurface = FindChild(instance.transform, "FillingTabSurface")?.GetComponent<RawImage>();
+        RawImage itemSurface = FindChild(instance.transform, "ItemTabSurface")?.GetComponent<RawImage>();
+        TextMeshProUGUI fillingLabel = FindChild(instance.transform, "FillingTabLabel")?.GetComponent<TextMeshProUGUI>();
+        TextMeshProUGUI itemLabel = FindChild(instance.transform, "ItemTabLabel")?.GetComponent<TextMeshProUGUI>();
+        SetCaptureTabStyle(fillingSurface, fillingLabel, showFillings);
+        SetCaptureTabStyle(itemSurface, itemLabel, !showFillings);
+    }
+
+    private static void SetCaptureTabStyle(RawImage surface, TextMeshProUGUI label, bool selected)
+    {
+        if (surface != null)
+            surface.color = selected ? Color.white : new Color(1f, 1f, 1f, .48f);
+        if (label != null)
+            label.color = selected ? Inverse : Ink;
+    }
+
+    private static void SetCaptureText(Transform root, string objectName, string value)
+    {
+        TextMeshProUGUI text = FindChild(root, objectName)?.GetComponent<TextMeshProUGUI>();
+        if (text != null)
+            text.text = value;
     }
 
     private static void CaptureAtSize(Camera camera, RectTransform root, int width, int height, string outputPath)
@@ -427,29 +539,13 @@ public static class StorePrefabBuilder
         Object.DestroyImmediate(renderTexture);
     }
 
-    private static Transform FindChild(Transform parent, string childName)
+    private static Transform FindChild(Transform parent, string name)
     {
         foreach (Transform child in parent.GetComponentsInChildren<Transform>(true))
         {
-            if (child.name == childName)
+            if (child.name == name)
                 return child;
         }
         return null;
-    }
-
-    private static void ValidatePrefab()
-    {
-        GameObject store = AssetDatabase.LoadAssetAtPath<GameObject>(StorePrefabPath);
-        if (store == null)
-            throw new InvalidOperationException("UI_Store 프리팹을 저장하지 못했습니다.");
-        if (store.GetComponent<UI_Store>() == null)
-            throw new InvalidOperationException("UI_Store 스크립트가 프리팹 루트에 없습니다.");
-        if (FindChild(store.transform, "NextDayButton")?.GetComponent<Button>() == null)
-            throw new InvalidOperationException("다음 영업일 버튼 연결이 없습니다.");
-        if (FindChild(store.transform, "FillingButton")?.GetComponent<Button>() == null ||
-            FindChild(store.transform, "SkillButton")?.GetComponent<Button>() == null)
-            throw new InvalidOperationException("상점 탭 버튼 연결이 없습니다.");
-        if (FindChild(store.transform, "FillingCards") == null || FindChild(store.transform, "ItemCards") == null)
-            throw new InvalidOperationException("상점 카드 목록을 찾지 못했습니다.");
     }
 }

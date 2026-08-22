@@ -23,8 +23,19 @@ Parameters:
     Default: mock
   StoreMode:
     Type: String
-    AllowedValues: [mock, hive-web-shop]
+    AllowedValues: [mock, nicepay-test, hive-web-shop]
     Default: mock
+  StoreCatalogSource:
+    Type: String
+    AllowedValues: [static, hive]
+    Default: static
+  StoreDevTools:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+  HiveBillingAppId:
+    Type: String
+    Default: ""
   HiveWebShopUrl:
     Type: String
     Default: ""
@@ -32,6 +43,9 @@ Parameters:
     Type: String
     AllowedValues: [mock, live]
     Default: mock
+  OperationsAlertTopicArn:
+    Type: String
+    Default: ""
 
 Conditions:
   HasHiveRuntimeSecrets: !And
@@ -40,6 +54,15 @@ Conditions:
   HasOpenAiRuntimeSecrets: !And
     - !Equals [!Ref UseRuntimeSecrets, "true"]
     - !Equals [!Ref OpenAiMode, live]
+  HasHiveBillingSecret: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Or
+      - !Equals [!Ref StoreMode, hive-web-shop]
+      - !Equals [!Ref StoreCatalogSource, hive]
+  HasNicePayRuntimeSecrets: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Equals [!Ref StoreMode, nicepay-test]
+  HasOperationsAlertTopic: !Not [!Equals [!Ref OperationsAlertTopicArn, ""]]
 
 Resources:
   Vpc:
@@ -140,6 +163,54 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref TargetGroup
 
+  StoreProductImageBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  StoreProductImageOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${AWS::StackName}-store-product-images
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  StoreProductImageCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub ${AWS::StackName}-store-product-images
+        Comment: Short cache for HIVE product image updates
+        DefaultTTL: 300
+        MaxTTL: 3600
+        MinTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -153,6 +224,19 @@ Resources:
             CustomOriginConfig:
               HTTPPort: 80
               OriginProtocolPolicy: http-only
+          - Id: store-product-images
+            DomainName: !GetAtt StoreProductImageBucket.RegionalDomainName
+            OriginAccessControlId: !Ref StoreProductImageOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        CacheBehaviors:
+          - PathPattern: store-products/*
+            TargetOriginId: store-product-images
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: !Ref StoreProductImageCachePolicy
+            Compress: true
         DefaultCacheBehavior:
           TargetOriginId: game-alb
           ViewerProtocolPolicy: redirect-to-https
@@ -161,6 +245,23 @@ Resources:
           CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
           OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           Compress: false
+
+  StoreProductImageBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StoreProductImageBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${StoreProductImageBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}
 
   Cluster:
     Type: AWS::ECS::Cluster
@@ -171,6 +272,35 @@ Resources:
     Properties:
       LogGroupName: /ecs/openai-game-builders-seoul
       RetentionInDays: 14
+  HttpServerErrorMetric:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref LogGroup
+      FilterName: openai-game-builders-seoul-http-5xx
+      FilterPattern: '{ $.type = "http_request" && $.status >= 500 }'
+      MetricTransformations:
+        - MetricNamespace: OpenAIGameBuildersSeoul
+          MetricName: Http5xx
+          MetricValue: "1"
+          DefaultValue: 0
+  HttpServerErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: openai-game-builders-seoul-http-5xx
+      AlarmDescription: Platform server returned an HTTP 5xx response.
+      Namespace: OpenAIGameBuildersSeoul
+      MetricName: Http5xx
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If
+        - HasOperationsAlertTopic
+        - [!Ref OperationsAlertTopicArn]
+        - !Ref AWS::NoValue
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -205,8 +335,14 @@ Resources:
               Value: !Sub https://${Distribution.DomainName}/hive/cb
             - Name: HIVE_WEB_SHOP_URL
               Value: !Ref HiveWebShopUrl
+            - Name: HIVE_BILLING_APP_ID
+              Value: !Ref HiveBillingAppId
             - Name: STORE_MODE
               Value: !Ref StoreMode
+            - Name: STORE_CATALOG_SOURCE
+              Value: !Ref StoreCatalogSource
+            - Name: STORE_DEV_TOOLS
+              Value: !Ref StoreDevTools
             - Name: DATA_STORE
               Value: dynamodb
             - Name: DYNAMODB_TABLE
@@ -234,6 +370,21 @@ Resources:
               - Name: OPENAI_API_KEY
                 ValueFrom: !Sub "${RuntimeSecretArn}:OPENAI_API_KEY::"
               - !Ref AWS::NoValue
+            - !If
+              - HasHiveBillingSecret
+              - Name: HIVE_BILLING_AUTH_KEY
+                ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_BILLING_AUTH_KEY::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasNicePayRuntimeSecrets
+              - Name: NICEPAY_CLIENT_ID
+                ValueFrom: !Sub "${RuntimeSecretArn}:NICEPAY_CLIENT_ID::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasNicePayRuntimeSecrets
+              - Name: NICEPAY_SECRET_KEY
+                ValueFrom: !Sub "${RuntimeSecretArn}:NICEPAY_SECRET_KEY::"
+              - !Ref AWS::NoValue
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -257,6 +408,9 @@ Resources:
       LaunchType: FARGATE
       HealthCheckGracePeriodSeconds: 90
       DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
         MinimumHealthyPercent: 100
         MaximumPercent: 200
       NetworkConfiguration:
@@ -278,3 +432,5 @@ Outputs:
     Value: !Ref Cluster
   ServiceName:
     Value: !GetAtt Service.Name
+  StoreProductImageBucketName:
+    Value: !Ref StoreProductImageBucket

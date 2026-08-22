@@ -1,0 +1,25 @@
+{
+  "valid": true,
+  "verificationProjectRoot": "C:\\DevHub\\02_GameDev\\GONGSAMZ\\BungeoppangTycoon",
+  "prefabPath": "C:\\DevHub\\02_GameDev\\GONGSAMZ\\BungeoppangTycoon\\Assets\\Resources\\Prefabs\\UI\\UI_Store.prefab",
+  "prefabSha256": "5c2e2d6811a352343f8efba3bac883a7202baee6391ddcc5d803ea97d4fb36bd",
+  "metaRootsScanned": [
+    "C:\\DevHub\\02_GameDev\\GONGSAMZ\\BungeoppangTycoon\\Assets",
+    "C:\\DevHub\\02_GameDev\\GONGSAMZ\\BungeoppangTycoon\\Packages",
+    "C:\\DevHub\\02_GameDev\\GONGSAMZ\\BungeoppangTycoon\\Library\\PackageCache"
+  ],
+  "externalReferenceCount": 17,
+  "resolvedReferenceCount": 17,
+  "allowedUnresolvedGuids": [],
+  "unresolvedGuids": [],
+  "missingScriptCount": 0,
+  "spriteImportMismatchCount": 0,
+  "spriteImportMismatches": [],
+  "nullSpriteCount": 11,
+  "nullFontAssetCount": 0,
+  "nullSharedMaterialCount": 0,
+  "errors": [],
+  "warnings": [
+    "빈 Sprite가 있습니다. 단색 Image인지 EditMode 테스트로 확인: 1249, 1645, 1767, 1889, 2011, 3491, 3613, 5898, 7279, 9899, 10021"
+  ]
+}

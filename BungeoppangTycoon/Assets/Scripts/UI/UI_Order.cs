@@ -1,10 +1,13 @@
+using System;
 using TMPro;
 using System.Collections.Generic;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-public class UI_Order : UI_Base
+public class UI_Order : UI_Base, IPointerClickHandler
 {
     TextMeshProUGUI orderText;
+    Action messageClickAction;
     public Slider slider;
 
     protected override void Init()
@@ -27,6 +30,9 @@ public class UI_Order : UI_Base
 
     public void SetOrderText(Dictionary<FillingType, int> orders)
     {
+        messageClickAction = null;
+        slider.gameObject.SetActive(true);
+
         //기존 텍스트 없애기
         orderText.text = null;
 
@@ -34,6 +40,19 @@ public class UI_Order : UI_Base
             orderText.text += $"{Define.FillingText[(int)order.Key]} * {order.Value}개 \n";
 
     }
+
+    public void SetMessage(string message, Action onClick = null)
+    {
+        messageClickAction = onClick;
+        orderText.text = message;
+        slider.gameObject.SetActive(false);
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        messageClickAction?.Invoke();
+    }
+
 
 
 

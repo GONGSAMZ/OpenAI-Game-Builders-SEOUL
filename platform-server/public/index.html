@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="붕어빵 타이쿤 웹게임" />
     <title>붕어빵 타이쿤</title>
-    <link rel="stylesheet" href="/styles.css" />
-    <script src="/game-bridge.js" defer></script>
-    <script src="/header.js" defer></script>
+    <link rel="stylesheet" href="/styles.css?v=__APP_REVISION__" />
+    <script src="/game-bridge.js?v=__APP_REVISION__" defer></script>
+    <script src="/header.js?v=__APP_REVISION__" defer></script>
+    <script src="/dev-tools.js?v=__APP_REVISION__" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -28,21 +29,101 @@
           <span aria-hidden="true">▣</span>
           <span>상점</span>
         </a>
-        <button id="login-button" class="account-button" type="button" aria-live="polite">
-          <span id="account-avatar" class="account-avatar" aria-hidden="true">H</span>
-          <span id="login-label">HIVE 로그인</span>
-        </button>
+        <div id="account-shell" class="account-shell">
+          <button
+            id="login-button"
+            class="account-button"
+            type="button"
+            aria-live="polite"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-controls="account-menu"
+          >
+            <span id="account-avatar" class="account-avatar" aria-hidden="true">H</span>
+            <span id="login-label">HIVE 로그인</span>
+          </button>
+
+          <div id="account-menu" class="account-menu" role="menu" hidden>
+            <div class="account-summary">
+              <span class="account-summary-label">내 정보</span>
+              <strong id="account-player-id" class="account-player-id">-</strong>
+              <span id="account-provider" class="account-provider">HIVE 계정</span>
+            </div>
+            <button id="logout-button" class="logout-button" type="button" role="menuitem">
+              로그아웃
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
-    <main class="game-stage">
-      <iframe
-        id="game-frame"
-        title="붕어빵 타이쿤 Unity WebGL 게임"
-        src="/game/index.html?v=20260816-csp2"
-        allow="fullscreen; autoplay"
-        loading="eager"
-      ></iframe>
-    </main>
+    <div class="game-workspace">
+      <main class="game-stage">
+        <iframe
+          id="game-frame"
+          title="붕어빵 타이쿤 Unity WebGL 게임"
+          src="/game/index.html?v=__APP_REVISION__"
+          allow="fullscreen; autoplay"
+          loading="eager"
+        ></iframe>
+      </main>
+
+      <aside id="store-dev-tools" class="store-dev-tools" aria-label="개발용 재화 도구" hidden>
+        <div class="dev-tools-heading">
+          <span class="dev-badge">DEV</span>
+          <strong>재화 테스트</strong>
+        </div>
+        <p class="dev-tools-copy">로그인한 HIVE 사용자에게만 저장됩니다.</p>
+        <dl class="dev-balance">
+          <div>
+            <dt>사용자</dt>
+            <dd id="dev-player-id">로그인 필요</dd>
+          </div>
+          <div>
+            <dt>팥 코인</dt>
+            <dd id="dev-currency-balance">0</dd>
+          </div>
+          <div>
+            <dt>테스트 포인트</dt>
+            <dd id="dev-test-point-balance">0 P</dd>
+          </div>
+        </dl>
+        <button id="dev-test-point-button" class="dev-grant-button" type="button" disabled>
+          +10,000 테스트 포인트 충전
+        </button>
+        <div class="dev-purchase-list" aria-label="테스트 상품 결제">
+          <button
+            class="dev-purchase-button"
+            type="button"
+            data-dev-product-id="red-bean-100"
+            data-product-name="팥 코인 100개"
+            disabled
+          >
+            <span>팥 코인 100개</span><strong>1,100 P</strong>
+          </button>
+          <button
+            class="dev-purchase-button"
+            type="button"
+            data-dev-product-id="red-bean-550"
+            data-product-name="팥 코인 550개"
+            disabled
+          >
+            <span>팥 코인 550개</span><strong>5,500 P</strong>
+          </button>
+          <button
+            class="dev-purchase-button"
+            type="button"
+            data-dev-product-id="golden-pan"
+            data-product-name="황금 붕어빵 틀"
+            disabled
+          >
+            <span>황금 붕어빵 틀</span><strong>3,300 P</strong>
+          </button>
+        </div>
+        <p id="dev-grant-status" class="dev-grant-status" role="status" aria-live="polite">
+          HIVE 로그인 후 사용할 수 있습니다.
+        </p>
+      </aside>
+    </div>
   </body>
 </html>

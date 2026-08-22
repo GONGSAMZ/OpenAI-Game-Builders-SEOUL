@@ -7,6 +7,7 @@ on:
       - "BungeoppangTycoon/**"
       - "platform-server/**"
       - "infra/aws/**"
+      - ".dockerignore"
       - ".github/workflows/deploy-dev-to-aws.yml"
   workflow_dispatch:
 
@@ -21,8 +22,6 @@ concurrency:
 jobs:
   preflight:
     runs-on: ubuntu-latest
-    outputs:
-      ready: ${{ steps.check.outputs.ready }}
     env:
       AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
       AWS_REGION: ${{ vars.AWS_REGION }}
@@ -31,7 +30,6 @@ jobs:
       AWS_TASK_ROLE_ARN: ${{ vars.AWS_TASK_ROLE_ARN }}
       AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
       AWS_RUNTIME_SECRET_ARN: ${{ vars.AWS_RUNTIME_SECRET_ARN }}
-      UNITY_CI_ENABLED: ${{ vars.UNITY_CI_ENABLED || 'false' }}
       UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
@@ -43,24 +41,70 @@ jobs:
           for name in AWS_ROLE_ARN AWS_REGION AWS_ECR_REPOSITORY AWS_TASK_EXECUTION_ROLE_ARN AWS_TASK_ROLE_ARN AWS_DYNAMODB_TABLE AWS_RUNTIME_SECRET_ARN; do
             if [[ -z "${!name}" ]]; then missing+=("$name"); fi
           done
-          if [[ "$UNITY_CI_ENABLED" == "true" ]]; then
-            for name in UNITY_LICENSE UNITY_EMAIL UNITY_PASSWORD; do
-              if [[ -z "${!name}" ]]; then missing+=("$name"); fi
-            done
-          fi
+          for name in UNITY_LICENSE UNITY_EMAIL UNITY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then missing+=("$name"); fi
+          done
           if (( ${#missing[@]} > 0 )); then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "### AWS 배포 설정 대기" >> "$GITHUB_STEP_SUMMARY"
+            echo "### AWS 배포 설정 오류" >> "$GITHUB_STEP_SUMMARY"
             echo "누락: ${missing[*]}" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+  update-infrastructure:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
+      AWS_BOOTSTRAP_STACK: openai-game-builders-seoul-bootstrap
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update account data infrastructure
+        shell: bash
+        run: |
+          if ! aws cloudformation deploy \
+            --stack-name "$AWS_BOOTSTRAP_STACK" \
+            --template-file infra/aws/bootstrap.yml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --no-fail-on-empty-changeset; then
+            echo "### Bootstrap stack update failed" >> "$GITHUB_STEP_SUMMARY"
+            aws cloudformation describe-stack-events \
+              --stack-name "$AWS_BOOTSTRAP_STACK" \
+              --max-items 30 \
+              --query 'StackEvents[].[Timestamp,LogicalResourceId,ResourceStatus,ResourceStatusReason]' \
+              --output table || true
+            exit 1
+          fi
+
+          aws dynamodb wait table-exists --table-name "$AWS_DYNAMODB_TABLE"
+          purchase_index_status=""
+          for attempt in {1..80}; do
+            purchase_index_status=$(aws dynamodb describe-table \
+              --table-name "$AWS_DYNAMODB_TABLE" \
+              --query "Table.GlobalSecondaryIndexes[?IndexName=='SubjectCreatedAtIndex'].IndexStatus | [0]" \
+              --output text)
+            if [[ "$purchase_index_status" == "ACTIVE" ]]; then
+              break
+            fi
+            echo "Waiting for SubjectCreatedAtIndex: $purchase_index_status (attempt $attempt/80)"
+            sleep 15
+          done
+          if [[ "$purchase_index_status" != "ACTIVE" ]]; then
+            echo "DynamoDB SubjectCreatedAtIndex is not active: $purchase_index_status" >&2
+            exit 1
           fi
 
   build-and-deploy:
-    needs: preflight
-    if: needs.preflight.outputs.ready == 'true'
+    needs: [preflight, update-infrastructure]
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
@@ -70,17 +114,35 @@ jobs:
       AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
       AWS_RUNTIME_SECRET_ARN: ${{ vars.AWS_RUNTIME_SECRET_ARN }}
       AWS_SERVICE_STACK: openai-game-builders-seoul-service
-      # DEV always uses the HIVE sandbox and server-side runtime credentials.
-      HIVE_MODE: sandbox
+      AWS_BOOTSTRAP_STACK: openai-game-builders-seoul-bootstrap
+      # AAA111 production Web Login credentials are stored server-side in Secrets Manager.
+      HIVE_MODE: production
       STORE_MODE: ${{ vars.STORE_MODE || 'mock' }}
+      STORE_CATALOG_SOURCE: ${{ vars.STORE_CATALOG_SOURCE || 'hive' }}
+      STORE_DEV_TOOLS: ${{ vars.STORE_DEV_TOOLS || 'true' }}
+      HIVE_BILLING_APP_ID: ${{ vars.HIVE_BILLING_APP_ID }}
       HIVE_WEB_SHOP_URL: ${{ vars.HIVE_WEB_SHOP_URL }}
       OPENAI_MODE: ${{ vars.OPENAI_MODE || 'mock' }}
       USE_RUNTIME_SECRETS: "true"
     steps:
       - uses: actions/checkout@v7
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: BungeoppangTycoon/Library
+          key: Unity-Library-WebGL-${{ runner.os }}-${{ hashFiles('BungeoppangTycoon/ProjectSettings/ProjectVersion.txt', 'BungeoppangTycoon/Packages/manifest.json', 'BungeoppangTycoon/Packages/packages-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            Unity-Library-WebGL-${{ runner.os }}-${{ hashFiles('BungeoppangTycoon/ProjectSettings/ProjectVersion.txt', 'BungeoppangTycoon/Packages/manifest.json', 'BungeoppangTycoon/Packages/packages-lock.json') }}-
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: platform-server/pnpm-lock.yaml
 
       - name: Build Unity 6.3 WebGL
-        if: vars.UNITY_CI_ENABLED == 'true'
         uses: game-ci/unity-builder@v5
         env:
           UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
@@ -93,29 +155,13 @@ jobs:
           buildMethod: WebGLBuildCommand.Build
 
       - name: Stage Unity build in the server image
-        if: vars.UNITY_CI_ENABLED == 'true'
         shell: bash
-        run: |
-          test -f BungeoppangTycoon/Builds/WebGL/index.html
-          grep -q '/game-bridge.js' BungeoppangTycoon/Builds/WebGL/index.html
-          find platform-server/game-dist -mindepth 1 -maxdepth 1 ! -name README.md -exec rm -rf {} +
-          cp -R BungeoppangTycoon/Builds/WebGL/. platform-server/game-dist/
+        run: node platform-server/scripts/unity-build-manifest.mjs stage
 
-      - name: Validate tracked Unity WebGL build
-        if: vars.UNITY_CI_ENABLED != 'true'
+      - name: Validate rebuilt Unity WebGL build
         shell: bash
-        run: |
-          test -f platform-server/game-dist/index.html
-          grep -q '/game-bridge.js' platform-server/game-dist/index.html
+        run: node platform-server/scripts/unity-build-manifest.mjs verify
 
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 11.19.0
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: platform-server/pnpm-lock.yaml
       - name: Verify platform server
         working-directory: platform-server
         run: |
@@ -130,13 +176,50 @@ jobs:
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Verify DynamoDB recovery and session expiry
+        shell: bash
+        run: |
+          pitr_status=$(aws dynamodb describe-continuous-backups \
+            --table-name "$AWS_DYNAMODB_TABLE" \
+            --query 'ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus' \
+            --output text)
+          test "$pitr_status" = "ENABLED"
+
+          ttl_status=$(aws dynamodb describe-time-to-live \
+            --table-name "$AWS_DYNAMODB_TABLE" \
+            --query 'TimeToLiveDescription.TimeToLiveStatus' \
+            --output text)
+          ttl_attribute=$(aws dynamodb describe-time-to-live \
+            --table-name "$AWS_DYNAMODB_TABLE" \
+            --query 'TimeToLiveDescription.AttributeName' \
+            --output text)
+          if [[ "$ttl_status" == "DISABLED" ]]; then
+            aws dynamodb update-time-to-live \
+              --table-name "$AWS_DYNAMODB_TABLE" \
+              --time-to-live-specification Enabled=true,AttributeName=expiresAtEpoch
+          elif [[ "$ttl_attribute" != "expiresAtEpoch" ]]; then
+            echo "DynamoDB TTL attribute mismatch: $ttl_attribute" >&2
+            exit 1
+          fi
+
+          operations_topic=$(aws cloudformation describe-stacks \
+            --stack-name "$AWS_BOOTSTRAP_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='OperationsAlertTopicArn'].OutputValue" \
+            --output text)
+          test -n "$operations_topic"
+          echo "OPERATIONS_ALERT_TOPIC_ARN=$operations_topic" >> "$GITHUB_ENV"
+
       - name: Build and push immutable image
         shell: bash
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
-          image_uri="$ECR_REGISTRY/$AWS_ECR_REPOSITORY:$GITHUB_SHA"
-          docker build --file platform-server/Dockerfile --tag "$image_uri" .
+          image_uri="$ECR_REGISTRY/$AWS_ECR_REPOSITORY:$GITHUB_SHA-$GITHUB_RUN_ATTEMPT"
+          docker build \
+            --file platform-server/Dockerfile \
+            --build-arg "APP_REVISION=$GITHUB_SHA" \
+            --tag "$image_uri" \
+            .
           docker push "$image_uri"
           echo "IMAGE_URI=$image_uri" >> "$GITHUB_ENV"
 
@@ -156,8 +239,34 @@ jobs:
               "UseRuntimeSecrets=$USE_RUNTIME_SECRETS" \
               "HiveMode=$HIVE_MODE" \
               "StoreMode=$STORE_MODE" \
+              "StoreCatalogSource=$STORE_CATALOG_SOURCE" \
+              "StoreDevTools=$STORE_DEV_TOOLS" \
+              "HiveBillingAppId=$HIVE_BILLING_APP_ID" \
               "HiveWebShopUrl=$HIVE_WEB_SHOP_URL" \
-              "OpenAiMode=$OPENAI_MODE"
+              "OpenAiMode=$OPENAI_MODE" \
+              "OperationsAlertTopicArn=$OPERATIONS_ALERT_TOPIC_ARN"
+
+      - name: Publish default store product images
+        shell: bash
+        run: |
+          image_bucket=$(aws cloudformation describe-stacks \
+            --stack-name "$AWS_SERVICE_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='StoreProductImageBucketName'].OutputValue" \
+            --output text)
+          test -n "$image_bucket"
+
+          aws s3 cp \
+            BungeoppangTycoon/Assets/Resources/Sprites/StoreProducts/red-bean-100.png \
+            "s3://$image_bucket/store-products/com.gongsamz.bungeoppang.redbean100.png" \
+            --content-type image/png --cache-control public,max-age=300
+          aws s3 cp \
+            BungeoppangTycoon/Assets/Resources/Sprites/StoreProducts/red-bean-550.png \
+            "s3://$image_bucket/store-products/com.gongsamz.bungeoppang.redbean550.png" \
+            --content-type image/png --cache-control public,max-age=300
+          aws s3 cp \
+            BungeoppangTycoon/Assets/Resources/Sprites/StoreProducts/golden-pan.png \
+            "s3://$image_bucket/store-products/com.gongsamz.bungeoppang.goldenpan.png" \
+            --content-type image/png --cache-control public,max-age=300
 
       - name: Verify public endpoint
         shell: bash
@@ -166,6 +275,27 @@ jobs:
             --stack-name "$AWS_SERVICE_STACK" \
             --query "Stacks[0].Outputs[?OutputKey=='PublicUrl'].OutputValue" \
             --output text)
-          curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors "$public_url/api/v1/health"
+          health_json=$(curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors \
+            "$public_url/api/v1/health")
+          test "$(jq -r '.revision' <<< "$health_json")" = "$GITHUB_SHA"
+
+          version_json=$(curl --fail --show-error "$public_url/api/v1/version")
+          test "$(jq -r '.revision' <<< "$version_json")" = "$GITHUB_SHA"
+
+          curl --fail --show-error "$public_url/" | grep -q 'id="account-menu"'
+          game_html=$(curl --fail --show-error "$public_url/game/")
+          grep -q '/game-bridge.js' <<< "$game_html"
+          grep -q 'createUnityInstance' <<< "$game_html"
+
+          curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors \
+            "$public_url/store-products/com.gongsamz.bungeoppang.redbean100.png" \
+            --output /dev/null
+
+          login_json=$(curl --fail --show-error "$public_url/api/v1/auth/hive/login")
+          login_url=$(jq -r '.loginUrl' <<< "$login_json")
+          [[ "$login_url" == https://weblogin.withhive.com/login?param=* ]]
+
           echo "### 배포 완료" >> "$GITHUB_STEP_SUMMARY"
-          echo "$public_url" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: $public_url" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Revision: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Smoke: health/version/portal/Unity/HIVE login URL/store image 통과" >> "$GITHUB_STEP_SUMMARY"

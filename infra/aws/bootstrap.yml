@@ -57,13 +57,71 @@ Resources:
           AttributeType: S
         - AttributeName: SK
           AttributeType: S
+        - AttributeName: subject
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
       KeySchema:
         - AttributeName: PK
           KeyType: HASH
         - AttributeName: SK
           KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: SubjectCreatedAtIndex
+          KeySchema:
+            - AttributeName: subject
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
+      TimeToLiveSpecification:
+        AttributeName: expiresAtEpoch
+        Enabled: true
+
+  OperationsAlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: openai-game-builders-seoul-operations
+
+  OperationsAlertTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref OperationsAlertTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowBudgetsToPublish
+            Effect: Allow
+            Principal:
+              Service: budgets.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref OperationsAlertTopic
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+
+  MonthlyCostBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub openai-game-builders-seoul-${AWS::AccountId}
+        BudgetLimit:
+          Amount: 30
+          Unit: USD
+        BudgetType: COST
+        TimeUnit: MONTHLY
+      NotificationsWithSubscribers:
+        - Notification:
+            ComparisonOperator: GREATER_THAN
+            NotificationType: FORECASTED
+            Threshold: 80
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: SNS
+              Address: !Ref OperationsAlertTopic
 
   RuntimeSecret:
     Type: AWS::SecretsManager::Secret
@@ -116,7 +174,10 @@ Resources:
                   - dynamodb:PutItem
                   - dynamodb:Query
                   - dynamodb:UpdateItem
-                Resource: !GetAtt GameDataTable.Arn
+                  - dynamodb:TransactWriteItems
+                Resource:
+                  - !GetAtt GameDataTable.Arn
+                  - !Sub "${GameDataTable.Arn}/index/*"
 
   GitHubDeployRole:
     Type: AWS::IAM::Role
@@ -146,6 +207,7 @@ Resources:
                 Action:
                   - ecr:BatchCheckLayerAvailability
                   - ecr:CompleteLayerUpload
+                  - ecr:DescribeRepositories
                   - ecr:GetDownloadUrlForLayer
                   - ecr:InitiateLayerUpload
                   - ecr:PutImage
@@ -165,7 +227,28 @@ Resources:
                   - cloudformation:UpdateStack
                 Resource:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/openai-game-builders-seoul-service/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/openai-game-builders-seoul-bootstrap/*
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:changeSet/*/*
+              - Effect: Allow
+                Action:
+                  - dynamodb:DescribeTable
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:DescribeTimeToLive
+                  - dynamodb:UpdateTable
+                  - dynamodb:UpdateTimeToLive
+                Resource: !GetAtt GameDataTable.Arn
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                Resource:
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/openai-game-builders-seoul-github-dev
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/openai-game-builders-seoul-bootstrap-*
+              - Effect: Allow
+                Action: iam:GetRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/openai-game-builders-seoul-bootst-*
               - Effect: Allow
                 Action:
                   - ec2:AuthorizeSecurityGroupIngress
@@ -227,19 +310,63 @@ Resources:
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
+                  - logs:DeleteMetricFilter
                   - logs:DescribeLogGroups
+                  - logs:DescribeMetricFilters
                   - logs:DeleteLogGroup
+                  - logs:PutMetricFilter
                   - logs:PutRetentionPolicy
                 Resource: "*"
               - Effect: Allow
                 Action:
+                  - cloudwatch:DeleteAlarms
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:PutMetricAlarm
+                Resource: "*"
+              - Effect: Allow
+                Action:
                   - cloudfront:CreateDistribution
+                  - cloudfront:CreateCachePolicy
+                  - cloudfront:CreateOriginAccessControl
+                  - cloudfront:DeleteCachePolicy
                   - cloudfront:GetDistribution
                   - cloudfront:GetDistributionConfig
+                  - cloudfront:GetCachePolicy
+                  - cloudfront:GetOriginAccessControl
+                  - cloudfront:ListCachePolicies
+                  - cloudfront:ListOriginAccessControls
                   - cloudfront:DeleteDistribution
+                  - cloudfront:DeleteOriginAccessControl
                   - cloudfront:TagResource
+                  - cloudfront:UpdateCachePolicy
                   - cloudfront:UpdateDistribution
+                  - cloudfront:UpdateOriginAccessControl
                 Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:CreateBucket
+                  - s3:DeleteBucket
+                  - s3:DeleteBucketOwnershipControls
+                  - s3:DeleteBucketPolicy
+                  - s3:DeleteBucketPublicAccessBlock
+                  - s3:GetBucketLocation
+                  - s3:GetBucketOwnershipControls
+                  - s3:GetBucketPolicy
+                  - s3:GetBucketPublicAccessBlock
+                  - s3:GetEncryptionConfiguration
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:GetBucketVersioning
+                  - s3:ListBucket
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketOwnershipControls
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutBucketVersioning
+                  - s3:PutEncryptionConfiguration
+                  - s3:PutObject
+                Resource:
+                  - arn:aws:s3:::openai-game-builders-seoul-*
+                  - arn:aws:s3:::openai-game-builders-seoul-*/*
               - Effect: Allow
                 Action: iam:PassRole
                 Resource:
@@ -261,3 +388,7 @@ Outputs:
     Value: !GetAtt TaskExecutionRole.Arn
   TaskRoleArn:
     Value: !GetAtt TaskRole.Arn
+  OperationsAlertTopicArn:
+    Value: !Ref OperationsAlertTopic
+  MonthlyBudgetName:
+    Value: !Sub openai-game-builders-seoul-${AWS::AccountId}

@@ -15,7 +15,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "pnpm typecheck && pnpm test"
+    "check": "pnpm typecheck && pnpm test",
+    "unity:stage": "node scripts/unity-build-manifest.mjs stage",
+    "unity:verify": "node scripts/unity-build-manifest.mjs verify"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1110.0",

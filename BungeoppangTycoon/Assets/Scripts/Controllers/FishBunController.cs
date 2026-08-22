@@ -15,6 +15,12 @@ public class FishBunController : MonoBehaviour,
 
     public CookingState state = CookingState.bottomBatter; //초기 상태
     QualityStatus bakingStatus;
+    // 성공한 판매 뒤 Destroy가 적용되기 전 같은 드래그 종료 이벤트가 다시 들어오는 것을 막는다.
+    bool isConsumed = false;
+    bool isOnDisplay = false;
+    SpriteRenderer fishBunRenderer;
+    Vector3 baseScale;
+    Color baseColor;
     /*    public QualityStatus batterStatus;
     public QualityStatus fillingStatus;
     public QualityStatus warmStatus;*/
@@ -30,16 +36,20 @@ public class FishBunController : MonoBehaviour,
     float bakingTime 
         { get { return endDelta - startDelta; } }
 
-    static float requiredTime = 6; //perfect하게 구워지는 데 걸리는 초
-    static float burntingTime = 15; //타버리는 데 걸리는 초
+    const float BaseRequiredTime = 6f; //perfect하게 구워지는 데 걸리는 초
+    const float BaseBurntingTime = 15f; //타버리는 데 걸리는 초
+    float requiredTime = BaseRequiredTime;
+    float burntingTime = BaseBurntingTime;
 
     #endregion
 
     #region 클릭 관련 인터페이스 구현
     public void OnDrag(PointerEventData eventData)
     {
-        if (isDraggable == false)
+        if (Managers.Game.isRunning == false || isDraggable == false)
             return;
+
+        InputManager.Instance?.ClearSelectedFishBun(this);
 
         //붕어빵 게임 오브젝트 위치 드래그 하는 곳으로 이동
         Vector3 mouse = Camera.main.ScreenToWorldPoint(eventData.position);
@@ -51,56 +61,29 @@ public class FishBunController : MonoBehaviour,
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        if (isDraggable == false)
+        if (Managers.Game.isRunning == false || isDraggable == false || isConsumed == true)
             return;
 
         Vector3 mouse = Camera.main.ScreenToWorldPoint(eventData.position);
         int dropLayerMask = LayerMask.GetMask("DropZone"); //허용 레이어: DropZone게임 오브젝트(진열대/쓰레기통)
         RaycastHit2D hit = Physics2D.Raycast(mouse, Vector2.zero, 0, dropLayerMask);
 
-        if(hit.collider != null)
-        {
-            //진열대에 놓는 경우
-            if (hit.collider.CompareTag("displayPlate"))
-            {
-
-                //spawnPos = DisplateController.SetPos(fillingType);
-                DisplateController.Set(gameObject);
-                transform.position = spawnPos;
-
-
-            }
-            else
-            {
-                if (hit.collider.CompareTag("customer"))
-                {
-                    Debug.Log($"{hit.collider.name}에게 붕어빵 제공");
-                    DisplateController.Reset(fillingType);
-                    ServeFishBun(hit.transform.gameObject);
-
-                }
-
-                Destroy(gameObject);
-
-            }
-
-            //몰드 비우기
-            Debug.Log($"{hit.collider.name}에 부딪힘");
-            parentMold.GetComponent<MoldController>().IsFilled = false;
-
-
-        }
-        else
-        {
-            //원위치
+        if (hit.collider == null || TryPlaceOn(hit.collider.gameObject) == false)
             gameObject.transform.position = spawnPos;
-
-        }
 
     }
 
     public void OnPointerClick(PointerEventData eventData)
     {
+        if (Managers.Game.isRunning == false)
+            return;
+
+        if (isDraggable)
+        {
+            InputManager.Instance?.SelectFishBun(this);
+            return;
+        }
+
         cooking();
     }
 
@@ -117,13 +100,16 @@ public class FishBunController : MonoBehaviour,
         //위치 조정
         transform.position = spawnPos;
         transform.localScale = parentMold.transform.localScale * 1.4f;
+        baseScale = transform.localScale;
+        fishBunRenderer = GetComponent<SpriteRenderer>();
+        baseColor = fishBunRenderer.color;
 
         //산하 오브젝트 정리
         filling = Util.FindObject(gameObject, Define.FillingString, true);
         filling.SetActive(false);
 
         //이미지
-        GetComponent<SpriteRenderer>().sprite =
+        fishBunRenderer.sprite =
             Managers.Resource.LoadSprite("FishBunState_proto", (int)CookingState.bottomBatter);
 
         //상태
@@ -137,12 +123,107 @@ public class FishBunController : MonoBehaviour,
 
     }
 
-    void ServeFishBun(GameObject sprite)
+    void OnDestroy()
+    {
+        InputManager.Instance?.ClearSelectedFishBun(this);
+    }
+
+    public void SetSelected(bool selected)
+    {
+        if (fishBunRenderer == null)
+            fishBunRenderer = GetComponent<SpriteRenderer>();
+
+        transform.localScale = selected ? baseScale * 1.08f : baseScale;
+        fishBunRenderer.color = selected
+            ? new Color(1f, 0.88f, 0.45f, baseColor.a)
+            : baseColor;
+    }
+
+    public bool CanUseTool(ToolController tool)
+    {
+        if (tool == null)
+            return false;
+
+        return state switch
+        {
+            CookingState.bottomBatter => tool.CompareTag("filling"),
+            CookingState.filled => tool.CompareTag("kettle"),
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    /// 클릭으로 선택한 완성품을 진열대, 손님, 쓰레기통에 놓습니다.
+    /// 대상이 맞으면 성공·거절 여부와 관계없이 true를 반환해 클릭을 소비합니다.
+    /// </summary>
+    public bool TryPlaceOn(GameObject target)
+    {
+        if (isDraggable == false || isConsumed || target == null)
+            return false;
+
+        if (target.CompareTag("displayPlate"))
+        {
+            if (isOnDisplay == false)
+            {
+                DisplateController.Set(gameObject);
+                isOnDisplay = true;
+                TutorialSignals.Raise(TutorialEvent.FishBunDisplayed, gameObject);
+                ReleaseMold();
+            }
+
+            transform.position = spawnPos;
+            return true;
+        }
+
+        if (target.CompareTag("customer"))
+        {
+            Debug.Log($"{target.name}에게 붕어빵 제공");
+            if (TryServeFishBun(target) == false)
+            {
+                transform.position = spawnPos;
+                return true;
+            }
+
+            isConsumed = true;
+            RemoveFromDisplayCount();
+            TutorialSignals.Raise(TutorialEvent.FishBunServed, gameObject);
+            ReleaseMold();
+            Destroy(gameObject);
+            return true;
+        }
+
+        if (target.CompareTag("bin"))
+        {
+            isConsumed = true;
+            RemoveFromDisplayCount();
+            ReleaseMold();
+            Destroy(gameObject);
+            return true;
+        }
+
+        return false;
+    }
+
+    void RemoveFromDisplayCount()
+    {
+        if (isOnDisplay == false)
+            return;
+
+        DisplateController.Reset(fillingType);
+        isOnDisplay = false;
+    }
+
+    void ReleaseMold()
+    {
+        if (parentMold != null && parentMold.TryGetComponent(out MoldController mold))
+            mold.IsFilled = false;
+    }
+
+    bool TryServeFishBun(GameObject sprite)
     {
         //부모 오브젝트에서 스크립트 추출
         CustomerController controller = sprite.GetComponentInParent<CustomerController>();
-        controller.Eat(fillingType, bakingStatus);
-
+        return controller != null && controller.TryEat(fillingType, bakingStatus);
     }
     #region 요리 함수
     void cooking()
@@ -170,12 +251,13 @@ public class FishBunController : MonoBehaviour,
         //PolygonCollider2D reset
         Destroy(gameObject.GetComponent<PolygonCollider2D>());
         gameObject.AddComponent<PolygonCollider2D>();
+        InputManager.Instance?.RefreshToolTargetHighlights();
 
     }
 
     void addFilling()
     {
-        if (ToolController.selectedTool.CompareTag("filling") == false)
+        if (ToolController.selectedTool == null || ToolController.selectedTool.CompareTag("filling") == false)
             return;
 
         filling.SetActive(true);
@@ -185,6 +267,7 @@ public class FishBunController : MonoBehaviour,
 
 
         ++state;
+        TutorialSignals.Raise(TutorialEvent.FillingAdded, gameObject);
 
         //재료 비용 통계
         Managers.Game.IngredientCost += (int) (Define.FillingPrice[(int)fillingType] * Define.FillingCostRate);
@@ -193,10 +276,13 @@ public class FishBunController : MonoBehaviour,
 
     void addBatter()
     {
-        if (ToolController.selectedTool.CompareTag("kettle") == false)
+        if (ToolController.selectedTool == null || ToolController.selectedTool.CompareTag("kettle") == false)
             return;
 
         
+        float speedMultiplier = GamePlatformClient.Instance?.BakingTimeMultiplier ?? 1f;
+        requiredTime = BaseRequiredTime * speedMultiplier;
+        burntingTime = BaseBurntingTime * speedMultiplier;
         startDelta = Managers.Game.delta; //1단계 굽기 측정 시작
 
         GetComponent<SpriteRenderer>().sprite =
@@ -211,6 +297,7 @@ public class FishBunController : MonoBehaviour,
         sr.color = color;*/
 
         ++state;
+        TutorialSignals.Raise(TutorialEvent.TopBatterAdded, gameObject);
         
     }
 
@@ -219,7 +306,10 @@ public class FishBunController : MonoBehaviour,
         endDelta = Managers.Game.delta; //1단계 굽기 측정 종료
 
         if (nextState() == true)
+        {
             startDelta = endDelta; //2단계 굽기 측정 시작
+            TutorialSignals.Raise(TutorialEvent.BakeStageAdvanced, gameObject);
+        }
 
 
     }
@@ -227,7 +317,8 @@ public class FishBunController : MonoBehaviour,
     void cooked()
     {
         endDelta = Managers.Game.delta; //2단계 굽기 측정 종료
-        nextState();
+        if (nextState())
+            TutorialSignals.Raise(TutorialEvent.Cooked, gameObject);
 
     }
 
@@ -259,7 +350,8 @@ public class FishBunController : MonoBehaviour,
             else 
                 //if (state == CookingState.cooking)
             {
-                bakingStatus = QualityStatus.perfect;
+                bakingStatus = bakingTime >= requiredTime * 2f ? QualityStatus.crisp :
+                    bakingTime >= requiredTime * 1.35f ? QualityStatus.perfect : QualityStatus.soft;
                 imgIndex = (int)CookingState.cooked;
                 state = CookingState.cooked;
 

@@ -50,10 +50,8 @@ public abstract class UI_Base : MonoBehaviour
         //배열 채우기
         for (int i = 0; i < names.Length; ++i)
         {
-            objs[i] = Util.Find<T>(gameObject, names[i]);
-
-            if (objs[i] == null)
-                Debug.LogError($"[{GetType().Name}] '{names[i]}' {typeof(T).Name} 연결을 찾지 못했습니다.", gameObject);
+            // 팝업 전환 중 비활성화된 자식도 UI 구성 요소로는 유효하다.
+            objs[i] = Util.Find<T>(gameObject, names[i], true);
         }
 
         //전역에 있는 딕셔너리에 값(타입-컴포넌트 배열) 채우기
@@ -119,19 +117,9 @@ public abstract class UI_Base : MonoBehaviour
             if (typeof(parentT) == typeof(GameObject))
                 parent = dic[typeof(GameObject)][i] as GameObject;
             else
-            {
-                Component parentComponent = dic[typeof(parentT)][i] as Component;
-                parent = parentComponent != null ? parentComponent.gameObject : null;
-            }
+                parent = (dic[typeof(parentT)][i] as Component).gameObject; 
 
-            if (parent == null)
-            {
-                string parentName = Enum.GetNames(parentEnum)[i];
-                Debug.LogError(
-                    $"[{GetType().Name}] '{parentName}' 부모가 없어 '{childName}' 자식을 연결할 수 없습니다.",
-                    gameObject);
-                continue;
-            }
+            Util.checkNull(parent);
             //Debug.LogWarning($"{parent.name}");
 
             childT child;

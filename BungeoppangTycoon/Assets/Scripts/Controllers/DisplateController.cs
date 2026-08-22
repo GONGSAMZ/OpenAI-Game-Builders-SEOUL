@@ -2,7 +2,7 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-public class DisplateController : MonoBehaviour
+public class DisplateController : MonoBehaviour, IPointerClickHandler
 {
     #region 맛별로 좌표
     static float upperY = 1.8f;
@@ -55,7 +55,13 @@ public class DisplateController : MonoBehaviour
 
     static public void Reset(FillingType fillingType)
     {
-        --numsOfFishBun[(int)fillingType];
+        int index = (int)fillingType;
+        numsOfFishBun[index] = Mathf.Max(0, numsOfFishBun[index] - 1);
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        InputManager.Instance?.TryHandleSelectedFishBun(gameObject);
     }
     
     void Init()

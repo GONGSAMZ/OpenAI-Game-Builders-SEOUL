@@ -24,6 +24,12 @@ public class Managers : MonoBehaviour
 
     #endregion
 
+    void Awake()
+    {
+        // PC 단축키와 모바일 스와이프를 한 곳에서 받습니다.
+        // 씬에 컴포넌트를 수동으로 연결하지 않아도 기존 @Managers에서 함께 동작합니다.
+        Util.GetOrAddComponent<InputManager>(gameObject);
+    }
 
     void Start()
     {

@@ -65,7 +65,11 @@
 
 ## 🌐 웹 플랫폼 연동
 
-Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점, OpenAI API를 처리합니다. 서버가 같은 도메인의 `/game/`에서 WebGL 빌드를 제공하며, 루트 화면은 상단 헤더와 게임만 표시합니다. HIVE·상점·OpenAI 기능은 서버 API와 Unity 브리지에 유지하고 게임 UI에서 호출할 수 있습니다. 외부 비밀키는 Unity나 브라우저에 포함하지 않고 서버 환경변수로만 관리합니다.
+Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점, 계정별 SaveProfile v3·구매 내역과 OpenAI API를 처리합니다. 서버가 같은 도메인의 `/game/`에서 WebGL 빌드를 제공하며, 루트 화면은 상단 헤더와 게임만 표시합니다. HIVE·상점·OpenAI 기능은 서버 API와 Unity 브리지에 유지하고 게임 UI에서 호출할 수 있습니다. 외부 비밀키는 Unity나 브라우저에 포함하지 않고 서버 환경변수로만 관리합니다.
+
+> 팀 작업 전에 **[팀 작업·운영 인수인계 가이드](docs/08_TEAM_WORK_AND_OPERATIONS_GUIDE.md)**를 확인하세요. Unity/WebGL 갱신, HIVE 상품 등록, NICEPAY 테스트 결제, AWS 배포·롤백, OpenAI live 전환과 콘솔 팀원 초대 절차의 기준 문서입니다.
+
+> HIVE 계정 식별자와 화면 표시 정책은 **[HIVE 계정 식별·표시 가이드](docs/09_HIVE_ACCOUNT_IDENTITY.md)**를 따릅니다. 이메일은 Web Login v2 인증 응답에 포함되지 않으므로 저장 키로 사용하지 않습니다.
 
 | 구성 | 위치 | 역할 |
 | --- | --- | --- |
@@ -74,6 +78,7 @@ Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점,
 | Unity WebGL 플러그인 | `BungeoppangTycoon/Assets/Plugins/WebGL/` | JavaScript와 Unity `SendMessage` 연결 |
 | Unity API 클라이언트 | `BungeoppangTycoon/Assets/Scripts/Platform/` | 게임 세션과 서버 API 호출 |
 | AWS 자동 배포 | `infra/aws/`, `.github/workflows/deploy-dev-to-aws.yml` | DEV → WebGL 빌드 → ECS/CloudFront 배포 |
+| HIVE 상품 운영 스킬 | `skills/hive-store-catalog/` | 콘솔 상품 자동 동기화, PID 지급 규칙, 이미지 운영 |
 
 서버는 기본적으로 Hive와 OpenAI를 `mock` 모드로 실행하므로 외부 키 없이 전체 연결 흐름을 확인할 수 있습니다.
 
@@ -84,7 +89,7 @@ pnpm install
 pnpm dev
 ```
 
-브라우저에서 `http://localhost:3000`을 열면 상단 헤더 아래에서 WebGL 게임이 실행됩니다. HIVE mock 가입·로그인, 상점 mock 구매, AI mock 응답은 Unity 브리지 또는 API로 검증합니다. 상세 설정은 [`platform-server/README.md`](platform-server/README.md), AWS 구성은 [`docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md`](docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md)를 참고하세요.
+브라우저에서 `http://localhost:3000`을 열면 상단 헤더 아래에서 WebGL 게임이 실행됩니다. HIVE mock 가입·로그인, 상점 mock 구매, AI mock 응답은 Unity 브리지 또는 API로 검증합니다. 상세 설정은 [`platform-server/README.md`](platform-server/README.md), 팀 작업 절차는 [`docs/08_TEAM_WORK_AND_OPERATIONS_GUIDE.md`](docs/08_TEAM_WORK_AND_OPERATIONS_GUIDE.md), AWS 구성은 [`docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md`](docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md)를 참고하세요.
 
 ## 📁 프로젝트 구조
 

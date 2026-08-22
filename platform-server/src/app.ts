@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import cors from "cors";
 import express, { type NextFunction, type Request, type Response } from "express";
@@ -6,17 +8,69 @@ import helmet from "helmet";
 import { z, ZodError } from "zod";
 import { sendAuthBridgePage } from "./auth-page.js";
 import type { AppConfig } from "./config.js";
-import { HttpError, readCookie, requireSession, type AuthenticatedLocals } from "./http.js";
+import {
+  getBearerToken,
+  HttpError,
+  readCookie,
+  requireSession,
+  type AuthenticatedLocals
+} from "./http.js";
 import { AiService } from "./integrations/openai/service.js";
 import { HiveWebLoginClient } from "./integrations/hive/client.js";
+import {
+  HiveBillingClient,
+  type HiveBillingGateway
+} from "./integrations/hive/billing-client.js";
 import { decodeHivePayload } from "./integrations/hive/codec.js";
-import { InMemorySessionStore, OneTimeAttemptStore } from "./session-store.js";
-import { findProduct, storeCatalog } from "./store/catalog.js";
-import { createMarketStore, type MarketStore } from "./store/store.js";
+import {
+  NicePayClient,
+  type NicePayGateway,
+  verifyNicePayApprovalSignature,
+  verifyNicePayAuthenticationSignature
+} from "./integrations/nicepay/client.js";
+import {
+  createNicePayOrderStore,
+  type NicePayOrderStore
+} from "./integrations/nicepay/order-store.js";
+import { sendNicePayCheckoutPage, sendNicePayResultPage } from "./nicepay-page.js";
+import {
+  createSessionStore,
+  OneTimeAttemptStore,
+  type GameSession,
+  type SessionStore
+} from "./session-store.js";
+import {
+  createPlayerProgressStore,
+  playerProgressCustomerIds,
+  type PlayerProgressStore
+} from "./progress/store.js";
+import {
+  createStoreCatalogService,
+  type StoreCatalogGateway
+} from "./store/catalog-service.js";
+import {
+  createMarketStore,
+  InsufficientTestPointsError,
+  type MarketStore
+} from "./store/store.js";
+import {
+  createPurchaseHistoryStore,
+  type PurchaseHistoryStore,
+  type PurchaseStatus
+} from "./store/purchase-history.js";
+import {
+  createPlayerSaveStore,
+  SaveRevisionConflictError,
+  type PlayerSaveStore
+} from "./save/save-store.js";
+import { PlayerProfileService } from "./save/player-profile-service.js";
 
 const publicDirectory = path.resolve(process.cwd(), "public");
+const portalIndexTemplate = readFileSync(path.join(publicDirectory, "index.html"), "utf8");
 const loginCookieName = "hive_login_attempt";
 const loginCookiePath = "/";
+const sessionCookieName = "game_session";
+const sessionCookiePath = "/";
 
 const npcReactionSchema = z.object({
   situation: z.string().trim().min(1).max(500),
@@ -25,21 +79,113 @@ const npcReactionSchema = z.object({
 });
 
 const mockPurchaseSchema = z.object({
-  productId: z.string().trim().min(1).max(100),
+  productId: z.string().trim().min(1).max(300),
   idempotencyKey: z.string().uuid()
+});
+
+const devTestPointCreditSchema = z.object({
+  amount: z.number().int().min(1).max(100_000),
+  idempotencyKey: z.string().uuid()
+});
+
+const moldEquipmentSchema = z.object({
+  itemId: z.literal("golden-pan").nullable()
+});
+
+const progressCustomerIdSchema = z.enum(playerProgressCustomerIds);
+
+const customerStoryRunStateSchema = z.object({
+  customerId: progressCustomerIdSchema,
+  lastTalkDay: z.number().int().min(-1).max(1_000_000),
+  nextSpecialOrderDay: z.number().int().min(-1).max(1_000_000)
+});
+
+const storyProgressSchema = z.object({
+  completedTopicIndexes: z.array(z.number().int().min(0).max(63)).max(64),
+  storyCompleted: z.boolean()
+});
+
+const saveProfileSchema = z.object({
+  schemaVersion: z.number().int().min(1).max(100),
+  revision: z.number().int().min(0),
+  updatedAt: z.string().max(100),
+  run: z.object({
+    nextDay: z.number().int().min(1).max(1_000_000),
+    money: z.number().int().min(-1_000_000_000).max(1_000_000_000),
+    unlockedFillingIds: z.array(z.string().min(1).max(100)).max(100),
+    customerStories: z.array(customerStoryRunStateSchema).max(8).optional(),
+    // 기존 클라이언트 호환용이며, 실제 상점 인벤토리의 기준 데이터는 별도 서버 저장소다.
+    ownedGameplayItemIds: z.array(z.string().min(1).max(100)).max(500).optional()
+  }).passthrough(),
+  account: z.object({
+    customers: z.array(z.object({ customerId: z.string().min(1).max(100) }).passthrough()).max(100),
+    discoveredSouls: z.array(z.object({ soulId: z.string().min(1).max(200) }).passthrough()).max(200),
+    achievements: z.array(z.object({ achievementId: z.string().min(1).max(100) }).passthrough()).max(200)
+  }).passthrough(),
+  settings: z.object({
+    masterVolume: z.number().min(0).max(1),
+    keyboardHintsEnabled: z.boolean(),
+    tutorialCompleted: z.boolean()
+  }).passthrough().optional()
+}).passthrough();
+
+const savePutSchema = z.object({
+  expectedRevision: z.number().int().min(0),
+  profile: saveProfileSchema
+});
+
+const nicePayOrderSchema = z.object({
+  productId: z.string().trim().min(1).max(300)
+});
+
+const purchaseHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  cursor: z.string().min(1).max(4_000).optional()
+});
+
+const nicePayCallbackSchema = z.object({
+  authResultCode: z.string().trim().min(1).max(20),
+  authResultMsg: z.string().trim().max(500).optional().default(""),
+  tid: z.string().trim().min(1).max(100),
+  clientId: z.string().trim().min(1).max(200),
+  orderId: z.string().regex(/^NP_[a-f\d]{32}$/i),
+  amount: z.coerce.number().int().positive().safe(),
+  mallReserved: z.string().max(2_000).optional(),
+  authToken: z.string().trim().min(1).max(2_000),
+  signature: z.string().regex(/^[a-f\d]{64}$/i)
 });
 
 const hiveWebShopProfileSchema = z.object({
   cs_code: z.coerce.number().int().positive().safe()
 });
 
+const hivePaymentNotificationSchema = z.object({
+  type: z.enum(["paid", "cancelled"]),
+  market_id: z.coerce.string().min(1).max(20),
+  order_id: z.string().trim().min(1).max(200),
+  market_pid: z.string().trim().min(1).max(300),
+  vid: z.coerce.string().regex(/^\d+$/).max(20),
+  vid_type: z.string().optional(),
+  server_id: z.string().trim().min(1).max(100),
+  appid: z.string().trim().min(1).max(300),
+  quantity: z.coerce.number().int().min(1).max(100),
+  purchase_bypass_info: z.string().min(1).max(32_000)
+});
+
 interface AppDependencies {
   config: AppConfig;
-  sessions?: InMemorySessionStore;
+  sessions?: SessionStore;
   loginAttempts?: OneTimeAttemptStore;
   hiveClient?: HiveWebLoginClient;
+  billingClient?: HiveBillingGateway;
+  nicePayGateway?: NicePayGateway;
+  nicePayOrders?: NicePayOrderStore;
   aiService?: AiService;
   marketStore?: MarketStore;
+  purchaseHistory?: PurchaseHistoryStore;
+  storeCatalog?: StoreCatalogGateway;
+  playerProgressStore?: PlayerProgressStore;
+  playerSaves?: PlayerSaveStore;
 }
 
 function setUnityAssetHeaders(response: Response, filePath: string): void {
@@ -63,26 +209,72 @@ function setUnityAssetHeaders(response: Response, filePath: string): void {
 function setPortalAssetHeaders(response: Response, filePath: string): void {
   if (path.basename(filePath) === "index.html") {
     response.setHeader("Cache-Control", "no-store");
+    return;
   }
+
+  response.setHeader("Cache-Control", "no-cache");
 }
 
-function sessionResponse(session: ReturnType<InMemorySessionStore["create"]>) {
+function renderPortalIndex(revision: string): string {
+  return portalIndexTemplate.replaceAll("__APP_REVISION__", encodeURIComponent(revision));
+}
+
+function sessionResponse(session: GameSession) {
   return {
     subject: session.subject,
     provider: session.provider,
     playerId: session.playerId,
+    accountLabel: sessionAccountLabel(session),
     expiresAt: session.expiresAt
   };
 }
 
+function sessionAccountLabel(session: GameSession): string {
+  if (session.provider === "mock-hive") return "로컬 테스트 계정";
+
+  const stableId = session.playerId ?? session.idpUserId ?? session.subject;
+  const visibleSuffix = stableId.slice(-6);
+  return `HIVE 계정 · ${visibleSuffix}`;
+}
+
+function setSessionCookie(response: Response, config: AppConfig, token: string): void {
+  response.cookie(sessionCookieName, token, {
+    httpOnly: true,
+    secure: config.nodeEnv === "production",
+    sameSite: "lax",
+    maxAge: config.sessionTtlSeconds * 1000,
+    path: sessionCookiePath
+  });
+}
+
+function clearSessionCookie(response: Response, config: AppConfig): void {
+  response.clearCookie(sessionCookieName, {
+    httpOnly: true,
+    secure: config.nodeEnv === "production",
+    sameSite: "lax",
+    path: sessionCookiePath
+  });
+}
+
 export function createApp(dependencies: AppDependencies) {
   const { config } = dependencies;
-  const sessions = dependencies.sessions ?? new InMemorySessionStore(config.sessionTtlSeconds);
+  const sessions = dependencies.sessions ?? createSessionStore(config);
   const loginAttempts = dependencies.loginAttempts ?? new OneTimeAttemptStore();
   const hiveClient = dependencies.hiveClient ?? new HiveWebLoginClient(config.hive);
+  const billingClient = dependencies.billingClient ?? new HiveBillingClient(config.hive);
+  const nicePayGateway = dependencies.nicePayGateway ?? new NicePayClient(config.nicepay);
+  const nicePayOrders = dependencies.nicePayOrders ?? createNicePayOrderStore(config);
   const aiService = dependencies.aiService ?? new AiService(config.openai);
   const marketStore = dependencies.marketStore ?? createMarketStore(config);
+  const purchaseHistory = dependencies.purchaseHistory ?? createPurchaseHistoryStore(config);
+  const storeCatalog = dependencies.storeCatalog ?? createStoreCatalogService(config);
+  const playerProgressStore =
+    dependencies.playerProgressStore ?? createPlayerProgressStore(config);
+  const playerSaves = dependencies.playerSaves ?? createPlayerSaveStore(config);
+  const playerProfiles = new PlayerProfileService(playerSaves, playerProgressStore);
   const app = express();
+  const requireGameSession = requireSession(sessions, sessionCookieName);
+  const nicePayCallbackPath = "/api/v1/store/nicepay/callback";
 
   app.disable("x-powered-by");
   app.use(
@@ -102,29 +294,66 @@ export function createApp(dependencies: AppDependencies) {
       }
     })
   );
-  app.use(
-    cors({
-      origin(origin, callback) {
-        const serverOrigin = new URL(config.publicBaseUrl).origin;
-        if (!origin || origin === config.gameOrigin || origin === serverOrigin) {
-          callback(null, true);
-          return;
-        }
-        callback(new HttpError(403, "허용되지 않은 웹게임 Origin입니다."));
-      },
-      credentials: true
-    })
-  );
+  const gameCors = cors({
+    origin(origin, callback) {
+      const serverOrigin = new URL(config.publicBaseUrl).origin;
+      if (!origin || origin === config.gameOrigin || origin === serverOrigin) {
+        callback(null, true);
+        return;
+      }
+      callback(new HttpError(403, "허용되지 않은 웹게임 Origin입니다."));
+    },
+    credentials: true
+  });
+  app.use((request, response, next) => {
+    // NICEPAY posts the authenticated payment result from its own origin. The
+    // callback is protected by order, amount, client-id, and signature checks,
+    // so it must reach the route without being treated as a game-browser CORS
+    // request. Keep the bypass limited to this exact POST endpoint.
+    if (request.method === "POST" && request.path === nicePayCallbackPath) {
+      next();
+      return;
+    }
+    gameCors(request, response, next);
+  });
   app.use(express.json({ limit: "32kb" }));
+  app.use(express.urlencoded({ extended: false, limit: "16kb" }));
+
+  app.use((request, response, next) => {
+    const requestId = request.header("x-request-id")?.slice(0, 128) ?? randomUUID();
+    const startedAt = performance.now();
+    response.setHeader("x-request-id", requestId);
+    response.on("finish", () => {
+      if (config.nodeEnv !== "production") return;
+      console.log(
+        JSON.stringify({
+          type: "http_request",
+          requestId,
+          method: request.method,
+          path: request.path,
+          status: response.statusCode,
+          durationMs: Math.round((performance.now() - startedAt) * 100) / 100,
+          revision: config.revision
+        })
+      );
+    });
+    next();
+  });
 
   app.get("/api/v1/health", (_request, response) => {
-    response.json({ status: "ok", timestamp: new Date().toISOString() });
+    response.json({ status: "ok", revision: config.revision, timestamp: new Date().toISOString() });
+  });
+
+  app.get("/api/v1/version", (_request, response) => {
+    response.set("cache-control", "no-store").json({ revision: config.revision });
   });
 
   app.get("/api/v1/config/public", (_request, response) => {
     response.json({
       hiveMode: config.hive.mode,
       storeMode: config.store.mode,
+      storeCatalogSource: config.store.catalogSource,
+      storeDevTools: config.store.devToolsEnabled,
       hiveWebShopUrl: config.hive.webShopUrl ?? null,
       openaiMode: config.openai.mode,
       openaiModel: config.openai.mode === "live" ? config.openai.model : "mock"
@@ -149,7 +378,7 @@ export function createApp(dependencies: AppDependencies) {
     response.set("cache-control", "no-store").json({ loginUrl });
   });
 
-  app.get("/api/v1/auth/hive/mock/complete", (request, response) => {
+  app.get("/api/v1/auth/hive/mock/complete", async (request, response) => {
     if (config.hive.mode !== "mock") {
       sendAuthBridgePage(response, config.gameOrigin, {
         type: "HIVE_AUTH_ERROR",
@@ -168,13 +397,14 @@ export function createApp(dependencies: AppDependencies) {
     }
 
     response.clearCookie(loginCookieName, { path: loginCookiePath });
-    const session = sessions.create({
+    const session = await sessions.create({
       subject: "mock-hive:local-player",
       provider: "mock-hive",
       playerId: "local-player",
       idpIndex: 1,
       idpUserId: "local-player"
     });
+    setSessionCookie(response, config, session.token);
 
     sendAuthBridgePage(response, config.gameOrigin, {
       type: "HIVE_AUTH_SUCCESS",
@@ -198,7 +428,7 @@ export function createApp(dependencies: AppDependencies) {
       const callbackPayload = decodeHivePayload<{ code: string; state?: string }>(encodedResult);
       const verified = await hiveClient.verifyCallback(callbackPayload);
       const playerId = verified.user_info?.user_id?.toString();
-      const session = sessions.create({
+      const session = await sessions.create({
         subject: playerId ?? `${verified.idp_index}:${verified.idp_user_id}`,
         provider: "hive",
         playerId,
@@ -206,6 +436,7 @@ export function createApp(dependencies: AppDependencies) {
         idpUserId: verified.idp_user_id
       });
 
+      setSessionCookie(response, config, session.token);
       response.clearCookie(loginCookieName, { path: loginCookiePath });
       sendAuthBridgePage(response, config.gameOrigin, {
         type: "HIVE_AUTH_SUCCESS",
@@ -222,7 +453,7 @@ export function createApp(dependencies: AppDependencies) {
 
   app.get(
     "/api/v1/auth/session",
-    requireSession(sessions),
+    requireGameSession,
     (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
       response.json({ session: sessionResponse(session) });
@@ -231,24 +462,152 @@ export function createApp(dependencies: AppDependencies) {
 
   app.delete(
     "/api/v1/auth/session",
-    requireSession(sessions),
-    (_request: Request, response: Response) => {
+    requireGameSession,
+    async (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
-      sessions.delete(session.token);
+      await sessions.delete(session.token);
+      clearSessionCookie(response, config);
       response.status(204).end();
     }
   );
 
-  app.get("/api/v1/store/catalog", (_request, response) => {
-    response.json({ mode: config.store.mode, products: storeCatalog });
+  app.get(
+    "/api/v1/progress",
+    requireGameSession,
+    async (_request: Request, response: Response) => {
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(await playerProfiles.getProgress(session.subject));
+    }
+  );
+
+  app.post(
+    "/api/v1/progress/customers/:customerId/met",
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const customerId = progressCustomerIdSchema.parse(request.params.customerId);
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(await playerProfiles.markCustomerMet(session.subject, customerId));
+    }
+  );
+
+  app.put(
+    "/api/v1/progress/stories/:customerId",
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const customerId = progressCustomerIdSchema.parse(request.params.customerId);
+      const input = storyProgressSchema.parse(request.body);
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(
+          await playerProfiles.mergeStoryProgress(
+            session.subject,
+            customerId,
+            input
+          )
+        );
+    }
+  );
+
+  app.get("/api/v1/store/catalog", async (request, response) => {
+    const token =
+      getBearerToken(request) ?? readCookie(request, sessionCookieName);
+    const session = token ? await sessions.get(token) : undefined;
+    const catalog = await storeCatalog.getCatalog(session?.playerId ?? session?.subject);
+    response.set("cache-control", "private, no-store").json({
+      mode: config.store.mode,
+      source: catalog.source,
+      updatedAt: catalog.updatedAt,
+      ignoredProductCount: catalog.ignoredProductCount,
+      products: catalog.products
+    });
   });
 
   app.get(
     "/api/v1/store/me",
-    requireSession(sessions),
+    requireGameSession,
     async (_request: Request, response: Response) => {
       const { session } = response.locals as AuthenticatedLocals;
-      response.json({ inventory: await marketStore.getInventory(session.subject) });
+      response.json(await marketStore.getPlayerState(session.subject));
+    }
+  );
+
+  app.get(
+    "/api/v1/store/purchases",
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const input = purchaseHistoryQuerySchema.parse(request.query);
+      const { session } = response.locals as AuthenticatedLocals;
+      try {
+        response
+          .set("cache-control", "private, no-store")
+          .json(await purchaseHistory.list(session.subject, input.limit, input.cursor));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("cursor")) {
+          throw new HttpError(400, error.message);
+        }
+        throw error;
+      }
+    }
+  );
+
+  app.get(
+    "/api/v1/save/profile",
+    requireGameSession,
+    async (_request: Request, response: Response) => {
+      const { session } = response.locals as AuthenticatedLocals;
+      response.set("cache-control", "private, no-store").json({
+        profile: (await playerProfiles.get(session.subject)) ?? null
+      });
+    }
+  );
+
+  app.put(
+    "/api/v1/save/profile",
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const input = savePutSchema.parse(request.body);
+      const { session } = response.locals as AuthenticatedLocals;
+      try {
+        const profile = await playerProfiles.put(
+          session.subject,
+          input.expectedRevision,
+          input.profile
+        );
+        response.set("cache-control", "private, no-store").json({ profile });
+      } catch (error) {
+        if (error instanceof SaveRevisionConflictError) {
+          response.status(409).json({
+            error: { code: "SAVE_CONFLICT", message: error.message },
+            profile: error.current ?? null
+          });
+          return;
+        }
+        throw error;
+      }
+    }
+  );
+
+  app.put(
+    "/api/v1/store/equipment/mold",
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const input = moldEquipmentSchema.parse(request.body);
+      const { session } = response.locals as AuthenticatedLocals;
+
+      if (input.itemId) {
+        const inventory = await marketStore.getInventory(session.subject);
+        const ownsItem = inventory.some(
+          (entry) => entry.itemId === input.itemId && entry.quantity > 0
+        );
+        if (!ownsItem) throw new HttpError(409, "보유하지 않은 황금 붕어빵 틀입니다.");
+      }
+
+      response.json(await marketStore.setMoldSkin(session.subject, input.itemId));
     }
   );
 
@@ -261,25 +620,287 @@ export function createApp(dependencies: AppDependencies) {
   });
 
   app.post(
+    "/api/v1/store/nicepay/orders",
+    purchaseLimiter,
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      if (config.store.mode !== "nicepay-test") {
+        throw new HttpError(404, "NICEPAY 테스트 결제가 비활성화되어 있습니다.");
+      }
+      const input = nicePayOrderSchema.parse(request.body);
+      const { session } = response.locals as AuthenticatedLocals;
+      const product = await storeCatalog.findById(
+        input.productId,
+        session.playerId ?? session.subject
+      );
+      if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
+      const order = await nicePayOrders.create({
+        subject: session.subject,
+        playerId: session.playerId,
+        productId: product.id,
+        productSnapshot: product,
+        goodsName: product.name,
+        amount: product.priceKrw
+      });
+      await purchaseHistory.start(session.subject, {
+        provider: "nicepay-test",
+        attemptId: order.orderId,
+        product,
+        expiresAtEpoch: order.expiresAtEpoch
+      });
+      response.status(201).json({
+        orderId: order.orderId,
+        amount: order.amount,
+        goodsName: order.goodsName,
+        checkoutUrl: `/api/v1/store/nicepay/checkout?orderId=${encodeURIComponent(order.orderId)}`
+      });
+    }
+  );
+
+  app.get("/api/v1/store/nicepay/checkout", async (request, response) => {
+    if (config.store.mode !== "nicepay-test" || !config.nicepay.clientId) {
+      throw new HttpError(404, "NICEPAY 테스트 결제가 비활성화되어 있습니다.");
+    }
+    const orderId = z.string().regex(/^NP_[a-f\d]{32}$/i).parse(request.query.orderId);
+    const order = await nicePayOrders.get(orderId);
+    if (!order) throw new HttpError(404, "NICEPAY 주문을 찾을 수 없습니다.");
+    if (order.status !== "pending") throw new HttpError(409, "이미 처리된 NICEPAY 주문입니다.");
+    if (order.expiresAtEpoch < Math.floor(Date.now() / 1000)) {
+      await purchaseHistory.finish(
+        order.subject,
+        "nicepay-test",
+        order.orderId,
+        "expired",
+        "ORDER_EXPIRED"
+      );
+      throw new HttpError(410, "NICEPAY 주문이 만료되었습니다.");
+    }
+    sendNicePayCheckoutPage(response, {
+      order,
+      clientId: config.nicepay.clientId,
+      returnUrl: `${config.publicBaseUrl}/api/v1/store/nicepay/callback`
+    });
+  });
+
+  app.post(nicePayCallbackPath, purchaseLimiter, async (request, response) => {
+    const resultOrigin = new URL(config.publicBaseUrl).origin;
+    let historyContext: { subject: string; attemptId: string } | undefined;
+    let historyStatus: Exclude<PurchaseStatus, "pending"> | undefined;
+    try {
+      if (config.store.mode !== "nicepay-test" || !config.nicepay.clientId || !config.nicepay.secretKey) {
+        throw new Error("NICEPAY 테스트 결제가 비활성화되어 있습니다.");
+      }
+      const input = nicePayCallbackSchema.parse(request.body);
+      const order = await nicePayOrders.get(input.orderId);
+      if (!order) throw new Error("NICEPAY 주문을 찾을 수 없습니다.");
+      historyContext = { subject: order.subject, attemptId: order.orderId };
+      if (order.status === "paid") {
+        historyStatus = "succeeded";
+        await purchaseHistory.finish(order.subject, "nicepay-test", order.orderId, historyStatus);
+        sendNicePayResultPage(response, resultOrigin, {
+          success: true,
+          message: "이미 지급된 테스트 결제입니다.",
+          orderId: order.orderId
+        });
+        return;
+      }
+      if (order.expiresAtEpoch < Math.floor(Date.now() / 1000)) {
+        historyStatus = "expired";
+        await purchaseHistory.finish(
+          order.subject,
+          "nicepay-test",
+          order.orderId,
+          historyStatus,
+          "ORDER_EXPIRED"
+        );
+        throw new Error("NICEPAY 주문이 만료되었습니다.");
+      }
+      if (input.authResultCode !== "0000") {
+        historyStatus = "cancelled";
+        await purchaseHistory.finish(
+          order.subject,
+          "nicepay-test",
+          order.orderId,
+          historyStatus,
+          "USER_CANCELLED"
+        );
+        throw new Error("NICEPAY 테스트 결제가 취소됐습니다.");
+      }
+      if (input.clientId !== config.nicepay.clientId) throw new Error("NICEPAY Client ID가 일치하지 않습니다.");
+      if (input.amount !== order.amount) throw new Error("NICEPAY 결제 금액이 주문과 일치하지 않습니다.");
+      if (!verifyNicePayAuthenticationSignature({
+        authToken: input.authToken,
+        clientId: input.clientId,
+        amount: input.amount,
+        secretKey: config.nicepay.secretKey,
+        signature: input.signature
+      })) {
+        throw new Error("NICEPAY 인증 서명이 올바르지 않습니다.");
+      }
+
+      const approval = await nicePayGateway.approvePayment({ tid: input.tid, amount: order.amount });
+      if (
+        approval.resultCode !== "0000" ||
+        approval.status !== "paid" ||
+        approval.tid !== input.tid ||
+        approval.orderId !== order.orderId ||
+        approval.amount !== order.amount ||
+        !verifyNicePayApprovalSignature(approval, config.nicepay.secretKey)
+      ) {
+        throw new Error("NICEPAY 승인 결과가 주문과 일치하지 않습니다.");
+      }
+
+      const product =
+        order.productSnapshot ??
+        (await storeCatalog.findById(order.productId, order.playerId ?? order.subject));
+      if (!product || product.priceKrw !== order.amount) {
+        throw new Error("서버 상품 정보가 주문과 일치하지 않습니다.");
+      }
+      await marketStore.grantPurchase(order.subject, product, {
+        provider: "nicepay-test",
+        transactionId: approval.tid
+      });
+      await nicePayOrders.markPaid(order.orderId, approval.tid);
+      historyStatus = "succeeded";
+      await purchaseHistory.finish(order.subject, "nicepay-test", order.orderId, historyStatus);
+      sendNicePayResultPage(response, resultOrigin, {
+        success: true,
+        message: "NICEPAY 테스트 결제가 계정에 지급됐습니다.",
+        orderId: order.orderId
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "NICEPAY 테스트 결제 처리에 실패했습니다.";
+      if (historyContext && !historyStatus) {
+        await purchaseHistory.finish(
+          historyContext.subject,
+          "nicepay-test",
+          historyContext.attemptId,
+          "failed",
+          "PAYMENT_FAILED"
+        );
+      }
+      if (config.nodeEnv !== "test") {
+        console.error(JSON.stringify({ type: "nicepay_test_payment_error", message, revision: config.revision }));
+      }
+      sendNicePayResultPage(response, resultOrigin, {
+        success: false,
+        message: config.nodeEnv === "production" ? "NICEPAY 테스트 결제 처리에 실패했습니다." : message
+      });
+    }
+  });
+
+  app.post(
     "/api/v1/store/mock-purchases",
     purchaseLimiter,
-    requireSession(sessions),
+    requireGameSession,
     async (request: Request, response: Response) => {
       if (config.store.mode !== "mock") {
-        throw new HttpError(403, "실제 HIVE 웹 상점 모드에서는 mock 구매를 사용할 수 없습니다.");
+        throw new HttpError(403, "현재 상점 모드에서는 mock 구매를 사용할 수 없습니다.");
       }
 
       const input = mockPurchaseSchema.parse(request.body);
-      const product = findProduct(input.productId);
-      if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
-
       const { session } = response.locals as AuthenticatedLocals;
-      const result = await marketStore.grantMockPurchase(
+      const product = await storeCatalog.findById(
+        input.productId,
+        session.playerId ?? session.subject
+      );
+      if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
+      await purchaseHistory.start(session.subject, {
+        provider: "mock",
+        attemptId: input.idempotencyKey,
+        product
+      });
+      let result;
+      try {
+        result = await marketStore.grantMockPurchase(
+          session.subject,
+          product,
+          input.idempotencyKey
+        );
+        await purchaseHistory.finish(
+          session.subject,
+          "mock",
+          input.idempotencyKey,
+          "succeeded"
+        );
+      } catch (error) {
+        if (error instanceof InsufficientTestPointsError) {
+          await purchaseHistory.finish(
+            session.subject,
+            "mock",
+            input.idempotencyKey,
+            "failed",
+            "INSUFFICIENT_TEST_POINTS"
+          );
+          throw new HttpError(409, error.message);
+        }
+        await purchaseHistory.finish(
+          session.subject,
+          "mock",
+          input.idempotencyKey,
+          "failed",
+          "PURCHASE_FAILED"
+        );
+        throw error;
+      }
+      response.status(result.duplicate ? 200 : 201).json({
+        ...result,
+        equipment: await marketStore.getEquipment(session.subject)
+      });
+    }
+  );
+
+  app.post(
+    "/api/v1/store/dev-test-points",
+    purchaseLimiter,
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      if (!config.store.devToolsEnabled) {
+        throw new HttpError(404, "개발용 테스트 포인트 기능이 비활성화되어 있습니다.");
+      }
+
+      const input = devTestPointCreditSchema.parse(request.body);
+      const { session } = response.locals as AuthenticatedLocals;
+      const result = await marketStore.creditTestPoints(
         session.subject,
-        product,
+        input.amount,
         input.idempotencyKey
       );
-      response.status(result.duplicate ? 200 : 201).json(result);
+      response.status(result.duplicate ? 200 : 201).json({
+        ...result,
+        inventory: await marketStore.getInventory(session.subject),
+        equipment: await marketStore.getEquipment(session.subject)
+      });
+    }
+  );
+
+  app.post(
+    "/api/v1/store/dev-grants",
+    purchaseLimiter,
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      if (!config.store.devToolsEnabled) {
+        throw new HttpError(404, "개발용 재화 지급 기능이 비활성화되어 있습니다.");
+      }
+
+      const input = mockPurchaseSchema.parse(request.body);
+      const { session } = response.locals as AuthenticatedLocals;
+      const product = await storeCatalog.findById(
+        input.productId,
+        session.playerId ?? session.subject
+      );
+      if (!product) throw new HttpError(404, "존재하지 않는 상품입니다.");
+      if (product.grant.itemId !== "red-bean-coin") {
+        throw new HttpError(400, "개발 도구에서는 인게임 재화만 지급할 수 있습니다.");
+      }
+      const result = await marketStore.grantPurchase(session.subject, product, {
+        provider: "dev-tools",
+        transactionId: input.idempotencyKey
+      });
+      response.status(result.duplicate ? 200 : 201).json({
+        ...result,
+        equipment: await marketStore.getEquipment(session.subject)
+      });
     }
   );
 
@@ -311,6 +932,107 @@ export function createApp(dependencies: AppDependencies) {
     });
   });
 
+  app.post("/api/v1/hive/web-shop/payment-notifications", async (request, response) => {
+    if (config.store.mode !== "hive-web-shop") {
+      throw new HttpError(404, "HIVE 웹 상점 결제 연동이 비활성화되어 있습니다.");
+    }
+
+    const input = hivePaymentNotificationSchema.parse(request.body);
+    if (input.market_id !== "15") {
+      throw new HttpError(400, "HIVE 웹 PG 결제(market_id=15)가 아닙니다.");
+    }
+    if (input.appid !== config.hive.billingAppId) {
+      throw new HttpError(400, "결제 알림 AppID가 서버 설정과 일치하지 않습니다.");
+    }
+    if (input.vid_type && input.vid_type !== "v4") {
+      throw new HttpError(400, "HIVE Authentication v4 PlayerID 결제가 아닙니다.");
+    }
+
+    const product = await storeCatalog.findByMarketPid(input.market_pid, input.vid);
+    if (!product) throw new HttpError(400, "등록되지 않은 HIVE 상품 PID입니다.");
+
+    if (input.type === "cancelled") {
+      response.json({ result: 0, result_msg: "cancelled payment acknowledged" });
+      return;
+    }
+
+    let verifiedHistoryStarted = false;
+    try {
+      const unconsumed = await billingClient.findUnconsumedPurchase({
+        playerId: input.vid,
+        serverId: input.server_id,
+        orderId: input.order_id
+      });
+      if (
+        unconsumed.marketId !== input.market_id ||
+        unconsumed.marketPid !== input.market_pid ||
+        unconsumed.orderId !== input.order_id ||
+        unconsumed.serverId !== input.server_id ||
+        unconsumed.playerId !== input.vid ||
+        unconsumed.quantity !== input.quantity ||
+        unconsumed.purchaseBypassInfo !== input.purchase_bypass_info
+      ) {
+        throw new HttpError(400, "HIVE 미소비 주문과 결제 알림 정보가 일치하지 않습니다.");
+      }
+
+      const verified = await billingClient.verifyReceipt(unconsumed.purchaseBypassInfo);
+      if (
+        verified.marketId !== input.market_id ||
+        verified.marketPid !== input.market_pid ||
+        (verified.marketTransactionId && verified.marketTransactionId !== input.order_id) ||
+        verified.quantity !== input.quantity
+      ) {
+        throw new HttpError(400, "HIVE 영수증과 결제 알림 정보가 일치하지 않습니다.");
+      }
+
+      // HIVE 내역은 영수증 검증이 끝난 결제만 기록한다. 검증되지 않은
+      // 콜백 원문이나 사용자 식별 정보가 구매 원장으로 승격되면 안 된다.
+      await purchaseHistory.start(input.vid, {
+        provider: "hive-web-shop",
+        attemptId: input.order_id,
+        product,
+        quantity: input.quantity
+      });
+      verifiedHistoryStarted = true;
+
+      const result = await marketStore.grantPurchase(input.vid, product, {
+        provider: "hive-web-shop",
+        transactionId: verified.transactionId,
+        quantity: verified.quantity
+      });
+      await billingClient.confirmDelivery({
+        transactionId: verified.transactionId,
+        playerId: input.vid,
+        itemId: product.grant.itemId,
+        itemName: product.name,
+        quantity: product.grant.quantity * verified.quantity
+      });
+      await purchaseHistory.finish(
+        input.vid,
+        "hive-web-shop",
+        input.order_id,
+        "succeeded"
+      );
+
+      response.json({
+        result: 0,
+        result_msg: "success",
+        duplicate: result.duplicate
+      });
+    } catch (error) {
+      if (verifiedHistoryStarted) {
+        await purchaseHistory.finish(
+          input.vid,
+          "hive-web-shop",
+          input.order_id,
+          "failed",
+          "DELIVERY_FAILED"
+        );
+      }
+      throw error;
+    }
+  });
+
   const aiLimiter = rateLimit({
     windowMs: 60_000,
     limit: 20,
@@ -322,13 +1044,20 @@ export function createApp(dependencies: AppDependencies) {
   app.post(
     "/api/v1/ai/npc-reaction",
     aiLimiter,
-    requireSession(sessions),
+    requireGameSession,
     async (request, response) => {
       const input = npcReactionSchema.parse(request.body);
       const result = await aiService.createNpcReaction(input);
       response.json(result);
     }
   );
+
+  app.get("/", (_request, response) => {
+    response
+      .set("Cache-Control", "no-store")
+      .type("html")
+      .send(renderPortalIndex(config.revision));
+  });
 
   app.use(
     "/game",

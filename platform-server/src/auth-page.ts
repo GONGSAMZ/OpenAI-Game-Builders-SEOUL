@@ -41,8 +41,25 @@ export function sendAuthBridgePage(
     <script nonce="${nonce}">
       const targetOrigin = ${serializedOrigin};
       const message = ${serializedMessage};
-      if (window.opener) window.opener.postMessage(message, targetOrigin);
-      window.close();
+      const notifyOpener = () => {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(message, targetOrigin);
+        }
+      };
+      const retryTimer = window.setInterval(notifyOpener, 250);
+      const closeTimer = window.setTimeout(() => {
+        window.clearInterval(retryTimer);
+        window.close();
+      }, 3000);
+
+      window.addEventListener("message", (event) => {
+        if (event.origin !== targetOrigin || event.data?.type !== "HIVE_AUTH_ACK") return;
+        window.clearInterval(retryTimer);
+        window.clearTimeout(closeTimer);
+        window.close();
+      });
+
+      notifyOpener();
     </script>
   </body>
 </html>`);
