@@ -26,8 +26,9 @@ public sealed class SavePipelineTests
 
         Assert.That(data.run.nextDay, Is.EqualTo(1));
         Assert.That(data.run.money, Is.EqualTo(SaveDataFactory.InitialMoney));
-        Assert.That(data.run.unlockedFillingIds.Count, Is.EqualTo(4));
+        Assert.That(data.run.unlockedFillingIds, Is.EqualTo(new[] { "red-bean" }));
         Assert.That(data.run.customerStories, Is.Empty);
+        Assert.That(data.run.queuedDayEffects, Is.Empty);
         Assert.That(data.account.discoveredSouls.Count, Is.EqualTo(1));
         Assert.That(data.account.lifetimeStats.totalSales, Is.EqualTo(50));
     }
@@ -79,7 +80,7 @@ public sealed class SavePipelineTests
             SaveGameData legacy = new() { schemaVersion = 2 };
             SaveDataFactory.Normalize(legacy);
 
-            Assert.That(legacy.schemaVersion, Is.EqualTo(5));
+            Assert.That(legacy.schemaVersion, Is.EqualTo(6));
             Assert.That(legacy.settings.masterVolume, Is.EqualTo(0.35f).Within(0.001f));
             Assert.That(legacy.settings.keyboardHintsEnabled, Is.False);
             Assert.That(legacy.settings.tutorialCompleted, Is.True);
@@ -189,8 +190,61 @@ public sealed class SavePipelineTests
 
         CustomerStoryRunState state = data.run.customerStories.Find(
             value => value.customerId == "jeonghyeon");
-        Assert.That(data.schemaVersion, Is.EqualTo(5));
+        Assert.That(data.schemaVersion, Is.EqualTo(6));
         Assert.That(state.specialOrderState, Is.EqualTo(CustomerStorySchedule.Scheduled));
+    }
+
+    [Test]
+    public void Normalize_V5Account_PreservesGrandfatheredFillingsAndQueuedEffects()
+    {
+        SaveGameData legacy = SaveDataFactory.CreateDefault();
+        legacy.schemaVersion = 5;
+        legacy.run.unlockedFillingIds = new() { "red-bean", "custard", "nutella", "cream-cheese" };
+        legacy.run.queuedDayEffects = new()
+        {
+            new QueuedDayEffectData
+            {
+                productId = "item-cooking-fever",
+                effectCode = "cook-time-multiplier",
+                targetDay = 3,
+                durationSeconds = 30f,
+                multiplier = 0.8f
+            }
+        };
+
+        SaveDataFactory.Normalize(legacy);
+
+        Assert.That(legacy.schemaVersion, Is.EqualTo(6));
+        Assert.That(legacy.run.unlockedFillingIds, Is.EquivalentTo(new[]
+        {
+            "red-bean", "custard", "nutella", "cream-cheese"
+        }));
+        Assert.That(legacy.run.queuedDayEffects, Has.Count.EqualTo(1));
+        Assert.That(legacy.run.queuedDayEffects[0].targetDay, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void BakingMultiplier_PremiumAndFeverStackMultiplicativelyAndSnapshotInputs()
+    {
+        SaveGameData data = SaveDataFactory.CreateDefault();
+        data.run.queuedDayEffects.Add(new QueuedDayEffectData
+        {
+            productId = GameplayItemEffects.CookingFeverProductId,
+            effectCode = GameplayItemEffects.CookingTimeMultiplierEffectCode,
+            targetDay = 2,
+            durationSeconds = 30f,
+            multiplier = 0.8f
+        });
+
+        Assert.That(
+            GameplayItemEffects.CalculateBakingTimeMultiplier(data, 2, 29.9f, 0.8f),
+            Is.EqualTo(0.64f).Within(0.0001f));
+        Assert.That(
+            GameplayItemEffects.CalculateBakingTimeMultiplier(data, 2, 30f, 0.8f),
+            Is.EqualTo(0.8f).Within(0.0001f));
+        Assert.That(
+            GameplayItemEffects.CalculateBakingTimeMultiplier(data, 3, 0f, 1f),
+            Is.EqualTo(1f).Within(0.0001f));
     }
 
     [Test]

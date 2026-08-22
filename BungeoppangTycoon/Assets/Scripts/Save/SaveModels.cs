@@ -23,6 +23,18 @@ public sealed class RunProgressData
     public List<CustomerStoryRunState> customerStories = new();
     // 서버 상점 인벤토리로 완전히 이전되기 전까지 기존 저장을 읽기 위한 호환 필드다.
     public List<string> ownedGameplayItemIds = new();
+    // 일반 상점에서 다음 영업일에 예약한 하루 한정 효과다.
+    public List<QueuedDayEffectData> queuedDayEffects = new();
+}
+
+[Serializable]
+public sealed class QueuedDayEffectData
+{
+    public string productId = string.Empty;
+    public string effectCode = string.Empty;
+    public int targetDay = 1;
+    public float durationSeconds;
+    public float multiplier = 1f;
 }
 
 [Serializable]
@@ -160,15 +172,15 @@ public static class SaveIds
 
 public static class SaveDataFactory
 {
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
     public const int InitialMoney = 5000;
     public const string LegacyVolumeKey = "settings_master_volume_v1";
     public const string LegacyKeyboardHintsKey = "settings_keyboard_hints_enabled_v1";
     public const string LegacyTutorialCompletedKey = "tutorial_completed_v1";
 
-    private static readonly string[] DefaultFillingIds =
+    private static readonly string[] RequiredDefaultFillingIds =
     {
-        "red-bean", "custard", "nutella", "cream-cheese"
+        "red-bean"
     };
 
     public static SaveGameData CreateDefault()
@@ -186,9 +198,10 @@ public static class SaveDataFactory
         {
             nextDay = 1,
             money = InitialMoney,
-            unlockedFillingIds = new List<string>(DefaultFillingIds),
+            unlockedFillingIds = new List<string>(RequiredDefaultFillingIds),
             customerStories = new List<CustomerStoryRunState>(),
-            ownedGameplayItemIds = new List<string>()
+            ownedGameplayItemIds = new List<string>(),
+            queuedDayEffects = new List<QueuedDayEffectData>()
         };
     }
 
@@ -203,8 +216,10 @@ public static class SaveDataFactory
         data.run.unlockedFillingIds ??= new List<string>();
         data.run.customerStories ??= new List<CustomerStoryRunState>();
         data.run.ownedGameplayItemIds ??= new List<string>();
-        foreach (string id in DefaultFillingIds)
+        data.run.queuedDayEffects ??= new List<QueuedDayEffectData>();
+        foreach (string id in RequiredDefaultFillingIds)
             if (!data.run.unlockedFillingIds.Contains(id)) data.run.unlockedFillingIds.Add(id);
+        NormalizeQueuedDayEffects(data.run.queuedDayEffects);
         NormalizeStoryStates(data.run.customerStories);
 
         data.account ??= new AccountProgressData();
@@ -349,6 +364,35 @@ public static class SaveDataFactory
         }
     }
 
+    private static void NormalizeQueuedDayEffects(List<QueuedDayEffectData> effects)
+    {
+        HashSet<string> seen = new();
+        for (int index = effects.Count - 1; index >= 0; index--)
+        {
+            QueuedDayEffectData effect = effects[index];
+            if (effect == null || string.IsNullOrWhiteSpace(effect.productId) ||
+                string.IsNullOrWhiteSpace(effect.effectCode))
+            {
+                effects.RemoveAt(index);
+                continue;
+            }
+
+            effect.targetDay = Mathf.Max(1, effect.targetDay);
+            effect.durationSeconds = Mathf.Max(0f, effect.durationSeconds);
+            effect.multiplier = Mathf.Clamp(effect.multiplier, 0.01f, 1f);
+            string key = $"{effect.productId}:{effect.targetDay}";
+            if (!seen.Add(key))
+                effects.RemoveAt(index);
+        }
+        effects.Sort((left, right) =>
+        {
+            int dayOrder = left.targetDay.CompareTo(right.targetDay);
+            return dayOrder != 0
+                ? dayOrder
+                : string.CompareOrdinal(left.productId, right.productId);
+        });
+    }
+
     private static void MergeCustomer(CustomerProgressData target, CustomerProgressData source)
     {
         target.completedTopicIds ??= new List<string>();
@@ -402,8 +446,28 @@ public static class SaveDataFactory
         money = source.money,
         unlockedFillingIds = new List<string>(source.unlockedFillingIds ?? new List<string>()),
         customerStories = CopyStoryStates(source.customerStories),
-        ownedGameplayItemIds = new List<string>(source.ownedGameplayItemIds ?? new List<string>())
+        ownedGameplayItemIds = new List<string>(source.ownedGameplayItemIds ?? new List<string>()),
+        queuedDayEffects = CopyQueuedDayEffects(source.queuedDayEffects)
     };
+
+    private static List<QueuedDayEffectData> CopyQueuedDayEffects(List<QueuedDayEffectData> source)
+    {
+        List<QueuedDayEffectData> copied = new();
+        if (source == null) return copied;
+        foreach (QueuedDayEffectData effect in source)
+        {
+            if (effect == null) continue;
+            copied.Add(new QueuedDayEffectData
+            {
+                productId = effect.productId,
+                effectCode = effect.effectCode,
+                targetDay = effect.targetDay,
+                durationSeconds = effect.durationSeconds,
+                multiplier = effect.multiplier
+            });
+        }
+        return copied;
+    }
 
     private static List<CustomerStoryRunState> CopyStoryStates(List<CustomerStoryRunState> source)
     {

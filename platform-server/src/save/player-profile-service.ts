@@ -10,9 +10,9 @@ import {
   type PlayerSaveStore
 } from "./save-store.js";
 
-const currentSchemaVersion = 4;
+export const currentSchemaVersion = 6;
 const progressMigrationId = "progress-v1";
-const defaultFillings = ["red-bean", "custard", "nutella", "cream-cheese"];
+const requiredDefaultFillings = ["red-bean"];
 
 type JsonRecord = Record<string, unknown>;
 
@@ -38,6 +38,29 @@ function stringArray(value: unknown): string[] {
 function numberOr(value: unknown, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizedQueuedDayEffects(value: unknown): JsonRecord[] {
+  const byKey = new Map<string, JsonRecord>();
+  for (const raw of Array.isArray(value) ? value : []) {
+    const effect = record(raw);
+    const productId = String(effect.productId ?? "");
+    const effectCode = String(effect.effectCode ?? "");
+    const targetDay = Math.max(1, Math.trunc(numberOr(effect.targetDay, 1)));
+    if (!productId || !effectCode) continue;
+    const key = `${productId}:${targetDay}`;
+    byKey.set(key, {
+      productId,
+      effectCode,
+      targetDay,
+      durationSeconds: Math.max(0, numberOr(effect.durationSeconds, 0)),
+      multiplier: Math.min(1, Math.max(0.01, numberOr(effect.multiplier, 1)))
+    });
+  }
+  return [...byKey.values()].sort((left, right) =>
+    numberOr(left.targetDay, 0) - numberOr(right.targetDay, 0) ||
+    String(left.productId).localeCompare(String(right.productId))
+  );
 }
 
 function canonicalCustomerId(value: unknown): string {
@@ -93,9 +116,10 @@ export function normalizePlayerSaveProfile(profile: PlayerSaveProfile): PlayerSa
   run.nextDay = Math.max(1, Number(run.nextDay) || 1);
   run.money = Number.isFinite(Number(run.money)) ? Number(run.money) : 5000;
   run.unlockedFillingIds = [
-    ...new Set([...defaultFillings, ...stringArray(run.unlockedFillingIds)])
+    ...new Set([...requiredDefaultFillings, ...stringArray(run.unlockedFillingIds)])
   ];
   run.ownedGameplayItemIds = stringArray(run.ownedGameplayItemIds);
+  run.queuedDayEffects = normalizedQueuedDayEffects(run.queuedDayEffects);
 
   const account = record(normalized.account);
   account.customers = normalizedCustomers(account.customers);
@@ -119,7 +143,7 @@ export function normalizePlayerSaveProfile(profile: PlayerSaveProfile): PlayerSa
   };
 }
 
-function defaultProfile(): PlayerSaveProfile {
+export function createDefaultPlayerSaveProfile(): PlayerSaveProfile {
   return normalizePlayerSaveProfile({
     schemaVersion: currentSchemaVersion,
     revision: 0,
@@ -127,8 +151,9 @@ function defaultProfile(): PlayerSaveProfile {
     run: {
       nextDay: 1,
       money: 5000,
-      unlockedFillingIds: defaultFillings,
-      ownedGameplayItemIds: []
+      unlockedFillingIds: requiredDefaultFillings,
+      ownedGameplayItemIds: [],
+      queuedDayEffects: []
     },
     account: {
       customers: [],
@@ -244,6 +269,25 @@ export class PlayerProfileService {
     profile: PlayerSaveProfile
   ): Promise<PlayerSaveProfile> {
     const normalized = normalizePlayerSaveProfile(profile);
+    const current = await this.saves.get(subject);
+    if ((current?.revision ?? 0) !== expectedRevision) {
+      throw new SaveRevisionConflictError(current);
+    }
+    const authoritativeRun = record(normalizePlayerSaveProfile(
+      current ?? createDefaultPlayerSaveProfile()
+    ).run);
+    const nextRun = record(normalized.run);
+    // 일반 돈과 일반 상점 보유 상태는 첫 저장을 포함해 전용 트랜잭션 API만 변경한다.
+    for (const protectedField of [
+      "nextDay",
+      "money",
+      "unlockedFillingIds",
+      "ownedGameplayItemIds",
+      "queuedDayEffects"
+    ]) {
+      nextRun[protectedField] = structuredClone(authoritativeRun[protectedField]);
+    }
+    normalized.run = nextRun;
     const legacy = await this.legacyProgress.getPlayerProgress(subject);
     mergeLegacyProgress(normalized, legacy);
     return this.saves.put(subject, expectedRevision, normalized);
@@ -288,7 +332,7 @@ export class PlayerProfileService {
   ): Promise<PlayerProgress> {
     for (let attempt = 0; attempt < 5; attempt++) {
       const current = await this.saves.get(subject);
-      const profile = normalizePlayerSaveProfile(current ?? defaultProfile());
+      const profile = normalizePlayerSaveProfile(current ?? createDefaultPlayerSaveProfile());
       mergeLegacyProgress(profile, await this.legacyProgress.getPlayerProgress(subject));
       const account = record(profile.account);
       const customers = normalizedCustomers(account.customers);

@@ -2,7 +2,8 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
   GetCommand,
-  PutCommand
+  PutCommand,
+  TransactWriteCommand
 } from "@aws-sdk/lib-dynamodb";
 import type { AppConfig } from "../config.js";
 
@@ -22,6 +23,25 @@ export class SaveRevisionConflictError extends Error {
   }
 }
 
+export class SaveIdempotencyConflictError extends Error {
+  public constructor() {
+    super("이미 다른 요청에 사용된 Idempotency-Key입니다.");
+    this.name = "SaveIdempotencyConflictError";
+  }
+}
+
+export interface PlayerSaveMutation {
+  operation: string;
+  idempotencyKey: string;
+  fingerprint: string;
+  mutate(current?: PlayerSaveProfile): PlayerSaveProfile;
+}
+
+export interface PlayerSaveMutationResult {
+  profile: PlayerSaveProfile;
+  duplicate: boolean;
+}
+
 export interface PlayerSaveStore {
   get(subject: string): Promise<PlayerSaveProfile | undefined>;
   put(
@@ -29,6 +49,11 @@ export interface PlayerSaveStore {
     expectedRevision: number,
     profile: PlayerSaveProfile
   ): Promise<PlayerSaveProfile>;
+  mutate(
+    subject: string,
+    expectedRevision: number,
+    mutation: PlayerSaveMutation
+  ): Promise<PlayerSaveMutationResult>;
 }
 
 function nextProfile(
@@ -44,6 +69,10 @@ function nextProfile(
 
 export class InMemoryPlayerSaveStore implements PlayerSaveStore {
   private readonly profiles = new Map<string, PlayerSaveProfile>();
+  private readonly mutations = new Map<
+    string,
+    { subject: string; fingerprint: string; resultRevision: number }
+  >();
 
   public async get(subject: string): Promise<PlayerSaveProfile | undefined> {
     const profile = this.profiles.get(subject);
@@ -64,6 +93,40 @@ export class InMemoryPlayerSaveStore implements PlayerSaveStore {
     this.profiles.set(subject, structuredClone(saved));
     return structuredClone(saved);
   }
+
+  public async mutate(
+    subject: string,
+    expectedRevision: number,
+    mutation: PlayerSaveMutation
+  ): Promise<PlayerSaveMutationResult> {
+    const receiptKey = `${mutation.operation}:${mutation.idempotencyKey}`;
+    const existing = this.mutations.get(receiptKey);
+    if (existing) {
+      if (existing.subject !== subject || existing.fingerprint !== mutation.fingerprint) {
+        throw new SaveIdempotencyConflictError();
+      }
+      const current = this.profiles.get(subject);
+      if (!current) throw new Error("멱등 처리된 저장 프로필을 찾을 수 없습니다.");
+      return { profile: structuredClone(current), duplicate: true };
+    }
+
+    const current = this.profiles.get(subject);
+    if ((current?.revision ?? 0) !== expectedRevision) {
+      throw new SaveRevisionConflictError(current ? structuredClone(current) : undefined);
+    }
+
+    const saved = nextProfile(
+      expectedRevision,
+      mutation.mutate(current ? structuredClone(current) : undefined)
+    );
+    this.profiles.set(subject, structuredClone(saved));
+    this.mutations.set(receiptKey, {
+      subject,
+      fingerprint: mutation.fingerprint,
+      resultRevision: saved.revision
+    });
+    return { profile: structuredClone(saved), duplicate: false };
+  }
 }
 
 interface DynamoPlayerSaveItem {
@@ -72,6 +135,16 @@ interface DynamoPlayerSaveItem {
   revision: number;
   updatedAt: string;
   profile: PlayerSaveProfile;
+}
+
+interface DynamoSaveMutationReceipt {
+  PK: string;
+  SK: "RECEIPT";
+  ownerSubject: string;
+  operation: string;
+  fingerprint: string;
+  resultRevision: number;
+  auditCreatedAt: string;
 }
 
 export class DynamoDbPlayerSaveStore implements PlayerSaveStore {
@@ -127,6 +200,102 @@ export class DynamoDbPlayerSaveStore implements PlayerSaveStore {
     }
 
     return saved;
+  }
+
+  public async mutate(
+    subject: string,
+    expectedRevision: number,
+    mutation: PlayerSaveMutation
+  ): Promise<PlayerSaveMutationResult> {
+    const receiptKey = `RUN_OPERATION#${mutation.operation}#${mutation.idempotencyKey}`;
+    const existing = await this.readMutationReceipt(receiptKey);
+    if (existing) return this.duplicateMutationResult(existing, subject, mutation);
+
+    const current = await this.get(subject);
+    if ((current?.revision ?? 0) !== expectedRevision) {
+      throw new SaveRevisionConflictError(current);
+    }
+
+    const saved = nextProfile(expectedRevision, mutation.mutate(current));
+    const createdAt = new Date().toISOString();
+    const condition = expectedRevision === 0
+      ? "attribute_not_exists(PK)"
+      : "revision = :expectedRevision";
+
+    try {
+      await this.client.send(new TransactWriteCommand({
+        TransactItems: [
+          {
+            Put: {
+              TableName: this.tableName,
+              Item: {
+                PK: receiptKey,
+                SK: "RECEIPT",
+                // subject/createdAt GSI에는 넣지 않아 HIVE 구매 내역 UI와 섞이지 않게 한다.
+                ownerSubject: subject,
+                operation: mutation.operation,
+                fingerprint: mutation.fingerprint,
+                resultRevision: saved.revision,
+                // 일반 상점·정산 감사와 장기 재시도 중복 방지를 위해 영구 보존한다.
+                auditCreatedAt: createdAt
+              } satisfies DynamoSaveMutationReceipt,
+              ConditionExpression: "attribute_not_exists(PK)"
+            }
+          },
+          {
+            Put: {
+              TableName: this.tableName,
+              Item: {
+                PK: `PLAYER#${subject}`,
+                SK: "SAVE#MAIN",
+                revision: saved.revision,
+                updatedAt: saved.updatedAt,
+                profile: saved
+              } satisfies DynamoPlayerSaveItem,
+              ConditionExpression: condition,
+              ExpressionAttributeValues: expectedRevision === 0
+                ? undefined
+                : { ":expectedRevision": expectedRevision }
+            }
+          }
+        ]
+      }));
+    } catch (error) {
+      const racedReceipt = await this.readMutationReceipt(receiptKey);
+      if (racedReceipt) {
+        return this.duplicateMutationResult(racedReceipt, subject, mutation);
+      }
+      if ((error as { name?: string }).name === "TransactionCanceledException") {
+        throw new SaveRevisionConflictError(await this.get(subject));
+      }
+      throw error;
+    }
+
+    return { profile: saved, duplicate: false };
+  }
+
+  private async readMutationReceipt(
+    receiptKey: string
+  ): Promise<DynamoSaveMutationReceipt | undefined> {
+    const result = await this.client.send(new GetCommand({
+      TableName: this.tableName,
+      Key: { PK: receiptKey, SK: "RECEIPT" },
+      ConsistentRead: true
+    }));
+    return result.Item as DynamoSaveMutationReceipt | undefined;
+  }
+
+  private async duplicateMutationResult(
+    existing: DynamoSaveMutationReceipt,
+    subject: string,
+    mutation: PlayerSaveMutation
+  ): Promise<PlayerSaveMutationResult> {
+    if (existing.ownerSubject !== subject || existing.fingerprint !== mutation.fingerprint) {
+      throw new SaveIdempotencyConflictError();
+    }
+    const profile = await this.get(subject);
+    if (!profile) throw new Error("멱등 처리된 저장 프로필을 찾을 수 없습니다.");
+    return { profile, duplicate: true };
   }
 }
 

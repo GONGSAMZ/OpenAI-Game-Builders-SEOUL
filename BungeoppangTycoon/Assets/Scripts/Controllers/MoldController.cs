@@ -73,17 +73,27 @@ public class MoldController : MonoBehaviour
         if (ToolController.selectedTool.CompareTag("kettle") == false)
             return;
 
-/*        if (IsFilled == false)
-        {
-            
-            IsFilled = true;
-        }*/
-        Util.ExecuteOnce(
-            () => {
-                Debug.Log("생성");
-                InstanciateFishBun(); },
-            ref isFilled, false
-            );
+        if (!TryPourBottomBatter())
+            return;
+
+        if (!GameplayItemEffects.HasItem(SaveService.Data, GameplayItemEffects.DualPourItemId))
+            return;
+
+        GameplayItemEffects.FindAdjacentMold(this)?.TryPourBottomBatter();
+    }
+
+    public FishBunController ActiveFishBun => GetComponentInChildren<FishBunController>(true);
+
+    public bool TryPourBottomBatter()
+    {
+        if (Managers.Game.isRunning == false || isFilled || ToolController.selectedTool == null ||
+            ToolController.selectedTool.CompareTag("kettle") == false)
+            return false;
+
+        isFilled = true;
+        Debug.Log("생성");
+        InstanciateFishBun();
+        return true;
     }
 
     void InstanciateFishBun()
