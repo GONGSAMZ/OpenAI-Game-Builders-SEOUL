@@ -25,6 +25,11 @@ public static class TutorialPrefabBuilder
     [DidReloadScripts]
     private static void RebuildAfterScriptReload()
     {
+        // CI의 WebGL 빌드는 저장된 프리팹을 사용한다. 여기서 프리팹을 다시 생성하면
+        // 에디터 초기화 중 리소스가 변경되어 빌드가 불안정해질 수 있다.
+        if (Application.isBatchMode)
+            return;
+
         EditorApplication.delayCall += () =>
         {
             if (SessionState.GetInt(SessionBuildVersionKey, 0) >= PrefabBuildVersion)
