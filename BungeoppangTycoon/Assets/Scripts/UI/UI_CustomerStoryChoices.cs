@@ -2,6 +2,7 @@ using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// <summary>
@@ -138,22 +139,22 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
 
         if (isReplyVisible)
         {
-            bool clickedAfterOpening = Input.GetMouseButtonDown(0) && Time.frameCount > replyOpenedFrame;
-            bool confirmed = Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Escape);
+            bool clickedAfterOpening = GameInput.LeftClickPressed && Time.frameCount > replyOpenedFrame;
+            bool confirmed = GameInput.KeyPressed(Key.Enter) || GameInput.KeyPressed(Key.NumpadEnter) || GameInput.KeyPressed(Key.Escape);
             if (clickedAfterOpening || confirmed)
                 currentCustomer?.OnStoryReplyFinished();
             return;
         }
 
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (GameInput.KeyPressed(Key.Escape))
         {
             currentCustomer?.CancelStoryDialogueSelection();
             return;
         }
 
-        if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) SelectChoice(0);
-        else if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2)) SelectChoice(1);
-        else if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3)) SelectChoice(2);
+        if (GameInput.KeyPressed(Key.Digit1) || GameInput.KeyPressed(Key.Numpad1)) SelectChoice(0);
+        else if (GameInput.KeyPressed(Key.Digit2) || GameInput.KeyPressed(Key.Numpad2)) SelectChoice(1);
+        else if (GameInput.KeyPressed(Key.Digit3) || GameInput.KeyPressed(Key.Numpad3)) SelectChoice(2);
     }
 
     private void ShowChoicesInternal(CustomerController customer, CustomerStoryData story)

@@ -157,11 +157,14 @@ public sealed class UI_Collection : UI_Base
     private Button CreateCard(Transform parent, string title, string subtitle, Sprite portrait, bool unlocked)
     {
         GameObject root = new("CollectionCard", typeof(RectTransform), typeof(Image), typeof(Button)); root.transform.SetParent(parent, false);
-        Image bg = root.GetComponent<Image>(); bg.color = unlocked ? new Color(1f, .95f, .83f) : new Color(.46f, .47f, .43f);
+        Image bg = root.GetComponent<Image>();
+        bg.sprite = Resources.Load<Sprite>("Sprites/UI/SettingsV4/Generated/card-surface-v4");
+        bg.type = Image.Type.Sliced;
+        bg.color = unlocked ? Color.white : new Color(.42f, .43f, .40f, 1f);
         Button button = root.GetComponent<Button>(); button.interactable = unlocked;
         Image art = CreateImage("Portrait", root.transform, portrait); art.rectTransform.anchorMin = new Vector2(.08f, .42f); art.rectTransform.anchorMax = new Vector2(.92f, .92f); art.rectTransform.offsetMin = art.rectTransform.offsetMax = Vector2.zero;
-        TextMeshProUGUI titleText = CreateText("Title", root.transform, 24, FontStyles.Bold); titleText.text = title; titleText.rectTransform.anchorMin = new Vector2(.08f, .22f); titleText.rectTransform.anchorMax = new Vector2(.92f, .40f); titleText.rectTransform.offsetMin = titleText.rectTransform.offsetMax = Vector2.zero;
-        TextMeshProUGUI subtitleText = CreateText("Subtitle", root.transform, 16, FontStyles.Normal); subtitleText.text = subtitle; subtitleText.rectTransform.anchorMin = new Vector2(.08f, .06f); subtitleText.rectTransform.anchorMax = new Vector2(.92f, .22f); subtitleText.rectTransform.offsetMin = subtitleText.rectTransform.offsetMax = Vector2.zero;
+        TextMeshProUGUI titleText = CreateText("Title", root.transform, 24, FontStyles.Bold); titleText.text = title; titleText.color = unlocked ? new Color(.27f, .19f, .12f) : Color.white; titleText.rectTransform.anchorMin = new Vector2(.10f, .22f); titleText.rectTransform.anchorMax = new Vector2(.90f, .40f); titleText.rectTransform.offsetMin = titleText.rectTransform.offsetMax = Vector2.zero;
+        TextMeshProUGUI subtitleText = CreateText("Subtitle", root.transform, 16, FontStyles.Normal); subtitleText.text = subtitle; subtitleText.color = unlocked ? new Color(.42f, .34f, .26f) : new Color(.92f, .92f, .88f); subtitleText.rectTransform.anchorMin = new Vector2(.10f, .06f); subtitleText.rectTransform.anchorMax = new Vector2(.90f, .22f); subtitleText.rectTransform.offsetMin = subtitleText.rectTransform.offsetMax = Vector2.zero;
         return button;
     }
 

@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 public class UI_Intro : MonoBehaviour
@@ -52,7 +53,7 @@ public class UI_Intro : MonoBehaviour
             startButton.interactable = saveReady;
         bool startButtonIsVisible = startButton != null && startButton.gameObject.activeInHierarchy;
 
-        if (saveReady && !startButtonIsVisible && Input.GetMouseButtonDown(0))
+        if (saveReady && !startButtonIsVisible && GameInput.LeftClickPressed)
             StartBtn();
     }
 

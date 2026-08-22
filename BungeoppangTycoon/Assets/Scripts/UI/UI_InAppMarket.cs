@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 public sealed class UI_InAppMarket : UI_Base
@@ -104,7 +105,7 @@ public sealed class UI_InAppMarket : UI_Base
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape)) Close();
+        if (GameInput.KeyPressed(Key.Escape)) Close();
         if (platformClient == null || lastObservedLoginState == platformClient.IsLoggedIn) return;
         lastObservedLoginState = platformClient.IsLoggedIn;
         OnSessionChanged(platformClient.AccountSubject);

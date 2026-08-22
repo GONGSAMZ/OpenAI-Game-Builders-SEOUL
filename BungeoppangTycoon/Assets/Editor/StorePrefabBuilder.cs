@@ -142,13 +142,13 @@ public static class StorePrefabBuilder
     private static void CreateHeader(Transform parent)
     {
         TextMeshProUGUI title = CreateText("TitleText", parent, "내일 장사 준비", 56, Ink, TextAlignmentOptions.Left, true);
-        TopLeft(title.rectTransform, new Vector2(560, 70), new Vector2(142, -51));
+        TopLeft(title.rectTransform, new Vector2(560, 70), new Vector2(142, -85));
 
         TextMeshProUGUI subtitle = CreateText("SubtitleText", parent, "팔고 싶은 붕어빵 소를 골라 보세요.", 24, Muted, TextAlignmentOptions.Left, false);
-        TopLeft(subtitle.rectTransform, new Vector2(650, 36), new Vector2(150, -106));
+        TopLeft(subtitle.rectTransform, new Vector2(650, 36), new Vector2(150, -140));
 
-        CreateBalanceChip(parent, "MoneyPanel", "MoneyText", "MoneyNum", "₩", "보유금", "12,800원", new Vector2(740, -20));
-        CreateBalanceChip(parent, "BeanCoinPanel", "BeanCoinText", "BeanCoinNum", "●", "팥코인", "24개", new Vector2(1120, -20));
+        CreateBalanceChip(parent, "MoneyPanel", "MoneyText", "MoneyNum", "₩", "보유금", "12,800원", new Vector2(740, -54));
+        CreateBalanceChip(parent, "BeanCoinPanel", "BeanCoinText", "BeanCoinNum", "●", "팥코인", "24개", new Vector2(1120, -54));
     }
 
     private static void CreateBalanceChip(Transform parent, string panelName, string labelName, string valueName, string icon, string label, string value, Vector2 position)
@@ -194,10 +194,10 @@ public static class StorePrefabBuilder
         GameObject row = CreateObject("FillingCards", parent);
         Stretch(row.GetComponent<RectTransform>());
 
-        CreateProductCard(row.transform, "RedBeanCard", "팥", "포근하고 진한 기본 단맛", "1,200원", 0, null, false, new Vector2(110, -258));
-        CreateProductCard(row.transform, "CustardCard", "슈크림", "부드럽고 달콤한 크림", "1,400원", 1, null, false, new Vector2(450, -258));
-        CreateProductCard(row.transform, "ChocolateCard", "초코", "진한 초콜릿의 달콤함", "1,600원", 2, null, false, new Vector2(790, -258));
-        CreateProductCard(row.transform, "CreamCheeseCard", "크림치즈", "짭짤하고 부드러운 맛", "1,800원", 3, null, false, new Vector2(1130, -258));
+        CreateProductCard(row.transform, "RedBeanCard", "팥", "포근하고 진한 기본 단맛", "1,200원", 0, null, false, new Vector2(150, -272));
+        CreateProductCard(row.transform, "CustardCard", "슈크림", "부드럽고 달콤한 크림", "1,400원", 1, null, false, new Vector2(475, -272));
+        CreateProductCard(row.transform, "ChocolateCard", "초코", "진한 초콜릿의 달콤함", "1,600원", 2, null, false, new Vector2(800, -272));
+        CreateProductCard(row.transform, "CreamCheeseCard", "크림치즈", "짭짤하고 부드러운 맛", "1,800원", 3, null, false, new Vector2(1125, -272));
     }
 
     private static void CreateItems(Transform parent)
@@ -215,7 +215,7 @@ public static class StorePrefabBuilder
     private static void CreateProductCard(Transform parent, string cardName, string productName, string description, string price, int fillingIndex, string itemArt, bool locked, Vector2 position)
     {
         GameObject card = CreateObject(cardName, parent);
-        TopLeft(card.GetComponent<RectTransform>(), new Vector2(320, 440), position);
+        TopLeft(card.GetComponent<RectTransform>(), new Vector2(280, 420), position);
 
         RawImage cardSurface = CreateRaw("CardSurface", card.transform, "card-surface");
         Stretch(cardSurface.rectTransform);
@@ -226,7 +226,7 @@ public static class StorePrefabBuilder
             // 소 주머니 원본은 세로로 긴 비율입니다. 카드 폭에 맞춰 늘리지 않고
             // 중앙의 세로 슬롯 안에 두어 원본 비율에 가깝게 표시합니다.
             // 카드 안쪽 여백과 피그마 시안의 상단 정렬을 맞춘 좌표입니다.
-            SetRect(fillingArt.rectTransform, new Vector2(80, 184), new Vector2(120, 240));
+            SetRect(fillingArt.rectTransform, new Vector2(60, 172), new Vector2(120, 224));
             // 4열×2행 원본의 윗줄만 사용합니다. 높이를 1로 두면 두 개의 소가 한 카드에 함께 보입니다.
             fillingArt.uvRect = new Rect(fillingIndex * .25f, .5f, .25f, .5f);
         }
@@ -237,19 +237,19 @@ public static class StorePrefabBuilder
         }
 
         TextMeshProUGUI title = CreateText("ProductNameText", card.transform, productName, 28, Ink, TextAlignmentOptions.Left, true);
-        SetRect(title.rectTransform, new Vector2(272, 40), new Vector2(24, 196));
+        SetRect(title.rectTransform, new Vector2(232, 40), new Vector2(24, 184));
 
         TextMeshProUGUI body = CreateText("ProductDescriptionText", card.transform, description, 19, Muted, TextAlignmentOptions.TopLeft, false);
         body.textWrappingMode = TextWrappingModes.Normal;
-        SetRect(body.rectTransform, new Vector2(272, 58), new Vector2(24, 120));
+        SetRect(body.rectTransform, new Vector2(232, 58), new Vector2(24, 120));
 
         TextMeshProUGUI priceText = CreateText("PriceText", card.transform, price, 24, Ink, TextAlignmentOptions.Left, true);
-        SetRect(priceText.rectTransform, new Vector2(272, 34), new Vector2(24, 76));
+        SetRect(priceText.rectTransform, new Vector2(232, 34), new Vector2(24, 76));
 
-        Button purchase = CreateButton("PurchaseButton", card.transform, new Vector2(272, 52), new Vector2(24, 20), out TextMeshProUGUI purchaseLabel);
+        Button purchase = CreateButton("PurchaseButton", card.transform, new Vector2(232, 52), new Vector2(24, 20), out TextMeshProUGUI purchaseLabel);
         // CreateButton은 상단 기준 버튼(탭·다음 영업일)에 쓰입니다.
         // 카드의 구매 버튼만 하단 기준이므로 좌표계를 여기서 명시적으로 바꿉니다.
-        SetRect(purchase.GetComponent<RectTransform>(), new Vector2(272, 52), new Vector2(24, 16));
+        SetRect(purchase.GetComponent<RectTransform>(), new Vector2(232, 52), new Vector2(24, 16));
         RawImage purchaseSurface = CreateRaw("PurchaseSurface", purchase.transform, locked ? "button-paper" : "button-primary");
         purchaseSurface.rectTransform.SetAsFirstSibling();
         Stretch(purchaseSurface.rectTransform);
@@ -263,7 +263,7 @@ public static class StorePrefabBuilder
     private static void CreateFooter(Transform parent)
     {
         TextMeshProUGUI note = CreateText("StoreNote", parent, "구매한 속은 내일부터 주문에 등장합니다.", 19, Muted, TextAlignmentOptions.Left, false);
-        TopLeft(note.rectTransform, new Vector2(900, 29), new Vector2(110, -716));
+        TopLeft(note.rectTransform, new Vector2(900, 29), new Vector2(150, -726));
 
         Button nextDay = CreateButton("NextDayButton", parent, new Vector2(480, 94), new Vector2(540, -758), out TextMeshProUGUI label);
         RawImage surface = CreateRaw("NextDaySurface", nextDay.transform, "button-primary");
@@ -489,7 +489,7 @@ public static class StorePrefabBuilder
 
         RectTransform titleRect = FindChild(instance.transform, "TitleText")?.GetComponent<RectTransform>();
         if (titleRect != null)
-            titleRect.anchoredPosition = showFillings ? new Vector2(142f, -51f) : new Vector2(150f, -51f);
+            titleRect.anchoredPosition = showFillings ? new Vector2(142f, -85f) : new Vector2(150f, -85f);
 
         RectTransform noteRect = FindChild(instance.transform, "StoreNote")?.GetComponent<RectTransform>();
         if (noteRect != null)

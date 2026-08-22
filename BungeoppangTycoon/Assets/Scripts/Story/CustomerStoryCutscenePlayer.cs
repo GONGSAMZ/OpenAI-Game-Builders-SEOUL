@@ -1,6 +1,7 @@
 using System;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// <summary>특별 주문 성공 및 도감 재감상에서 공용으로 쓰는 클릭형 컷씬 재생기입니다.</summary>
@@ -92,7 +93,7 @@ public sealed class CustomerStoryCutscenePlayer : MonoBehaviour
     private void Update()
     {
         if (root == null || !root.activeSelf || Time.frameCount == openedFrame) return;
-        if (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter))
+        if (GameInput.LeftClickPressed || GameInput.KeyPressed(Key.Space) || GameInput.KeyPressed(Key.Enter) || GameInput.KeyPressed(Key.NumpadEnter))
             Advance();
     }
 

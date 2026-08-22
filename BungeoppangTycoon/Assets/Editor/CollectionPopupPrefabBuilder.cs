@@ -6,25 +6,26 @@ using UnityEngine.UI;
 /// <summary>도감 팝업을 코드로 생성해 프리팹 구조와 스타일을 항상 동일하게 유지합니다.</summary>
 public static class CollectionPopupPrefabBuilder
 {
+    private const string V4 = "Sprites/UI/SettingsV4/";
+    private const string CardSurface = "Sprites/UI/SettingsV4/Generated/card-surface-v4";
+
     [MenuItem("Tools/Bungeoppang/Build Collection Popup")]
     public static void Build()
     {
         GameObject root = new("UI_Collection", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster), typeof(UI_Collection));
         Canvas canvas = root.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         CanvasScaler scaler = root.GetComponent<CanvasScaler>(); scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize; scaler.referenceResolution = new Vector2(1920, 1080); scaler.matchWidthOrHeight = .5f;
-        Image dim = Image("Dim", root.transform, new Color(.02f, .04f, .06f, .72f)); Stretch(dim.rectTransform);
+        RawImage backdrop = Raw("Backdrop", root.transform, "Sprites/Environment/background"); Stretch(backdrop.rectTransform); backdrop.raycastTarget = false;
+        Image dim = Image("Dim", root.transform, new Color(.02f, .06f, .12f, .30f)); Stretch(dim.rectTransform);
 
-        Image panel = Image("Panel", root.transform, new Color(.94f, .87f, .69f));
+        RawImage panel = Raw("Panel", root.transform, "Sprites/UI/StoreV2/panel-skin");
         RectTransform panelRect = panel.rectTransform; panelRect.anchorMin = panelRect.anchorMax = new Vector2(.5f, .5f); panelRect.sizeDelta = new Vector2(1180, 790);
-        Outline outline = panel.gameObject.AddComponent<Outline>(); outline.effectColor = new Color(.35f, .39f, .38f); outline.effectDistance = new Vector2(4, -4);
+        Text("Title", panel.transform, "도감", 40, TextAlignmentOptions.Left, new Vector2(.06f, .88f), new Vector2(.42f, .96f), new Color(.27f, .19f, .12f), FontStyles.Bold);
+        Text("Subtitle", panel.transform, "만난 손님과 마음속 이야기를 모아 보세요.", 18, TextAlignmentOptions.Left, new Vector2(.06f, .84f), new Vector2(.70f, .89f), new Color(.42f, .34f, .26f), FontStyles.Normal);
+        Button close = SpriteButton("CloseButton", panel.transform, V4 + "close-button-watercolor"); SetRect(close.GetComponent<RectTransform>(), new Vector2(.90f, .88f), new Vector2(.95f, .95f));
 
-        Image header = Image("Header", panel.transform, new Color(.62f, .16f, .10f)); SetRect(header.rectTransform, new Vector2(.03f, .87f), new Vector2(.97f, .96f));
-        Text("Title", header.transform, "도감", 34, TextAlignmentOptions.Left, new Vector2(.03f, .1f), new Vector2(.35f, .9f), Color.white, FontStyles.Bold);
-        Text("Subtitle", header.transform, "손님과 마음속 이야기를 모아 보세요.", 18, TextAlignmentOptions.Left, new Vector2(.20f, .15f), new Vector2(.75f, .85f), new Color(1f, .94f, .80f), FontStyles.Normal);
-        Button close = Button("CloseButton", header.transform, "×", new Color(1f, .80f, .38f)); SetRect(close.GetComponent<RectTransform>(), new Vector2(.93f, .16f), new Vector2(.98f, .84f));
-
-        Button customerTab = Button("CustomerTabButton", panel.transform, "손님", new Color(.12f, .31f, .32f)); SetRect(customerTab.GetComponent<RectTransform>(), new Vector2(.03f, .79f), new Vector2(.49f, .85f));
-        Button storyTab = Button("StoryTabButton", panel.transform, "스토리", new Color(.83f, .70f, .47f)); SetRect(storyTab.GetComponent<RectTransform>(), new Vector2(.51f, .79f), new Vector2(.97f, .85f));
+        Button customerTab = Button("CustomerTabButton", panel.transform, "손님", new Color(.12f, .31f, .32f)); SetRect(customerTab.GetComponent<RectTransform>(), new Vector2(.06f, .76f), new Vector2(.48f, .82f));
+        Button storyTab = Button("StoryTabButton", panel.transform, "스토리", new Color(.12f, .31f, .32f)); SetRect(storyTab.GetComponent<RectTransform>(), new Vector2(.52f, .76f), new Vector2(.94f, .82f));
 
         GameObject customerPanel = Panel("CustomerPanel", panel.transform); SetRect(customerPanel.GetComponent<RectTransform>(), new Vector2(.03f, .05f), new Vector2(.97f, .76f));
         Text("CustomerHint", customerPanel.transform, "만난 손님은 이름과 최근 대화를 확인할 수 있어요.", 18, TextAlignmentOptions.Left, new Vector2(.01f, .91f), new Vector2(.95f, .99f), new Color(.31f, .28f, .22f), FontStyles.Normal);
@@ -56,9 +57,11 @@ public static class CollectionPopupPrefabBuilder
         AssetDatabase.SaveAssets();
     }
 
-    private static GameObject Panel(string name, Transform parent) { GameObject go = new(name, typeof(RectTransform)); go.transform.SetParent(parent, false); return go; }
+    private static GameObject Panel(string name, Transform parent) { Image image = Image(name, parent, Color.white); image.sprite = Resources.Load<Sprite>(CardSurface); image.type = UnityEngine.UI.Image.Type.Sliced; return image.gameObject; }
     private static Image Image(string name, Transform parent, Color color) { GameObject go = new(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image)); go.transform.SetParent(parent, false); Image image = go.GetComponent<Image>(); image.color = color; return image; }
-    private static Button Button(string name, Transform parent, string label, Color color) { Image image = Image(name, parent, color); Button button = image.gameObject.AddComponent<Button>(); Text("Label", image.transform, label, 22, TextAlignmentOptions.Center, Vector2.zero, Vector2.one, Color.white, FontStyles.Bold); return button; }
+    private static Button Button(string name, Transform parent, string label, Color color) { Image image = Image(name, parent, Color.white); image.sprite = Resources.Load<Sprite>(V4 + "button-controls-watercolor"); image.type = UnityEngine.UI.Image.Type.Sliced; Button button = image.gameObject.AddComponent<Button>(); Text("Label", image.transform, label, 22, TextAlignmentOptions.Center, Vector2.zero, Vector2.one, new Color(1f, .94f, .78f), FontStyles.Bold); return button; }
+    private static Button SpriteButton(string name, Transform parent, string path) { Image image = Image(name, parent, Color.white); image.sprite = Resources.Load<Sprite>(path); image.preserveAspect = true; return image.gameObject.AddComponent<Button>(); }
+    private static RawImage Raw(string name, Transform parent, string path) { GameObject go = new(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage)); go.transform.SetParent(parent, false); RawImage image = go.GetComponent<RawImage>(); image.texture = Resources.Load<Texture>(path); return image; }
     private static void Text(string name, Transform parent, string content, float size, TextAlignmentOptions alignment, Vector2 min, Vector2 max, Color color, FontStyles style) { GameObject go = new(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI)); go.transform.SetParent(parent, false); TextMeshProUGUI text = go.GetComponent<TextMeshProUGUI>(); text.font = Resources.Load<TMP_FontAsset>("omyuPretty SDF") ?? TMP_Settings.defaultFontAsset; text.text = content; text.fontSize = size; text.fontStyle = style; text.alignment = alignment; text.color = color; text.textWrappingMode = TextWrappingModes.Normal; text.raycastTarget = false; SetRect(text.rectTransform, min, max); }
     private static void SetRect(RectTransform rect, Vector2 min, Vector2 max) { rect.anchorMin = min; rect.anchorMax = max; rect.offsetMin = rect.offsetMax = Vector2.zero; }
     private static void Stretch(RectTransform rect) { rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one; rect.offsetMin = rect.offsetMax = Vector2.zero; }

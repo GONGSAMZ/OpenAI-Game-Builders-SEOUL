@@ -86,7 +86,7 @@ public class UI_Store : UI_Base
         if (titleRect != null)
             // 현재 프로젝트의 TMP 글꼴은 시안 글꼴보다 윗 여백이 작습니다.
             // 아이템 탭에서 제목 윗부분이 잘리지 않는 공통 높이를 사용합니다.
-            titleRect.anchoredPosition = showFillings ? new Vector2(142f, -51f) : new Vector2(150f, -51f);
+            titleRect.anchoredPosition = showFillings ? new Vector2(142f, -85f) : new Vector2(150f, -85f);
 
         RectTransform noteRect = Util.Find<RectTransform>(gameObject, "StoreNote", true);
         if (noteRect != null)

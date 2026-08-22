@@ -612,8 +612,10 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         if (Managers.Game.isClosingTime == true)
             yield break;
 
-        InitCustomer();
-        ++Managers.Game.totalCustomers;
+        // 프리팹은 기본적으로 활성화되어 있으므로 대기 시간에는 이전 손님과 주문 UI를 숨긴다.
+        // 실제 손님 정보와 방문 기록은 마감 검사를 통과한 뒤에만 만든다.
+        Customer.gameObject.SetActive(false);
+        UI_order.gameObject.SetActive(false);
 
         //스폰 대기 시간 관련 변수
         float spawnDalayMin = 3f;
@@ -630,6 +632,12 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         while (UI_Tutorial.IsBlockingFirstCustomer)
             yield return null;
 
+        // 대기 중에 19시가 되었으면 손님 정보를 만들거나 도감 방문 기록을 남기지 않는다.
+        if (Managers.Game.isClosingTime == true)
+            yield break;
+
+        InitCustomer();
+        ++Managers.Game.totalCustomers;
         customer.gameObject.SetActive(true);
 
         yield break;

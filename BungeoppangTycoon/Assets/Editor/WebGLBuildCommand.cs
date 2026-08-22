@@ -94,10 +94,10 @@ public static class WebGLBuildCommand
             .Split(';')
             .Where(define => !string.IsNullOrWhiteSpace(define))
             .Any(define => define == "URP_COMPATIBILITY_MODE");
-        if (!hasCompatibilityMode)
+        if (hasCompatibilityMode)
             throw new InvalidOperationException(
-                "WebGL Scripting Define Symbols에 URP_COMPATIBILITY_MODE가 필요합니다. " +
-                "ProjectSettings.asset에 영구 설정한 뒤 다시 빌드하세요.");
+                "WebGL Scripting Define Symbols에서 폐기된 URP_COMPATIBILITY_MODE를 제거해야 합니다. " +
+                "Render Graph 전환이 완료된 프로젝트만 빌드할 수 있습니다.");
     }
 }
 #endif

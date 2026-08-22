@@ -34,7 +34,7 @@ public static class CustomerStoryProgress
     public static bool IsSpecialOrderActive { get; private set; }
     public static bool IsStoryCompleted => IsStoryCompletedFor(CustomerType.JeongHyun);
     public static int SpecialOrderDueDay => RunState.nextSpecialOrderDay;
-    public static int RetryAvailableDay => RunState.nextSpecialOrderDay;
+    public static string SpecialOrderState => RunState.specialOrderState;
     public static IReadOnlyCollection<int> CompletedTopics =>
         CompletedTopicsFor(CustomerType.JeongHyun);
 
@@ -74,6 +74,7 @@ public static class CustomerStoryProgress
         CustomerStoryData jeongHyun = CustomerStoryCatalog.Get(CustomerType.JeongHyun);
         bool fillingAvailable = jeongHyun != null && IsFillingAvailable(jeongHyun.RequiredFilling);
         RefreshActiveStory();
+        RestorePendingSpecialOrderAfterRunReset(jeongHyun, fillingAvailable);
         Persist();
 
         Debug.Log(
@@ -147,7 +148,10 @@ public static class CustomerStoryProgress
         if (validCompletedTopicCount >= ActiveStory.Topics.Length &&
             RunState.nextSpecialOrderDay < 0 &&
             IsFillingAvailable(ActiveStory.RequiredFilling))
+        {
             RunState.nextSpecialOrderDay = Managers.Game.Day + 1;
+            RunState.specialOrderState = CustomerStorySchedule.Scheduled;
+        }
 
         Persist();
         Debug.Log(
@@ -201,12 +205,14 @@ public static class CustomerStoryProgress
         {
             SaveData.storyCompleted = true;
             RunState.nextSpecialOrderDay = -1;
+            RunState.specialOrderState = string.Empty;
             Persist();
             RefreshActiveStory();
             return true;
         }
 
         RunState.nextSpecialOrderDay = CustomerStorySchedule.RetryDayAfterFailure(Managers.Game.Day);
+        RunState.specialOrderState = CustomerStorySchedule.Retry;
         CustomerStoryOverlay.ShowResult(
             ActiveStory.DisplayName,
             fillingMatch || bakeMatch ? ActiveStory.NearMissMessage : ActiveStory.FailureMessage,
@@ -229,6 +235,7 @@ public static class CustomerStoryProgress
         runState.lastTalkDay = -1;
         state.completedTopicIds.Clear();
         runState.nextSpecialOrderDay = -1;
+        runState.specialOrderState = string.Empty;
         state.storyCompleted = false;
         ActiveStory = null;
         IsSpecialOrderActive = false;
@@ -246,6 +253,25 @@ public static class CustomerStoryProgress
         ActiveStory = SaveData.storyCompleted || story == null || !IsFillingAvailable(story.RequiredFilling)
             ? null
             : story;
+    }
+
+    /// <summary>
+    /// 게임 플레이만 초기화하면 계정의 대화 완료 기록은 남고 실행 데이터의 예약만 사라집니다.
+    /// 이 경우 첫 영업일 마감에 특별 주문이 이어지도록 예약을 되살립니다.
+    /// </summary>
+    private static void RestorePendingSpecialOrderAfterRunReset(CustomerStoryData story, bool fillingAvailable)
+    {
+        bool hasRemainingTopics = story != null && HasRemainingTopics(story.CustomerType);
+        if (!CustomerStorySchedule.ShouldRestorePendingOrder(
+                SaveData.storyCompleted,
+                hasRemainingTopics,
+                fillingAvailable,
+                RunState.nextSpecialOrderDay))
+            return;
+
+        RunState.nextSpecialOrderDay = CustomerStorySchedule.FirstOrderDay(Managers.Game.Day);
+        RunState.specialOrderState = CustomerStorySchedule.Scheduled;
+        Debug.Log($"[손님 이야기] 실행 데이터 초기화 뒤 특별 주문 예약 복구 | 예정일={RunState.nextSpecialOrderDay}일차");
     }
 
     private static void Persist()

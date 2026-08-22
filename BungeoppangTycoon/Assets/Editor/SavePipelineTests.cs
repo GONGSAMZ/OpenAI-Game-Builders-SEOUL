@@ -16,7 +16,8 @@ public sealed class SavePipelineTests
         {
             customerId = "jeonghyeon",
             lastTalkDay = 3,
-            nextSpecialOrderDay = 4
+            nextSpecialOrderDay = 4,
+            specialOrderState = CustomerStorySchedule.Scheduled
         });
         data.account.discoveredSouls.Add(new SoulDiscoveryData { soulId = "soul:red-bean:soft" });
         data.account.lifetimeStats.totalSales = 50;
@@ -78,7 +79,7 @@ public sealed class SavePipelineTests
             SaveGameData legacy = new() { schemaVersion = 2 };
             SaveDataFactory.Normalize(legacy);
 
-            Assert.That(legacy.schemaVersion, Is.EqualTo(4));
+            Assert.That(legacy.schemaVersion, Is.EqualTo(5));
             Assert.That(legacy.settings.masterVolume, Is.EqualTo(0.35f).Within(0.001f));
             Assert.That(legacy.settings.keyboardHintsEnabled, Is.False);
             Assert.That(legacy.settings.tutorialCompleted, Is.True);
@@ -168,8 +169,28 @@ public sealed class SavePipelineTests
         Assert.That(state, Is.Not.Null);
         Assert.That(state.lastTalkDay, Is.EqualTo(2));
         Assert.That(state.nextSpecialOrderDay, Is.EqualTo(5));
+        Assert.That(state.specialOrderState, Is.EqualTo(CustomerStorySchedule.Retry));
         Assert.That(customer.lastTalkDay, Is.EqualTo(-1));
         Assert.That(customer.retryAvailableDay, Is.EqualTo(-1));
+    }
+
+    [Test]
+    public void Normalize_V4ScheduledOrder_AddsScheduledState()
+    {
+        SaveGameData data = SaveDataFactory.CreateDefault();
+        data.schemaVersion = 4;
+        data.run.customerStories.Add(new CustomerStoryRunState
+        {
+            customerId = "jeonghyeon",
+            nextSpecialOrderDay = 3
+        });
+
+        SaveDataFactory.Normalize(data);
+
+        CustomerStoryRunState state = data.run.customerStories.Find(
+            value => value.customerId == "jeonghyeon");
+        Assert.That(data.schemaVersion, Is.EqualTo(5));
+        Assert.That(state.specialOrderState, Is.EqualTo(CustomerStorySchedule.Scheduled));
     }
 
     [Test]
@@ -181,6 +202,31 @@ public sealed class SavePipelineTests
         Assert.That(CustomerStorySchedule.IsOrderDue(retryDay, 4), Is.False);
         Assert.That(CustomerStorySchedule.IsOrderDue(retryDay, 5), Is.True);
         Assert.That(CustomerStorySchedule.IsOrderDue(retryDay, 6), Is.True);
+    }
+
+    [TestCase(false, false, true, -1, true)]
+    [TestCase(true, false, true, -1, false)]
+    [TestCase(false, true, true, -1, false)]
+    [TestCase(false, false, false, -1, false)]
+    [TestCase(false, false, true, 3, false)]
+    public void CustomerStorySchedule_OnlyRestoresMissingPendingOrder(
+        bool storyCompleted,
+        bool hasRemainingTopics,
+        bool fillingAvailable,
+        int scheduledDay,
+        bool expected)
+    {
+        Assert.That(
+            CustomerStorySchedule.ShouldRestorePendingOrder(
+                storyCompleted, hasRemainingTopics, fillingAvailable, scheduledDay),
+            Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void CustomerStorySchedule_FirstOrderDay_UsesFirstDayForResetRun()
+    {
+        Assert.That(CustomerStorySchedule.FirstOrderDay(0), Is.EqualTo(1));
+        Assert.That(CustomerStorySchedule.FirstOrderDay(4), Is.EqualTo(5));
     }
 
     [Test]

@@ -7,7 +7,10 @@ public class UIManager
 {
     GameObject scene;
     Stack<GameObject> popup = new Stack<GameObject>();
-    int popup_order = 10; //팝업 순서 조절 용
+    // 장면 UI 프리팹은 자체적으로 200 이상의 정렬 순서를 사용합니다.
+    // 팝업을 그보다 낮은 순서에 두면 생성은 되었어도 장면 UI 뒤에 가려집니다.
+    const int PopupSortingOrderBase = 1000;
+    int popup_order = PopupSortingOrderBase; //팝업 순서 조절 용
 
     //UI오브젝트들의 부모가 되는 게임 오브젝트UIRoot
     GameObject UIRoot
@@ -52,8 +55,9 @@ public class UIManager
         {
             //스택
             popup.Push(prefab);
-            prefab.GetComponent<Canvas>().sortingOrder
-                = ++popup_order;
+            Canvas popupCanvas = prefab.GetComponent<Canvas>();
+            popupCanvas.overrideSorting = true;
+            popupCanvas.sortingOrder = ++popup_order;
 
         }
 

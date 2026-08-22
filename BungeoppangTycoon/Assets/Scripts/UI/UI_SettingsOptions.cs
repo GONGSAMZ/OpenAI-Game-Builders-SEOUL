@@ -1,6 +1,7 @@
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 /// <summary>
@@ -75,7 +76,7 @@ public sealed class UI_SettingsOptions : UI_SettingsPopupBase
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (GameInput.KeyPressed(Key.Escape))
             Managers.UI.CloseUI(false);
     }
 

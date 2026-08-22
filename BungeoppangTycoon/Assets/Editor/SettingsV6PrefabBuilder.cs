@@ -84,17 +84,20 @@ public static class SettingsV6PrefabBuilder
         CreateSlider(volume);
         Text("VolumeStateText", volume, string.Empty, 14, Teal, TextAlignmentOptions.Center, 360, 24, 90, 184, false).gameObject.SetActive(false);
 
-        Transform keyboard = Card("KeyboardCard", panel, 660, 250, 540, 220, false);
-        Text("KeyboardLabel", keyboard, "키보드 안내", 26, Ink, TextAlignmentOptions.Left, 300, 36, 32, 24, true);
-        Text("KeyboardHintDescriptionText", keyboard, "단축키 안내를 화면에 표시해요.", 16, BodyInk, TextAlignmentOptions.Left, 360, 24, 32, 70, false);
-        Button toggle = SlicedSpriteButton("KeyboardHintToggle", keyboard, SettingsV4 + "Generated/toggle-track-v4", 370, 20, 118, 48);
+        const float keyboardCardWidth = 540f;
+        const float keyboardCardPadding = 72f;
+        const float keycapWidth = 170f;
+        Transform keyboard = Card("KeyboardCard", panel, 660, 250, keyboardCardWidth, 220, false);
+        Text("KeyboardLabel", keyboard, "키보드 안내", 26, Ink, TextAlignmentOptions.Left, 230, 36, keyboardCardPadding, 32, true);
+        Text("KeyboardHintDescriptionText", keyboard, "단축키 안내를 화면에 표시해요.", 16, BodyInk, TextAlignmentOptions.Left, 270, 24, keyboardCardPadding, 82, false);
+        Button toggle = SlicedSpriteButton("KeyboardHintToggle", keyboard, SettingsV4 + "Generated/toggle-track-v4", keyboardCardWidth - keyboardCardPadding - 118, 28, 118, 48);
         Text("KeyboardHintStateText", toggle.transform, "켜짐", 18, Hex("FFF0C7"), TextAlignmentOptions.Center, 72, 28, 10, 10, true);
         Image thumb = SpriteGraphic("KeyboardHintToggleThumb", toggle.transform, SettingsV4 + "toggle-thumb", 80, 10, 28, 28);
         thumb.rectTransform.anchorMin = thumb.rectTransform.anchorMax = new Vector2(1f, .5f);
         thumb.rectTransform.pivot = new Vector2(.5f, .5f);
         thumb.rectTransform.anchoredPosition = new Vector2(-29f, 0f);
-        Keycap(keyboard, "Keycap_Space", "Space", 32, 130);
-        Keycap(keyboard, "Keycap_1–8", "1–8", 250, 130);
+        Keycap(keyboard, "Keycap_Space", "Space", keyboardCardPadding, 142, keycapWidth);
+        Keycap(keyboard, "Keycap_1–8", "1–8", keyboardCardWidth - keyboardCardPadding - keycapWidth, 142, keycapWidth);
 
         Transform reset = Card("ResetZone", panel, 60, 504, 1140, 138, true);
         SpriteGraphic("WarningIcon", reset, SettingsV6 + "icon-warning-triangle", 32, 43, 52, 52);
@@ -196,11 +199,11 @@ public static class SettingsV6PrefabBuilder
         slider.minValue = 0; slider.maxValue = 1; slider.value = 1; slider.fillRect = fill.rectTransform; slider.handleRect = handle.rectTransform; slider.targetGraphic = handle;
     }
 
-    private static void Keycap(Transform parent, string name, string label, float x, float y)
+    private static void Keycap(Transform parent, string name, string label, float x, float y, float width)
     {
         Image cap = SlicedSpriteImage(name, parent, SettingsV4 + "Generated/keycap-v4");
-        SetTopLeft(cap.rectTransform, x, y, 190, 46);
-        Text("Label", cap.transform, label, 16, Ink, TextAlignmentOptions.Center, 190, 26, 0, 10, true);
+        SetTopLeft(cap.rectTransform, x, y, width, 46);
+        Text("Label", cap.transform, label, 16, Ink, TextAlignmentOptions.Center, width, 26, 0, 10, true);
     }
 
     private static Button RoundedButton(string name, Transform parent, float x, float y, float width, float height, Color fill, Color outline)

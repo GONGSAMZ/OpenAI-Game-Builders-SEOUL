@@ -70,7 +70,10 @@ public static class SaveUiFactory
         GameObject root = new(name, typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         Canvas canvas = root.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 100;
+        // UI_Settings(정렬 순서 200) 위에 표시해야 하므로 별도 생성 팝업도
+        // UIManager 팝업과 같은 상위 순서를 명시적으로 사용합니다.
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = 1200;
         CanvasScaler scaler = root.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);

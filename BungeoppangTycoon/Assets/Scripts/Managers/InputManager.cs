@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.InputSystem;
 
 public class InputManager : MonoBehaviour
 {
@@ -33,7 +34,7 @@ public class InputManager : MonoBehaviour
     {
         Instance = this;
         CameraController.ViewChanged += HandleViewChanged;
-        SetTouchMode(Application.isMobilePlatform && Input.touchSupported);
+        SetTouchMode(Application.isMobilePlatform && Touchscreen.current != null);
     }
 
     void Start()
@@ -56,19 +57,19 @@ public class InputManager : MonoBehaviour
         HandleTouchInput();
         UpdateToolTargetOutlines();
 
-        if (Input.touchCount == 0 && (Input.GetMouseButtonDown(0) || Input.anyKeyDown))
+        if (!IsTouchPressed() && (GameInput.LeftClickPressed || GameInput.AnyKeyboardKeyPressed))
             SetTouchMode(false);
 
         if (Managers.Game.isRunning == false || UI_Tutorial.IsBlockingFirstCustomer)
             return;
 
-        if (Input.GetKeyDown(KeyCode.Space) && UI_Tutorial.AllowsManualViewSwitch)
+        if (GameInput.KeyPressed(Key.Space) && UI_Tutorial.AllowsManualViewSwitch)
         {
             SetTouchMode(false);
             CameraController.Instance?.ToggleCamera();
         }
 
-        if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+        if (GameInput.KeyPressed(Key.Escape) || GameInput.RightClickPressed)
         {
             SetTouchMode(false);
             CancelSelection();
@@ -78,13 +79,40 @@ public class InputManager : MonoBehaviour
             CameraController.Instance.CurrentView == GameplayView.Cooking &&
             CameraController.Instance.IsTransitioning == false)
         {
+            if (HandleSelectedFishBunShortcuts())
+                return;
+
             HandleToolShortcuts();
         }
     }
 
+    /// <summary>
+    /// 선택한 완성 붕어빵을 조리대의 고정 대상에 바로 놓습니다.
+    /// 대상이 씬에 없거나 아직 놓을 수 없는 상태면 선택을 유지합니다.
+    /// </summary>
+    bool HandleSelectedFishBunShortcuts()
+    {
+        if (selectedFishBun == null)
+            return false;
+
+        if (GameInput.KeyPressed(Key.W))
+        {
+            TryHandleSelectedFishBun(GameObject.FindGameObjectWithTag("displayPlate"));
+            return true;
+        }
+
+        if (GameInput.KeyPressed(Key.E))
+        {
+            TryHandleSelectedFishBun(GameObject.FindGameObjectWithTag("bin"));
+            return true;
+        }
+
+        return false;
+    }
+
     void HandleToolShortcuts()
     {
-        if (Input.GetKeyDown(KeyCode.Q))
+        if (GameInput.KeyPressed(Key.Q))
         {
             SelectTool(tool => tool.CompareTag("kettle"));
             return;
@@ -109,21 +137,21 @@ public class InputManager : MonoBehaviour
 
     static bool TryGetPressedFilling(out FillingType filling)
     {
-        (KeyCode numberKey, KeyCode keypadKey, FillingType filling)[] shortcuts =
+        (Key numberKey, Key keypadKey, FillingType filling)[] shortcuts =
         {
-            (KeyCode.Alpha1, KeyCode.Keypad1, FillingType.redBean),
-            (KeyCode.Alpha2, KeyCode.Keypad2, FillingType.custard),
-            (KeyCode.Alpha3, KeyCode.Keypad3, FillingType.nutella),
-            (KeyCode.Alpha4, KeyCode.Keypad4, FillingType.creamCheese),
-            (KeyCode.Alpha5, KeyCode.Keypad5, FillingType.pizza),
-            (KeyCode.Alpha6, KeyCode.Keypad6, FillingType.mint),
-            (KeyCode.Alpha7, KeyCode.Keypad7, FillingType.greenTea),
-            (KeyCode.Alpha8, KeyCode.Keypad8, FillingType.sweetPotato),
+            (Key.Digit1, Key.Numpad1, FillingType.redBean),
+            (Key.Digit2, Key.Numpad2, FillingType.custard),
+            (Key.Digit3, Key.Numpad3, FillingType.nutella),
+            (Key.Digit4, Key.Numpad4, FillingType.creamCheese),
+            (Key.Digit5, Key.Numpad5, FillingType.pizza),
+            (Key.Digit6, Key.Numpad6, FillingType.mint),
+            (Key.Digit7, Key.Numpad7, FillingType.greenTea),
+            (Key.Digit8, Key.Numpad8, FillingType.sweetPotato),
         };
 
-        foreach ((KeyCode numberKey, KeyCode keypadKey, FillingType value) in shortcuts)
+        foreach ((Key numberKey, Key keypadKey, FillingType value) in shortcuts)
         {
-            if (Input.GetKeyDown(numberKey) || Input.GetKeyDown(keypadKey))
+            if (GameInput.KeyPressed(numberKey) || GameInput.KeyPressed(keypadKey))
             {
                 filling = value;
                 return true;
@@ -136,35 +164,42 @@ public class InputManager : MonoBehaviour
 
     void HandleTouchInput()
     {
-        if (Input.touchCount == 0)
+        Touchscreen touchscreen = Touchscreen.current;
+        if (touchscreen == null)
             return;
 
-        Touch touch = Input.GetTouch(0);
+        var touch = touchscreen.primaryTouch;
+        UnityEngine.InputSystem.TouchPhase phase = touch.phase.ReadValue();
+        if (!touch.press.isPressed && phase != UnityEngine.InputSystem.TouchPhase.Ended && phase != UnityEngine.InputSystem.TouchPhase.Canceled)
+            return;
+
+        int fingerId = touch.touchId.ReadValue();
+        Vector2 position = touch.position.ReadValue();
         SetTouchMode(true);
 
-        if (touch.phase == TouchPhase.Began)
+        if (phase == UnityEngine.InputSystem.TouchPhase.Began)
         {
-            trackedFingerId = touch.fingerId;
-            swipeStart = touch.position;
-            canUseSwipe = CanStartViewSwipe(touch);
+            trackedFingerId = fingerId;
+            swipeStart = position;
+            canUseSwipe = CanStartViewSwipe(fingerId, position);
             return;
         }
 
-        if (touch.fingerId != trackedFingerId)
+        if (fingerId != trackedFingerId)
             return;
 
-        if (touch.phase == TouchPhase.Canceled)
+        if (phase == UnityEngine.InputSystem.TouchPhase.Canceled)
         {
             ResetSwipe();
             return;
         }
 
-        if (touch.phase != TouchPhase.Ended)
+        if (phase != UnityEngine.InputSystem.TouchPhase.Ended)
             return;
 
         if (canUseSwipe && Managers.Game.isRunning && UI_Tutorial.AllowsManualViewSwitch)
         {
-            Vector2 delta = touch.position - swipeStart;
+            Vector2 delta = position - swipeStart;
             float threshold = Mathf.Max(MinimumSwipePixels, Screen.height * SwipeScreenRatio);
             if (Mathf.Abs(delta.y) >= threshold && Mathf.Abs(delta.y) > Mathf.Abs(delta.x) * VerticalSwipeRatio)
             {
@@ -178,18 +213,20 @@ public class InputManager : MonoBehaviour
         ResetSwipe();
     }
 
-    static bool CanStartViewSwipe(Touch touch)
+    static bool CanStartViewSwipe(int fingerId, Vector2 position)
     {
-        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(touch.fingerId))
+        if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(fingerId))
             return false;
 
         Camera camera = Camera.main;
         if (camera == null)
             return false;
 
-        Vector3 world = camera.ScreenToWorldPoint(touch.position);
+        Vector3 world = camera.ScreenToWorldPoint(position);
         return Physics2D.OverlapPoint(world) == null;
     }
+
+    static bool IsTouchPressed() => Touchscreen.current?.primaryTouch.press.isPressed == true;
 
     void ResetSwipe()
     {

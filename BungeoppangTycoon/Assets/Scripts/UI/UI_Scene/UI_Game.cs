@@ -155,7 +155,7 @@ public class UI_Game : UI_Base
             new Vector2(1740f, 58f),
             25f);
         shortcutHintPanel = shortcutHintText.transform.parent.gameObject;
-        shortcutHintText.text = "Q  주전자   |   1  팥   2  슈크림   3  누텔라   4  크림치즈   5  피자   6  민트   7  녹차   8  고구마";
+        shortcutHintText.text = "Q  주전자   |   1  팥   2  슈크림   3  누텔라   4  크림치즈   5  피자   6  민트   7  녹차   8  고구마   |   W  진열   E  버리기";
 
         selectedFishBunText = CreateHintPanel(
             "SelectedFishBunHint",
@@ -242,7 +242,7 @@ public class UI_Game : UI_Base
         bool hasSelection = fishBun != null;
         selectedFishBunText.gameObject.SetActive(hasSelection);
         if (hasSelection)
-            selectedFishBunText.text = $"선택됨  ·  {GetFillingName(fishBun.fillingType)} 붕어빵  |  진열대·손님·쓰레기통 클릭";
+            selectedFishBunText.text = $"선택됨  ·  {GetFillingName(fishBun.fillingType)} 붕어빵  |  W 진열 · E 버리기 · 손님 클릭";
     }
 
     static string GetFillingName(FillingType filling)

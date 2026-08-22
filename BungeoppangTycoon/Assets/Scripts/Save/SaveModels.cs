@@ -63,11 +63,25 @@ public sealed class CustomerStoryRunState
     public string customerId;
     public int lastTalkDay = -1;
     public int nextSpecialOrderDay = -1;
+    // "scheduled"은 일반 대화를 모두 마친 뒤의 특별 주문, "retry"는 실패 뒤 재도전입니다.
+    public string specialOrderState = string.Empty;
 }
 
 public static class CustomerStorySchedule
 {
+    public const string Scheduled = "scheduled";
+    public const string Retry = "retry";
+
     public static int RetryDayAfterFailure(int currentDay) => Mathf.Max(1, currentDay) + 2;
+
+    public static int FirstOrderDay(int currentDay) => Mathf.Max(1, currentDay + 1);
+
+    public static bool ShouldRestorePendingOrder(
+        bool storyCompleted,
+        bool hasRemainingTopics,
+        bool fillingAvailable,
+        int nextSpecialOrderDay) =>
+        !storyCompleted && !hasRemainingTopics && fillingAvailable && nextSpecialOrderDay < 0;
 
     // 예정일을 놓쳐도 특별 주문이 영구히 사라지지 않게 한다.
     public static bool IsOrderDue(int nextSpecialOrderDay, int currentDay) =>
@@ -146,7 +160,7 @@ public static class SaveIds
 
 public static class SaveDataFactory
 {
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
     public const int InitialMoney = 5000;
     public const string LegacyVolumeKey = "settings_master_volume_v1";
     public const string LegacyKeyboardHintsKey = "settings_keyboard_hints_enabled_v1";
@@ -277,7 +291,13 @@ public static class SaveDataFactory
             int legacyNextOrderDay = customer.specialOrderDueDay > 0
                 ? customer.specialOrderDueDay
                 : customer.retryAvailableDay;
-            state.nextSpecialOrderDay = Mathf.Max(state.nextSpecialOrderDay, legacyNextOrderDay);
+            if (legacyNextOrderDay > state.nextSpecialOrderDay)
+            {
+                state.nextSpecialOrderDay = legacyNextOrderDay;
+                state.specialOrderState = customer.specialOrderDueDay > 0
+                    ? CustomerStorySchedule.Scheduled
+                    : CustomerStorySchedule.Retry;
+            }
             customer.lastTalkDay = -1;
             customer.specialOrderDueDay = -1;
             customer.retryAvailableDay = -1;
@@ -310,12 +330,21 @@ public static class SaveDataFactory
             if (state.customerId == "jeonghyun") state.customerId = "jeonghyeon";
             state.lastTalkDay = Mathf.Max(-1, state.lastTalkDay);
             state.nextSpecialOrderDay = Mathf.Max(-1, state.nextSpecialOrderDay);
+            if (state.nextSpecialOrderDay < 0)
+                state.specialOrderState = string.Empty;
+            else if (state.specialOrderState != CustomerStorySchedule.Scheduled &&
+                     state.specialOrderState != CustomerStorySchedule.Retry)
+                state.specialOrderState = CustomerStorySchedule.Scheduled;
             int firstIndex = states.FindIndex(value => value != null && value != state && value.customerId == state.customerId);
             if (firstIndex < 0) continue;
 
             CustomerStoryRunState target = states[firstIndex];
             target.lastTalkDay = Mathf.Max(target.lastTalkDay, state.lastTalkDay);
-            target.nextSpecialOrderDay = Mathf.Max(target.nextSpecialOrderDay, state.nextSpecialOrderDay);
+            if (state.nextSpecialOrderDay > target.nextSpecialOrderDay)
+            {
+                target.nextSpecialOrderDay = state.nextSpecialOrderDay;
+                target.specialOrderState = state.specialOrderState;
+            }
             states.RemoveAt(index);
         }
     }
@@ -387,7 +416,8 @@ public static class SaveDataFactory
             {
                 customerId = state.customerId,
                 lastTalkDay = state.lastTalkDay,
-                nextSpecialOrderDay = state.nextSpecialOrderDay
+                nextSpecialOrderDay = state.nextSpecialOrderDay,
+                specialOrderState = state.specialOrderState
             });
         }
         return copied;
