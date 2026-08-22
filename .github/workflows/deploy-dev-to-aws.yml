@@ -126,6 +126,10 @@ jobs:
       USE_RUNTIME_SECRETS: "true"
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Unity builder가 Git LFS 리소스를 내려받으며 작업 트리를 변경하지 않도록,
+          # 체크아웃 단계에서 LFS 파일까지 함께 복원한다.
+          lfs: true
       - name: Cache Unity Library
         uses: actions/cache@v4
         with:
