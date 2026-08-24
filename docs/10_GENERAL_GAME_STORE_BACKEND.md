@@ -56,3 +56,4 @@ SaveProfile v6의 신규 계정은 팥만 기본 보유한다. 기존 v5 이하 
 - UI 담당자의 최신 결과가 이 문서와 충돌하면 UI 코드를 덮어쓰지 말고 상품 ID와 동작을 팀에서 다시 확정한다.
 - 서버 `pnpm check`, Unity EditMode, Unity `6000.3.22f1` WebGL 빌드를 모두 통과시킨다.
 - 일반 돈과 팥 코인, 일반 황금 2구 틀과 프리미엄 `golden-pan`이 섞이지 않는지 두 계정으로 확인한다.
+- 위 계정 격리 회귀는 `platform-server`에서 `pnpm test:account-scope`로 자동 확인한다. 세부 항목과 JSON 출력은 [계정 단위 데이터 테스트 툴](11_ACCOUNT_SCOPE_TEST_TOOL.md)을 따른다.

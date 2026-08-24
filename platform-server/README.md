@@ -22,6 +22,7 @@ Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, �
 - Docker 및 GitHub Actions 기본 설정
 - Unity 6.3 WebGL 소스/산출물 SHA-256 매니페스트 검증
 - 배포 revision API, smoke test, ECS 자동 롤백과 수동 immutable 이미지 롤백
+- 두 Mock 계정으로 저장·경제·프리미엄 데이터 누수를 검사하는 계정 단위 스모크 테스트
 
 ## 로컬 실행
 
@@ -38,6 +39,12 @@ Windows PowerShell에서는 다음처럼 환경 파일을 복사할 수 있습�
 ```powershell
 Copy-Item .env.example .env
 pnpm dev
+```
+
+계정별 저장이 섞이지 않는지 배포 전에 자동 확인하려면 다음 명령을 실행합니다. AWS·HIVE·NICEPAY 실데이터는 사용하지 않으며, 자세한 검사 범위는 [계정 단위 데이터 테스트 툴](../docs/11_ACCOUNT_SCOPE_TEST_TOOL.md)에 정리되어 있습니다.
+
+```powershell
+pnpm test:account-scope
 ```
 
 `.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다. 루트 화면에는 상단 헤더와 Unity 게임이 표시됩니다. `STORE_DEV_TOOLS=true`인 개발 환경에서만 게임 바깥 오른쪽에 테스트 결제 패널이 나타납니다. 로그인 사용자는 10,000P로 시작하고, 개발용 충전 또는 1,100P·5,500P·3,300P 상품 결제를 실행할 수 있습니다. 서버의 사용자별 잔액·인벤토리는 실행 중인 게임과 즉시 동기화됩니다.

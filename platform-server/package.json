@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "pnpm typecheck && pnpm test",
+    "test:account-scope": "tsx scripts/account-scope-smoke.ts",
     "unity:stage": "node scripts/unity-build-manifest.mjs stage",
     "unity:verify": "node scripts/unity-build-manifest.mjs verify"
   },

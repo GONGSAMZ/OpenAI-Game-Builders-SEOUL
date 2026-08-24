@@ -73,6 +73,8 @@ Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점,
 
 > 일반 게임 돈으로 구매하는 내일 장사 상점과 서버 정산 규칙은 **[일반 상점·계정 저장 백엔드 가이드](docs/10_GENERAL_GAME_STORE_BACKEND.md)**를 따릅니다. HIVE 팥 코인·`golden-pan`과 일반 상점 상품은 서로 다른 재화와 저장소를 사용합니다.
 
+> 계정 A/B의 설정·업적·일반 상점·정산·초기화·프리미엄 구매·재로그인 격리는 **[계정 단위 데이터 테스트 툴](docs/11_ACCOUNT_SCOPE_TEST_TOOL.md)**과 `platform-server`의 `pnpm test:account-scope`로 자동 확인합니다.
+
 | 구성 | 위치 | 역할 |
 | --- | --- | --- |
 | 플랫폼 서버 | `platform-server/` | HIVE 로그인, 게임 세션, 마켓, OpenAI 프록시 |
@@ -110,6 +112,7 @@ BungeoppangTycoon/
 platform-server/
 ├─ src/                 # Hive/OpenAI 서버 코드
 ├─ public/              # 연동 검증 화면과 브라우저 브리지
+├─ scripts/             # 계정 격리 및 Unity 빌드 검증 도구
 ├─ tests/               # 서버 통합 테스트
 └─ docs/                # API와 Console 설정 문서
 ```
