@@ -27,7 +27,7 @@ public static class CustomerCollectionCatalog
         Entry(CustomerType.Geonwoo, "건우", 11, "초등학생", "혼자서도 잘한다고 말하는 건우예요. 가방 속에 좋아하는 놀이가 숨어 있을지도 몰라요.", "Customers/05_Geonwoo", "오늘만은 어린이", "놀자대장 초코붕", "geonwoo"),
         Entry(CustomerType.Taesu, "태수", 47, "수리점 운영자", "공구 가방을 든 태수 아저씨예요. 보내지 못한 말이 있는 듯해요.", "Customers/06_Taesu", "고친 라디오에 남은 말", "먼저안아 치즈붕", "taesu"),
         Entry(CustomerType.Nari, "나리", 27, "배달 라이더", "헬멧을 든 나리가 잠시 멈춰 섰어요. 오늘 저녁 약속에는 갈 수 있을까요?", "Customers/07_Nari", "다시 돌아올 주소", "한자리 고구붕", "nari"),
-        Entry(CustomerType.Junho, "준호", 24, "전직 스피드 스케이팅 선수", "운동 재킷 차림의 준호예요. 누군가의 좋은 소식을 쉽게 꺼내지 못하는 것 같아요.", "Customers/08_Junho", "기록이 없는 첫 번째", "첫판환영 팥붕", "junho"),
+        Entry(CustomerType.Junho, "준호", 24, "전직 스피드 스케이팅 선수", "운동 재킷 차림의 준호예요. 누군가의 좋은 소식을 쉽게 꺼내지 못하는 것 같아요.", "Customers/08_Junho", "축하한다고 말하기까지", "두마음 팥붕", "junho"),
     };
 
     public static IReadOnlyList<CustomerCollectionEntry> Entries => entries;

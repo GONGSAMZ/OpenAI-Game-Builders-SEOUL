@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 3957634589782317526}
   - component: {fileID: 7706972736796571400}
   - component: {fileID: 6098387228498880342}
+  - component: {fileID: 9143109103690452210}
   m_Layer: 5
   m_Name: UI_Order
   m_TagString: Untagged
@@ -117,6 +118,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   slider: {fileID: 0}
+--- !u!222 &9143109103690452210
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 612623946918164441}
+  m_CullTransparentMesh: 1
 --- !u!1 &2409031187967484577
 GameObject:
   m_ObjectHideFlags: 0
@@ -448,10 +457,12 @@ MonoBehaviour:
   m_text: "\uD06C\uB9BC\uCE58\uC988 \uBD95\uC5B4\uBE75 * 3\uAC1C"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: f1fbfe906ef9ebc4abbcf90c5cd342a6, type: 2}
-  m_sharedMaterial: {fileID: -1440335716301926402, guid: f1fbfe906ef9ebc4abbcf90c5cd342a6, type: 2}
-  m_fontSharedMaterials: []
+  m_sharedMaterial: {fileID: 7710600340552205848, guid: f1fbfe906ef9ebc4abbcf90c5cd342a6, type: 2}
+  m_fontSharedMaterials:
+  - {fileID: 0}
   m_fontMaterial: {fileID: 0}
-  m_fontMaterials: []
+  m_fontMaterials:
+  - {fileID: 0}
   m_fontColor32:
     serializedVersion: 2
     rgba: 4281479730
@@ -472,10 +483,10 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 32
-  m_fontSizeBase: 35
+  m_fontSize: 30
+  m_fontSizeBase: 30
   m_fontWeight: 400
-  m_enableAutoSizing: 1
+  m_enableAutoSizing: 0
   m_fontSizeMin: 20
   m_fontSizeMax: 32
   m_fontStyle: 0
@@ -651,7 +662,7 @@ PolygonCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 5.12, y: 10.24}
+    oldSize: {x: 5.12, y: 7}
     newSize: {x: 3.38, y: 6}
     adaptiveTilingThreshold: 0.5
     drawMode: 0

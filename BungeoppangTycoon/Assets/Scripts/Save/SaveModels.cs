@@ -160,7 +160,7 @@ public static class SaveIds
 
 public static class SaveDataFactory
 {
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
     public const int InitialMoney = 5000;
     public const string LegacyVolumeKey = "settings_master_volume_v1";
     public const string LegacyKeyboardHintsKey = "settings_keyboard_hints_enabled_v1";
@@ -168,7 +168,7 @@ public static class SaveDataFactory
 
     private static readonly string[] DefaultFillingIds =
     {
-        "red-bean", "custard", "nutella", "cream-cheese"
+        "red-bean"
     };
 
     public static SaveGameData CreateDefault()

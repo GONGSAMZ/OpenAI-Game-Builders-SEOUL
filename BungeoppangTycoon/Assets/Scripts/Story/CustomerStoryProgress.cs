@@ -9,13 +9,14 @@ public static class CustomerStoryProgress
 
     // SaveService.Data는 서비스 생성 전 첫 프레임에도 런타임 인스턴스를 준비합니다.
     // 기존 GetCustomer 경로는 계정 목록이 아직 초기화되지 않은 경우의 안전망입니다.
+    private static CustomerType ActiveCustomerType => ActiveStory?.CustomerType ?? CustomerType.JeongHyun;
     private static CustomerProgressData SaveData => SaveService.Data.account.customers.Find(
-        value => value.customerId == SaveIds.Customer(CustomerType.JeongHyun))
-        ?? SaveService.Instance.GetCustomer(CustomerType.JeongHyun);
+        value => value.customerId == SaveIds.Customer(ActiveCustomerType))
+        ?? SaveService.Instance.GetCustomer(ActiveCustomerType);
 
     // 당일 대화·특별 주문 날짜는 계정 수집 기록이 아니라 현재 영업 회차에 속한다.
     private static CustomerStoryRunState RunState =>
-        SaveService.Instance.GetCustomerStoryRunState(CustomerType.JeongHyun);
+        SaveService.Instance.GetCustomerStoryRunState(ActiveCustomerType);
 
     public static event Action Changed
     {
@@ -32,6 +33,10 @@ public static class CustomerStoryProgress
 
     public static CustomerStoryData ActiveStory { get; private set; }
     public static bool IsSpecialOrderActive { get; private set; }
+    /// <summary>이번 특별 주문에서 말풍선으로 보여 줄 실패 안내 문장입니다.</summary>
+    public static string LastSpecialOrderMessage { get; private set; } = string.Empty;
+    /// <summary>이번 특별 주문에서 말풍선으로 보여 줄 실패 안내 문장입니다.</summary>
+    
     public static bool IsStoryCompleted => IsStoryCompletedFor(CustomerType.JeongHyun);
     public static int SpecialOrderDueDay => RunState.nextSpecialOrderDay;
     public static string SpecialOrderState => RunState.specialOrderState;
@@ -71,21 +76,21 @@ public static class CustomerStoryProgress
         IsSpecialOrderActive = false;
         int previousLastTalkDay = RunState.lastTalkDay;
 
-        CustomerStoryData jeongHyun = CustomerStoryCatalog.Get(CustomerType.JeongHyun);
-        bool fillingAvailable = jeongHyun != null && IsFillingAvailable(jeongHyun.RequiredFilling);
         RefreshActiveStory();
-        RestorePendingSpecialOrderAfterRunReset(jeongHyun, fillingAvailable);
+        CustomerStoryData activeStory = ActiveStory;
+        bool fillingAvailable = activeStory != null && IsFillingAvailable(activeStory.RequiredFilling);
+        RestorePendingSpecialOrderAfterRunReset(activeStory, fillingAvailable);
         Persist();
 
         Debug.Log(
             $"[손님 이야기] 게임 이야기 상태 초기화 | 현재 날짜={Managers.Game.Day}일차" +
             $" | 활성 이야기={(ActiveStory != null ? ActiveStory.DisplayName : "없음")}" +
             $" | 이야기 완료={(SaveData.storyCompleted ? "예" : "아니요")}" +
-            $" | 필요한 맛={(jeongHyun != null ? Define.FillingText[(int)jeongHyun.RequiredFilling] : "없음")}" +
+            $" | 필요한 맛={(activeStory != null ? Define.FillingText[(int)activeStory.RequiredFilling] : "없음")}" +
             $" | 필요한 맛 사용 가능={(fillingAvailable ? "예" : "아니요")}" +
             $" | 이전 플레이 마지막 대화 날짜={(previousLastTalkDay > 0 ? previousLastTalkDay + "일차" : "없음")}" +
             $" | 같은 날 재접속 대화 제한 유지=예" +
-            $" | 완료한 대화={CompletedTopics.Count}/{(jeongHyun != null ? jeongHyun.Topics.Length : 0)}" +
+            $" | 완료한 대화={CompletedTopics.Count}/{(activeStory != null ? activeStory.Topics.Length : 0)}" +
             $" | 특별 주문 예정일={(RunState.nextSpecialOrderDay > 0 ? RunState.nextSpecialOrderDay + "일차" : "없음")}");
     }
 
@@ -199,9 +204,11 @@ public static class CustomerStoryProgress
         if (ActiveStory == null)
             return false;
 
+        LastSpecialOrderMessage = string.Empty;
+        // 특별 주문 화면에는 굽기 상태를 알려 주지 않는다. 플레이어가 확인할 수 있는
+        // '붕어빵 종류'만 성공 조건으로 사용해야 정답을 줬는데 실패하는 일이 없다.
         bool fillingMatch = filling == ActiveStory.RequiredFilling;
-        bool bakeMatch = bake == ActiveStory.RequiredBake;
-        if (fillingMatch && bakeMatch)
+        if (fillingMatch)
         {
             SaveData.storyCompleted = true;
             RunState.nextSpecialOrderDay = -1;
@@ -213,10 +220,8 @@ public static class CustomerStoryProgress
 
         RunState.nextSpecialOrderDay = CustomerStorySchedule.RetryDayAfterFailure(Managers.Game.Day);
         RunState.specialOrderState = CustomerStorySchedule.Retry;
-        CustomerStoryOverlay.ShowResult(
-            ActiveStory.DisplayName,
-            fillingMatch || bakeMatch ? ActiveStory.NearMissMessage : ActiveStory.FailureMessage,
-            false);
+        // 화면 전체 팝업 대신, 현재 손님의 주문 말풍선에서 결과를 전달합니다.
+        LastSpecialOrderMessage = ActiveStory.FailureMessage;
         Persist();
         return false;
     }
@@ -244,15 +249,60 @@ public static class CustomerStoryProgress
         Debug.Log("[손님 이야기] 정현 이야기 진행도를 초기화했습니다.");
     }
 
+#if UNITY_EDITOR
+    /// <summary>플레이 중 다음 손님으로 정현의 첫 대화를 확인하기 위한 에디터 전용 상태입니다.</summary>
+    public static void PrepareTalkTest()
+    {
+        ResetForDebug();
+        SaveService.Instance.UnlockFilling(FillingType.custard);
+        RefreshActiveStory();
+        Persist();
+        Debug.Log("[손님 이야기] 테스트 준비 완료: 다음 손님이 정현 대화로 등장합니다.");
+    }
+
+    /// <summary>특별 주문 화면과 결과를 바로 확인하기 위한 에디터 전용 상태입니다.</summary>
+    public static void PrepareSpecialOrderTest()
+    {
+        PrepareTalkTest();
+
+        CustomerStoryData story = ActiveStory;
+        if (story == null)
+        {
+            Debug.LogWarning("[손님 이야기] 특별 주문 테스트를 준비하지 못했습니다: 정현 이야기가 활성화되지 않았습니다.");
+            return;
+        }
+
+        foreach (int topicIndex in System.Linq.Enumerable.Range(0, story.Topics.Length))
+        {
+            string topicId = SaveIds.Topic(topicIndex);
+            if (!SaveData.completedTopicIds.Contains(topicId))
+                SaveData.completedTopicIds.Add(topicId);
+        }
+
+        RunState.lastTalkDay = -1;
+        RunState.nextSpecialOrderDay = Mathf.Max(1, Managers.Game.Day);
+        RunState.specialOrderState = CustomerStorySchedule.Scheduled;
+        IsSpecialOrderActive = false;
+        LastSpecialOrderMessage = string.Empty;
+        Persist();
+        Debug.Log("[손님 이야기] 테스트 준비 완료: 정현 특별 주문을 바로 시작할 수 있습니다.");
+    }
+#endif
+
     private static bool IsFillingAvailable(FillingType filling) =>
         SaveService.Instance.IsFillingUnlocked(filling);
 
     private static void RefreshActiveStory()
     {
-        CustomerStoryData story = CustomerStoryCatalog.Get(CustomerType.JeongHyun);
-        ActiveStory = SaveData.storyCompleted || story == null || !IsFillingAvailable(story.RequiredFilling)
-            ? null
-            : story;
+        ActiveStory = null;
+        foreach (CustomerStoryData story in CustomerStoryCatalog.AllStories)
+        {
+            if (IsStoryCompletedFor(story.CustomerType) || !IsFillingAvailable(story.RequiredFilling))
+                continue;
+
+            ActiveStory = story;
+            break;
+        }
     }
 
     /// <summary>

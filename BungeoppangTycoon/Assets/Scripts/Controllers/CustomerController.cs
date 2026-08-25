@@ -12,6 +12,8 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     GameObject storyBubble;
     bool isStoryChoiceOpen;
     bool isStoryReplyVisible;
+    bool isSpecialResultVisible;
+    
     string[] specialIntroLines = System.Array.Empty<string>();
     int specialIntroLineIndex = -1;
     int specialIntroAdvanceFrame = -1;
@@ -291,6 +293,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     {
         Managers.Game.InitAction -= CoInstantiateCustomer;
         Managers.Game.InitAction +=  CoInstantiateCustomer;
+        CustomerStoryCutscenePlayer.Preload();
 
     }
 
@@ -307,7 +310,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
             return;
 
         // 특별 대사를 읽는 시간은 손님의 대기 시간으로 계산하지 않는다.
-        if (isSpecialOrder && !didAcceptOrder)
+        if (isSpecialOrder && (!didAcceptOrder || isSpecialResultVisible))
             return;
 
 
@@ -364,6 +367,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         didAcceptOrder = false;
         isLeaving = false;
         isSpecialOrder = false;
+        isSpecialResultVisible = false;
         specialIntroLines = System.Array.Empty<string>();
         specialIntroLineIndex = -1;
         specialIntroAdvanceFrame = -1;
@@ -382,7 +386,8 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         {
             order.Add(CustomerStoryProgress.ActiveStory.RequiredFilling, 1);
             NumOfFishBun = 1;
-            UI_order.SetOrderText(order);
+            // 특별 주문의 정답 메뉴는 대사나 주문 UI에 공개하지 않는다.
+            UI_order.SetSpecialOrderStatus();
             UI_order.gameObject.SetActive(true);
             return;
         }
@@ -463,11 +468,12 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
             if (storySucceeded)
             {
                 // 컷씬이 끝나기 전까지는 특별 주문 상태를 유지해 마감 정산이 앞서지 않게 합니다.
-                CustomerStoryCutscenePlayer.PlayJeongHyunUnlock(() => BeginExit());
+                Debug.Log($"[손님 이야기] 특별 주문 성공 - 컷씬 호출 | 손님={customerType}", this);
+                CustomerStoryCutscenePlayer.PlaySpecialOrderSuccess(customerType, () => BeginExit());
             }
             else
             {
-                BeginExit();
+                ShowSpecialOrderResult(CustomerStoryProgress.LastSpecialOrderMessage);
             }
             return true;
         }
@@ -653,6 +659,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         customerType = story.CustomerType;
         CustomerData = Managers.Resource.LoadCustomerSO(customerType);
         Customer.GetComponent<SpriteRenderer>().sprite = CustomerData.GetImage();
+        isSpecialResultVisible = false;
         pay = 0; didAcceptOrder = false; isLeaving = false; isSpecialOrder = true;
         orderAngryPoint = 0;
         startTime = Managers.Game.delta;
@@ -766,4 +773,22 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     }
 
 
+
+
+private void ShowSpecialOrderResult(string message)
+    {
+        isSpecialResultVisible = true;
+        string resultMessage = string.IsNullOrWhiteSpace(message) ? "오늘은 여기까지 할게요." : message;
+        UI_order.SetMessage($"{resultMessage}\n\n눌러서 계속", ContinueAfterSpecialOrderResult);
+        UI_order.gameObject.SetActive(true);
+    }
+
+    private void ContinueAfterSpecialOrderResult()
+    {
+        if (!isSpecialResultVisible)
+            return;
+
+        isSpecialResultVisible = false;
+        BeginExit();
+    }
 }

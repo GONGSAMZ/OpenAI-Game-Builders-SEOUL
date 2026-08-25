@@ -95,6 +95,19 @@ public sealed class SaveService : MonoBehaviour
     public bool IsFillingUnlocked(FillingType filling) =>
         Current.run.unlockedFillingIds.Contains(SaveIds.Filling(filling));
 
+    /// <summary>영업 준비 상점에서 재료를 구매하고 남은 보유금을 즉시 저장한다.</summary>
+    public bool PurchaseFilling(FillingType filling, int price, int currentMoney)
+    {
+        string id = SaveIds.Filling(filling);
+        if (Current.run.unlockedFillingIds.Contains(id) || price < 0 || currentMoney < price)
+            return false;
+
+        Current.run.money = currentMoney - price;
+        Current.run.unlockedFillingIds.Add(id);
+        Persist("재료 구매");
+        return true;
+    }
+
     public CustomerStoryRunState GetCustomerStoryRunState(CustomerType customerType) =>
         SaveDataFactory.FindOrCreateCustomerStoryState(Current, customerType);
 
@@ -288,6 +301,13 @@ public sealed class SaveService : MonoBehaviour
 
     private void PersistLocalOnly()
     {
+        // 스크립트 재컴파일 또는 화면 전환 중 저장 요청이 먼저 들어와도,
+        // 특별 주문 성공 처리(그리고 바로 이어지는 컷씬)가 예외로 끊기지 않게 한다.
+        if (localStore == null)
+            localStore = new PlayerPrefsLocalSaveStore();
+        if (Current == null)
+            Current = LoadOrCreate(currentScope, true);
+
         Current.updatedAt = DateTime.UtcNow.ToString("O");
         SaveDataFactory.Normalize(Current);
         localStore.Save(currentScope, Current);

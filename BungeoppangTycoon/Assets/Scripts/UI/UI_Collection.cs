@@ -129,9 +129,8 @@ public sealed class UI_Collection : UI_Base
 
     private void OpenReplay(CustomerCollectionEntry entry)
     {
-        if (entry.CustomerType != CustomerType.JeongHyun) return;
         gameObject.SetActive(false);
-        CustomerStoryCutscenePlayer.ReplayJeongHyun(() =>
+        CustomerStoryCutscenePlayer.Replay(entry.CustomerType,() =>
         {
             if (this == null) return;
             gameObject.SetActive(true);
