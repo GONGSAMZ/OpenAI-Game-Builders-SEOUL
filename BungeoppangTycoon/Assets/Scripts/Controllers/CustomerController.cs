@@ -779,7 +779,7 @@ private void ShowSpecialOrderResult(string message)
     {
         isSpecialResultVisible = true;
         string resultMessage = string.IsNullOrWhiteSpace(message) ? "오늘은 여기까지 할게요." : message;
-        UI_order.SetMessage($"{resultMessage}\n\n눌러서 계속", ContinueAfterSpecialOrderResult);
+        UI_order.SetMessage($"{resultMessage}", ContinueAfterSpecialOrderResult);
         UI_order.gameObject.SetActive(true);
     }
 
