@@ -280,7 +280,7 @@ public class UI_Tutorial : UI_Base
         else
         {
             welcomeTitleText.text = "첫 손님이 곧 도착해요";
-            welcomeDescriptionText.text = "주문을 받고 팥붕어빵 하나를 같이 만들어 봐요.\n주황색 표시가 나타난 곳을 차례로 조작하면 됩니다.";
+            welcomeDescriptionText.text = "주문을 받고 팥붕어빵 하나를 같이 만들어 봐요.\n흰색 외곽선이 나타난 곳을 차례로 클릭하면 됩니다.";
             welcomeNextLabel.text = "가게 열기";
         }
 
@@ -406,19 +406,19 @@ public class UI_Tutorial : UI_Base
                 SetGuide(2, "조리대로 이동하세요", "PC는 SPACE 키를 누르고, 모바일은 왼쪽 전환 버튼을 눌러 조리대로 이동하세요.");
                 break;
             case Stage.SelectKettle:
-                SetGuide(3, "주전자를 선택하세요", "PC는 Q 키, 모바일은 주전자를 눌러 반죽을 부을 준비를 하세요.");
+                SetGuide(3, "주전자를 선택하세요", "PC는 Q 키를 누르거나, 주전자를 클릭해 반죽을 부을 준비를 하세요.");
                 break;
             case Stage.FillMold:
                 SetGuide(4, "빈 붕어빵 틀을 클릭하세요", "선택한 주전자로 빈 틀에 밑반죽을 부어 주세요.");
                 break;
             case Stage.SelectRedBean:
-                SetGuide(5, "팥 재료를 선택하세요", "PC는 1 키, 모바일은 팥 통을 눌러 재료를 선택하세요.");
+                SetGuide(5, "팥 재료를 선택하세요", "PC는 1 키를 누르거나, 팥 통을 클릭해 재료를 선택하세요.");
                 break;
             case Stage.AddFilling:
                 SetGuide(6, "붕어빵에 팥을 넣으세요", "밑반죽 위의 붕어빵을 클릭해 팥을 넣어 주세요.");
                 break;
             case Stage.SelectKettleAgain:
-                SetGuide(7, "주전자를 다시 선택하세요", "PC는 Q 키, 모바일은 주전자를 다시 눌러 주세요.");
+                SetGuide(7, "주전자를 다시 선택하세요", "PC는 Q 키를 누르거나, 주전자를 다시 클릭해 주세요.");
                 break;
             case Stage.AddTopBatter:
                 SetGuide(8, "윗반죽을 부으세요", "팥이 들어간 붕어빵을 클릭해 반죽으로 덮습니다.");
@@ -427,13 +427,13 @@ public class UI_Tutorial : UI_Base
                 SetBakeCopy();
                 break;
             case Stage.MoveToDisplay:
-                SetGuide(10, "완성된 붕어빵을 진열하세요", "붕어빵을 클릭해 선택한 뒤 진열대를 클릭하세요. 드래그해도 됩니다.");
+                SetGuide(10, "완성된 붕어빵을 진열하세요", "완성된 붕어빵을 클릭해 선택한 뒤 진열대를 클릭하세요. PC에서는 W 키로 바로 진열할 수도 있어요.");
                 break;
             case Stage.SwitchToCustomer:
                 SetGuide(11, "손님 화면으로 이동하세요", "PC는 SPACE 키를 누르고, 모바일은 왼쪽 전환 버튼을 눌러 손님에게 돌아가세요.");
                 break;
             case Stage.ServeCustomer:
-                SetGuide(12, "손님에게 건네세요", "붕어빵을 클릭해 선택한 뒤 손님을 클릭하면 첫 주문 완료입니다.");
+                SetGuide(12, "손님에게 건네세요", "진열대의 붕어빵을 클릭해 선택한 뒤 손님을 클릭하면 첫 주문 완료입니다.");
                 break;
         }
     }
@@ -443,7 +443,7 @@ public class UI_Tutorial : UI_Base
         if (firstBakeFinished)
             SetGuide(9, "한 번 더 구워 완성하세요", "조금 더 기다렸다가 붕어빵을 다시 클릭하면 완성됩니다.");
         else
-            SetGuide(9, "노릇해질 때까지 기다리세요", "조금 기다린 뒤 붕어빵을 클릭해 한 번 뒤집어 주세요.");
+            SetGuide(9, "노릇해질 때까지 기다리세요", "조금 기다린 뒤 조리 중인 붕어빵을 클릭해 굽기 상태를 진행하세요.");
     }
 
     private void SetGuide(int number, string title, string description)
@@ -624,8 +624,13 @@ public class UI_Tutorial : UI_Base
         if (target == null || camera == null)
             return false;
 
+        // 손님·도구 프리팹에도 RectTransform이 붙어 있을 수 있다.
+        // 이 경우 RectTransform은 크기가 0인 배치용 정보일 뿐이므로,
+        // 실제로 화면에 보이는 SpriteRenderer/Collider의 범위를 먼저 사용한다.
+        Renderer targetRenderer = target.GetComponentInChildren<Renderer>();
+        Collider2D targetCollider = target.GetComponentInChildren<Collider2D>();
         RectTransform uiRect = target.GetComponent<RectTransform>();
-        if (uiRect != null)
+        if (targetRenderer == null && targetCollider == null && uiRect != null)
         {
             Vector3[] corners = new Vector3[4];
             uiRect.GetWorldCorners(corners);
@@ -641,8 +646,6 @@ public class UI_Tutorial : UI_Base
             return localRect.Overlaps(overlayRoot.rect);
         }
 
-        Renderer targetRenderer = target.GetComponentInChildren<Renderer>();
-        Collider2D targetCollider = target.GetComponentInChildren<Collider2D>();
         Bounds bounds;
         if (targetRenderer != null)
             bounds = targetRenderer.bounds;
@@ -710,7 +713,7 @@ public class UI_Tutorial : UI_Base
 
     private void SaveTutorialFinished()
     {
-        SaveService.Instance.MarkTutorialCompleted();
+        SaveService.Service.MarkTutorialCompleted();
     }
 
     private void Skip()
