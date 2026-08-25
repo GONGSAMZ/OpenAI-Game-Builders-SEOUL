@@ -101,6 +101,15 @@ public class MoldController : MonoBehaviour
             ToolController.selectedTool.CompareTag("kettle") == false)
             return false;
 
+        // 점유 상태는 bool만으로 판단하지 않는다. 예전 저장/이동 흐름에서
+        // isFilled가 먼저 false가 되었더라도, 몰드 아래에 붕어빵이 남아 있으면
+        // 새 반죽을 겹쳐 만들지 않는다.
+        if (ActiveFishBun != null)
+        {
+            isFilled = true;
+            return false;
+        }
+
         isFilled = true;
         Debug.Log("생성");
         InstanciateFishBun();

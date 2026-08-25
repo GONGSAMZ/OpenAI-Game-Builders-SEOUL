@@ -227,11 +227,14 @@ public class FishBunController : MonoBehaviour,
                 isOnDisplay = true;
                 TutorialSignals.Raise(TutorialEvent.FishBunDisplayed, gameObject);
                 ReleaseMold();
-            }
+			}
 
-            transform.position = spawnPos;
-            return true;
-        }
+			transform.position = spawnPos;
+			// 진열한 완성품은 몰드의 자식으로 남기지 않는다.
+			// 그래야 몰드의 실제 점유 상태와 isFilled 값이 어긋나지 않는다.
+			transform.SetParent(target.transform, true);
+			return true;
+		}
 
         if (target.CompareTag("customer"))
         {
