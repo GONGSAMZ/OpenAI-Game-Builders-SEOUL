@@ -182,7 +182,10 @@ public static class SaveDataFactory
 
     private static readonly string[] RequiredDefaultFillingIds =
     {
-        "red-bean"
+        "red-bean",
+        "custard",
+        "nutella",
+        "green-tea"
     };
 
     public static SaveGameData CreateDefault()

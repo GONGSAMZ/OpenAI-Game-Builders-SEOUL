@@ -10,6 +10,6 @@ public static class KeyboardHintSettings
 
     public static void SetEnabled(bool enabled)
     {
-        SaveService.Instance.SetKeyboardHintsEnabled(enabled);
+        SaveService.Service.SetKeyboardHintsEnabled(enabled);
     }
 }

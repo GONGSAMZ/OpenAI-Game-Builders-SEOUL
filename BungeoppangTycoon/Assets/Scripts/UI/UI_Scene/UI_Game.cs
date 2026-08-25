@@ -65,8 +65,7 @@ public class UI_Game : UI_Base
         CameraController.ViewChanged += RefreshViewHints;
         InputManager.SelectedFishBunChanged += RefreshSelectedFishBun;
         InputManager.TouchModeChanged += RefreshTouchMode;
-        if (SaveService.Instance != null)
-            SaveService.Instance.DataChanged += RefreshHintSettings;
+        SaveService.Service.DataChanged += RefreshHintSettings;
         RefreshViewHints(CameraController.Instance?.CurrentView ?? GameplayView.Customer);
         RefreshSelectedFishBun(InputManager.Instance?.SelectedFishBun);
 

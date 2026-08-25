@@ -21,9 +21,12 @@ public sealed class SaveService : MonoBehaviour
     private int pendingSettlementDay = -1;
     private string pendingSettlementIdempotencyKey;
     private GamePlatformClient platformClient;
+    private bool initialized;
 
     public static SaveService Instance { get; private set; }
-    public static SaveGameData Data => EnsureInstance().Current;
+    /// <summary>필수 저장 접근에서 인스턴스가 없으면 즉시 복구해 반환합니다.</summary>
+    public static SaveService Service => EnsureInstance();
+    public static SaveGameData Data => Service.Current;
     public SaveGameData Current { get; private set; }
     public bool IsAccountSave => !string.IsNullOrEmpty(accountSubject);
     public bool IsRemoteSyncing { get; private set; }
@@ -44,9 +47,15 @@ public sealed class SaveService : MonoBehaviour
 
     private static SaveService EnsureInstance()
     {
-        if (Instance != null) return Instance;
+        if (Instance != null)
+        {
+            Instance.InitializeIfNeeded();
+            return Instance;
+        }
         GameObject root = new("@SaveService");
-        return root.AddComponent<SaveService>();
+        SaveService service = root.AddComponent<SaveService>();
+        service.InitializeIfNeeded();
+        return service;
     }
 
     private void Awake()
@@ -57,7 +66,18 @@ public sealed class SaveService : MonoBehaviour
             return;
         }
         Instance = this;
-        DontDestroyOnLoad(gameObject);
+        InitializeIfNeeded();
+    }
+
+    private void InitializeIfNeeded()
+    {
+        if (initialized) return;
+        if (Instance != null && Instance != this) return;
+
+        Instance = this;
+        initialized = true;
+        if (Application.isPlaying)
+            DontDestroyOnLoad(gameObject);
         localStore = new PlayerPrefsLocalSaveStore();
         Current = LoadOrCreate(GuestScope, true);
         ApplyRuntimeSettings();
@@ -222,12 +242,45 @@ public sealed class SaveService : MonoBehaviour
 
     public void RefreshGameStore(Action<bool, string> onComplete = null)
     {
+        GamePlatformClient client = GamePlatformClient.Instance;
+        if (!IsAccountSave)
+        {
+            GameStoreCatalog = LocalGameStore.CreateCatalog();
+            GameStoreState = LocalGameStore.CreateState(Current, GameStoreCatalog);
+            GameStoreChanged?.Invoke();
+            onComplete?.Invoke(true, string.Empty);
+            return;
+        }
+        if (client == null || !client.IsLoggedIn)
+        {
+            GameStoreCatalog = LocalGameStore.CreateCatalog();
+            GameStoreState = CreateReadOnlyGameStoreState();
+            GameStoreChanged?.Invoke();
+            onComplete?.Invoke(true, string.Empty);
+            return;
+        }
         StartCoroutine(RefreshGameStoreRoutine(onComplete));
     }
 
     public void PurchaseGameStoreProduct(string productId, Action<bool, string> onComplete)
     {
-        if (!IsAccountSave || GamePlatformClient.Instance?.IsLoggedIn != true)
+        if (!IsAccountSave)
+        {
+            GameStoreCatalog ??= LocalGameStore.CreateCatalog();
+            bool purchased = LocalGameStore.TryPurchaseFilling(
+                Current, GameStoreCatalog, productId, out string message);
+            if (purchased)
+            {
+                if (Managers.Game != null)
+                    Managers.Game.Money = Current.run.money;
+                Persist("비로그인 상점 재료 구매");
+            }
+            GameStoreState = LocalGameStore.CreateState(Current, GameStoreCatalog);
+            GameStoreChanged?.Invoke();
+            onComplete?.Invoke(purchased, message);
+            return;
+        }
+        if (GamePlatformClient.Instance?.IsLoggedIn != true)
         {
             onComplete?.Invoke(false, "일반 상점 구매는 로그인 후 이용할 수 있습니다.");
             return;

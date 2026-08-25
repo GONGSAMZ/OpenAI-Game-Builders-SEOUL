@@ -173,7 +173,7 @@ public sealed class UI_GameResetConfirmation : MonoBehaviour
         cancelButton.interactable = false;
         confirmButton.interactable = false;
         bodyText.text = "저장 데이터를 안전하게 초기화하는 중입니다…";
-        SaveService.Instance.ResetRunProgress(OnResetCompleted);
+        SaveService.Service.ResetRunProgress(OnResetCompleted);
     }
 
     private void OnResetCompleted(bool success, string message)

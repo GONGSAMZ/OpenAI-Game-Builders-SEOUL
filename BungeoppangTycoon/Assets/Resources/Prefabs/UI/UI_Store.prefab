@@ -6305,6 +6305,15 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2458224271654799631}
     m_Modifications:
+    - target: {fileID: 153876839108919707, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
+      propertyPath: m_UVRect.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2834155808354132521, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
+      propertyPath: m_text
+      value: "\uACE0\uC18C\uD558\uACE0 \uBD80\uB4DC\uB7EC\uC6B4 \uD06C\uB9BC\uCE58\uC988
+        \uBD95\uC5B4\uBE75"
+      objectReference: {fileID: 0}
     - target: {fileID: 4952778890529820168, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_Pivot.x
       value: 0
@@ -6386,12 +6395,24 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
+      propertyPath: m_text
+      value: "\uD06C\uB9BC\uCE58\uC988"
+      objectReference: {fileID: 0}
+    - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_overflowMode
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
+      propertyPath: m_sharedMaterial
+      value: 
       objectReference: {fileID: 0}
     - target: {fileID: 6439078166517537075, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_overflowMode
       value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 6733702711686966988, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
+      propertyPath: m_text
+      value: "1,200 \uCF54\uC778"
       objectReference: {fileID: 0}
     - target: {fileID: 6733702711686966988, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_overflowMode
@@ -6423,9 +6444,13 @@ PrefabInstance:
       propertyPath: m_UVRect.x
       value: 0.25
       objectReference: {fileID: 0}
+    - target: {fileID: 153876839108919707, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
+      propertyPath: m_UVRect.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2834155808354132521, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_text
-      value: "\uBD80\uB4DC\uB7FD\uACE0 \uB2EC\uCF64\uD55C \uD06C\uB9BC"
+      value: "\uCE58\uC988\uC640 \uD1A0\uD551\uC744 \uB2F4\uC740 \uC774\uC0C9 \uBD95\uC5B4\uBE75"
       objectReference: {fileID: 0}
     - target: {fileID: 4952778890529820168, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_Pivot.x
@@ -6509,7 +6534,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_text
-      value: "\uC288\uD06C\uB9BC"
+      value: "\uD53C\uC790"
       objectReference: {fileID: 0}
     - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_overflowMode
@@ -6521,7 +6546,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6733702711686966988, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_text
-      value: "1,400\uC6D0"
+      value: "1,400 \uCF54\uC778"
       objectReference: {fileID: 0}
     - target: {fileID: 6733702711686966988, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_overflowMode
@@ -6553,9 +6578,13 @@ PrefabInstance:
       propertyPath: m_UVRect.x
       value: 0.5
       objectReference: {fileID: 0}
+    - target: {fileID: 153876839108919707, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
+      propertyPath: m_UVRect.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2834155808354132521, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_text
-      value: "\uC9C4\uD55C \uCD08\uCF5C\uB9BF\uC758 \uB2EC\uCF64\uD568"
+      value: "\uC2DC\uC6D0\uD558\uACE0 \uB3C5\uD2B9\uD55C \uBBFC\uD2B8 \uBD95\uC5B4\uBE75"
       objectReference: {fileID: 0}
     - target: {fileID: 4952778890529820168, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_Pivot.x
@@ -6639,7 +6668,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_text
-      value: "\uCD08\uCF54"
+      value: "\uBBFC\uD2B8"
       objectReference: {fileID: 0}
     - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_overflowMode
@@ -6651,7 +6680,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6733702711686966988, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_text
-      value: "1,600\uC6D0"
+      value: "1,600 \uCF54\uC778"
       objectReference: {fileID: 0}
     - target: {fileID: 6733702711686966988, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_overflowMode
@@ -6683,9 +6712,13 @@ PrefabInstance:
       propertyPath: m_UVRect.x
       value: 0.75
       objectReference: {fileID: 0}
+    - target: {fileID: 153876839108919707, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
+      propertyPath: m_UVRect.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2834155808354132521, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_text
-      value: "\uD5A5\uAE0B\uD558\uACE0 \uC309\uC2F8\uB984\uD55C \uB9DB"
+      value: "\uB2EC\uCF64\uD558\uACE0 \uD3EC\uADFC\uD55C \uACE0\uAD6C\uB9C8 \uBD95\uC5B4\uBE75"
       objectReference: {fileID: 0}
     - target: {fileID: 4952778890529820168, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_Pivot.x
@@ -6769,7 +6802,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_text
-      value: "\uB179\uCC28"
+      value: "\uACE0\uAD6C\uB9C8"
       objectReference: {fileID: 0}
     - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_overflowMode
@@ -6781,7 +6814,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6733702711686966988, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_text
-      value: "1,800\uC6D0"
+      value: "1,800 \uCF54\uC778"
       objectReference: {fileID: 0}
     - target: {fileID: 6733702711686966988, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_overflowMode

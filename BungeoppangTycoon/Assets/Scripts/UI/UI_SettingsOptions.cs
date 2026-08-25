@@ -93,7 +93,7 @@ public sealed class UI_SettingsOptions : UI_SettingsPopupBase
 
     private void ApplyVolume(float value)
     {
-        SaveService.Instance.SetMasterVolume(value);
+        SaveService.Service.SetMasterVolume(value);
         RefreshDescription();
     }
 

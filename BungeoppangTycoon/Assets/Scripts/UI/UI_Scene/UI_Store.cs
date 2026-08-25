@@ -58,8 +58,8 @@ public class UI_Store : UI_Base
 
         GamePlatformClient.InstanceChanged += BindPlatformClient;
         BindPlatformClient(GamePlatformClient.Instance);
-        SaveService.Instance.GameStoreChanged += BindStoreCards;
-        SaveService.Instance.DataChanged += RefreshBalances;
+        SaveService.Service.GameStoreChanged += BindStoreCards;
+        SaveService.Service.DataChanged += RefreshBalances;
 
         if (nextDayButton != null)
             AddEvent(nextDayButton.gameObject, Managers.Game.StartNextDay);
@@ -72,7 +72,7 @@ public class UI_Store : UI_Base
         SetCardsLoading();
 
         ShowFillings();
-        SaveService.Instance.RefreshGameStore(OnStoreRefreshed);
+        SaveService.Service.RefreshGameStore(OnStoreRefreshed);
     }
 
     private void ShowFillings()
@@ -152,8 +152,8 @@ public class UI_Store : UI_Base
     private void BindStoreCards()
     {
         if (this == null) return;
-        GameStoreCatalogData catalog = SaveService.Instance.GameStoreCatalog;
-        GameStoreStateData state = SaveService.Instance.GameStoreState;
+        GameStoreCatalogData catalog = SaveService.Service.GameStoreCatalog;
+        GameStoreStateData state = SaveService.Service.GameStoreState;
         if (catalog == null || state == null)
         {
             SetCardsLoading();
@@ -225,17 +225,29 @@ public class UI_Store : UI_Base
             surface.color = interactable ? Color.white : new Color(1f, 1f, 1f, 0.45f);
     }
 
-    private void Purchase(string productId)
+private void Purchase(string productId)
     {
         if (!string.IsNullOrEmpty(processingProductId)) return;
+
+        GameStoreProductData product = SaveService.Service.GameStoreCatalog?.Find(productId);
+        if (product == null)
+        {
+            Debug.LogWarning("[상점] 상품 정보를 불러오는 중입니다.");
+            return;
+        }
+
         processingProductId = productId;
         BindStoreCards();
-        SaveService.Instance.PurchaseGameStoreProduct(productId, (success, message) =>
+        SaveService.Service.PurchaseGameStoreProduct(productId, (success, message) =>
         {
             if (this == null) return;
+
             processingProductId = null;
             if (!success)
                 Debug.LogWarning($"[상점] {message}");
+            else
+                Debug.Log($"[상점] {product.displayName} 구매 완료.");
+
             BindStoreCards();
         });
     }
