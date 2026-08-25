@@ -797,7 +797,12 @@ public sealed class SaveService : MonoBehaviour
 
     private SaveGameData LoadOrCreate(string scope, bool migrateLegacy)
     {
-        if (localStore.TryLoad(scope, out SaveGameData loaded)) return loaded;
+        if (localStore.TryLoad(scope, out SaveGameData loaded))
+        {
+            // 새 기본 재료 정책은 기존 로컬 저장에도 즉시 반영해 Day 1 조리대가 비지 않게 한다.
+            SaveDataFactory.Normalize(loaded);
+            return loaded;
+        }
         SaveGameData created = SaveDataFactory.CreateDefault();
         if (migrateLegacy) MigrateLegacy(created);
         localStore.Save(scope, created);

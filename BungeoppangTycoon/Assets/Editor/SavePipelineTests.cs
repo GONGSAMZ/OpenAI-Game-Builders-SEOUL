@@ -27,12 +27,33 @@ public sealed class SavePipelineTests
 
         Assert.That(data.run.nextDay, Is.EqualTo(1));
         Assert.That(data.run.money, Is.EqualTo(SaveDataFactory.InitialMoney));
-        Assert.That(data.run.unlockedFillingIds, Is.EqualTo(new[] { "red-bean" }));
-        Assert.That(data.run.selectedFillingIds, Is.EqualTo(new[] { "red-bean" }));
+        Assert.That(data.run.unlockedFillingIds, Is.EquivalentTo(new[]
+        {
+            "red-bean", "custard", "nutella", "cream-cheese"
+        }));
+        Assert.That(data.run.selectedFillingIds, Is.EquivalentTo(new[]
+        {
+            "red-bean", "custard", "nutella", "cream-cheese"
+        }));
         Assert.That(data.run.customerStories, Is.Empty);
         Assert.That(data.run.queuedDayEffects, Is.Empty);
         Assert.That(data.account.discoveredSouls.Count, Is.EqualTo(1));
         Assert.That(data.account.lifetimeStats.totalSales, Is.EqualTo(50));
+    }
+
+    [Test]
+    public void Normalize_DayOneLegacySelection_RestoresAllDefaultFillings()
+    {
+        SaveGameData data = SaveDataFactory.CreateDefault();
+        data.run.nextDay = 1;
+        data.run.selectedFillingIds = new() { "red-bean" };
+
+        SaveDataFactory.Normalize(data);
+
+        Assert.That(data.run.selectedFillingIds, Is.EquivalentTo(new[]
+        {
+            "red-bean", "custard", "nutella", "cream-cheese"
+        }));
     }
 
     [Test]
@@ -264,7 +285,8 @@ public sealed class SavePipelineTests
         SaveDataFactory.Normalize(legacy);
 
         Assert.That(legacy.schemaVersion, Is.EqualTo(8));
-        Assert.That(legacy.run.unlockedFillingIds, Has.Count.EqualTo(4));
+        Assert.That(legacy.run.unlockedFillingIds, Has.Count.EqualTo(5));
+        Assert.That(legacy.run.unlockedFillingIds, Does.Contain("cream-cheese"));
         Assert.That(legacy.run.selectedFillingIds, Is.Empty);
     }
 
@@ -367,25 +389,25 @@ public sealed class SavePipelineTests
         GameStoreCatalogData catalog = LocalGameStore.CreateCatalog();
 
         Assert.That(catalog.catalogVersion, Is.EqualTo(LocalGameStore.CatalogVersion));
-        Assert.That(catalog.Find("filling-red-bean").price, Is.EqualTo(1200));
-        Assert.That(catalog.Find("filling-custard").price, Is.EqualTo(1400));
-        Assert.That(catalog.Find("filling-nutella").price, Is.EqualTo(1600));
-        Assert.That(catalog.Find("filling-green-tea").price, Is.EqualTo(1800));
+        Assert.That(catalog.Find("filling-red-bean").price, Is.EqualTo(6000));
+        Assert.That(catalog.Find("filling-custard").price, Is.EqualTo(9000));
+        Assert.That(catalog.Find("filling-nutella").price, Is.EqualTo(12000));
+        Assert.That(catalog.Find("filling-green-tea").price, Is.EqualTo(15000));
     }
 
     [Test]
     public void LocalGameStore_PurchaseDeductsMoneyUnlocksAndSelectsFilling()
     {
         SaveGameData data = SaveDataFactory.CreateDefault();
-        data.run.money = 5000;
+        data.run.money = 20000;
 
         bool success = LocalGameStore.TryPurchaseFilling(
             data, LocalGameStore.CreateCatalog(), "filling-custard", out string message);
 
         Assert.That(success, Is.True, message);
-        Assert.That(data.run.money, Is.EqualTo(3600));
-        Assert.That(data.run.unlockedFillingIds, Does.Contain("custard"));
-        Assert.That(data.run.selectedFillingIds, Does.Contain("custard"));
+        Assert.That(data.run.money, Is.EqualTo(11000));
+        Assert.That(data.run.unlockedFillingIds, Does.Contain("pizza"));
+        Assert.That(data.run.selectedFillingIds, Does.Contain("pizza"));
     }
 
     [Test]
@@ -399,6 +421,8 @@ public sealed class SavePipelineTests
         Assert.That(poor.run.money, Is.EqualTo(100));
 
         SaveGameData duplicate = SaveDataFactory.CreateDefault();
+        duplicate.run.money = 20000;
+        duplicate.run.selectedFillingIds.Add("cream-cheese");
         int originalMoney = duplicate.run.money;
         Assert.That(LocalGameStore.TryPurchaseFilling(
             duplicate, catalog, "filling-red-bean", out _), Is.False);
@@ -418,7 +442,7 @@ public sealed class SavePipelineTests
         {
             GameStoreCatalogData catalog = LocalGameStore.CreateCatalog();
             SaveGameData data = SaveDataFactory.CreateDefault();
-            data.run.money = 5000;
+            data.run.money = 20000;
             Assert.That(LocalGameStore.TryPurchaseFilling(
                 data, catalog, "filling-green-tea", out _), Is.True);
 
@@ -427,7 +451,7 @@ public sealed class SavePipelineTests
 
             Assert.That(store.TryLoad(scope, out SaveGameData loaded), Is.True);
             GameStoreStateData state = LocalGameStore.CreateState(loaded, catalog);
-            Assert.That(state.selectedFillingIds, Does.Contain("green-tea"));
+            Assert.That(state.selectedFillingIds, Does.Contain("sweet-potato"));
             Assert.That(state.Find("filling-green-tea").status, Is.EqualTo("selected"));
         }
         finally
