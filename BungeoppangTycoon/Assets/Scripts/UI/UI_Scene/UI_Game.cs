@@ -28,6 +28,7 @@ public class UI_Game : UI_Base
     TextMeshProUGUI selectedFishBunText;
     TextMeshProUGUI timeText;
     TextMeshProUGUI moneyText;
+    TextMeshProUGUI redBeanCoinText;
 
     #endregion
 
@@ -49,6 +50,11 @@ public class UI_Game : UI_Base
         GetTMP((int)TMP.dayText).text = $"Day {Managers.Game.Day}";
         timeText = GetTMP((int)TMP.timeText);
         moneyText = GetTMP((int)TMP.moneyText);
+        // 플랫폼 헤더는 프리팹 구조가 바뀔 수 있으므로 한 번만 이름으로 찾는다.
+        // 없을 때는 재화 갱신을 건너뛰어 매 프레임 널 오류가 반복되지 않게 한다.
+        redBeanCoinText = Util.Find<TextMeshProUGUI>(gameObject, nameof(TMP.redBeanCoinText), true);
+        if (redBeanCoinText == null)
+            Debug.LogWarning("UI_Game에 redBeanCoinText가 없습니다. 팥 코인 표시는 생략합니다.", this);
         if (moneyText != null)
             moneyText.text = $"{Managers.Game.Money.ToString("N0")} 원";
         GetButton((int)Btns.toggleViewButton).gameObject.AddEvent(toggleViewBtnFunc);
@@ -138,8 +144,11 @@ public class UI_Game : UI_Base
 
     void RefreshPlatformCurrency()
     {
+        if (redBeanCoinText == null)
+            return;
+
         GamePlatformClient client = GamePlatformClient.Instance;
-        GetTMP((int)TMP.redBeanCoinText).text = client != null && client.IsLoggedIn
+        redBeanCoinText.text = client != null && client.IsLoggedIn
             ? $"팥 코인 {client.RedBeanCoinBalance:N0}개"
             : "팥 코인 —";
     }
