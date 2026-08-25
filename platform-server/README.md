@@ -9,6 +9,7 @@ Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, �
 - Hive 계정 없이 시험하는 mock 로그인
 - 외부 토큰을 브라우저에 노출하지 않는 서버 게임 세션과 DynamoDB 세션 영속화
 - 세션 subject 기준의 사용자별 도감·스토리 진행 저장과 단조 병합 API
+- 서버 권한의 일반 게임 돈 상점, 조건부 구매·하루 정산·진행 초기화 API
 - OpenAI Responses API 서버 프록시와 mock 응답
 - 사용자별 테스트 포인트 mock 결제·충전, 중복 차감 방지, 메모리/DynamoDB 아이템 저장소
 - NICEPAY 샌드박스 테스트 결제의 주문·서명·승인 검증과 사용자별 상품 지급
@@ -21,6 +22,7 @@ Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, �
 - Docker 및 GitHub Actions 기본 설정
 - Unity 6.3 WebGL 소스/산출물 SHA-256 매니페스트 검증
 - 배포 revision API, smoke test, ECS 자동 롤백과 수동 immutable 이미지 롤백
+- 두 Mock 계정으로 저장·경제·프리미엄 데이터 누수를 검사하는 계정 단위 스모크 테스트
 
 ## 로컬 실행
 
@@ -37,6 +39,12 @@ Windows PowerShell에서는 다음처럼 환경 파일을 복사할 수 있습�
 ```powershell
 Copy-Item .env.example .env
 pnpm dev
+```
+
+계정별 저장이 섞이지 않는지 배포 전에 자동 확인하려면 다음 명령을 실행합니다. AWS·HIVE·NICEPAY 실데이터는 사용하지 않으며, 자세한 검사 범위는 [계정 단위 데이터 테스트 툴](../docs/11_ACCOUNT_SCOPE_TEST_TOOL.md)에 정리되어 있습니다.
+
+```powershell
+pnpm test:account-scope
 ```
 
 `.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다. 루트 화면에는 상단 헤더와 Unity 게임이 표시됩니다. `STORE_DEV_TOOLS=true`인 개발 환경에서만 게임 바깥 오른쪽에 테스트 결제 패널이 나타납니다. 로그인 사용자는 10,000P로 시작하고, 개발용 충전 또는 1,100P·5,500P·3,300P 상품 결제를 실행할 수 있습니다. 서버의 사용자별 잔액·인벤토리는 실행 중인 게임과 즉시 동기화됩니다.
@@ -93,4 +101,4 @@ OpenAI 공식 문서:
 - AI 엔드포인트는 연동 검증용 NPC 반응 예시입니다. 기획 확정 후 게임 기능에 맞춘 입출력 계약으로 버전 관리합니다.
 - 실제 HIVE 유료 결제는 Console Web Login AppID, Billing 인증 키, 웹 상점/PG/상품 설정이 준비된 뒤 Sandbox에서 최종 검증해야 합니다.
 - 결제 취소 알림은 현재 지급하지 않고 정상 응답만 하며, 이미 사용된 재화의 환불 회수 정책은 정식 출시 전 별도 설계가 필요합니다.
-- 게임 세이브·점수·랭킹 DB는 게임 기획과 데이터 소유권이 확정된 후 추가합니다.
+- 계정별 SaveProfile v6와 일반 상점 경제는 구현되어 있으며, 점수·랭킹 API/UI는 후속 범위입니다.

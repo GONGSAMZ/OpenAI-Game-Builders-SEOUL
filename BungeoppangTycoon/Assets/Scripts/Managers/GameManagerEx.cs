@@ -126,6 +126,8 @@ public class GameManagerEx
     #endregion
 
     bool hasFinalizedDaily;
+    bool isSettlingDaily;
+    float nextSettlementRetryAt;
 
     //현재 주문
     Dictionary<FillingType, int> order = new Dictionary<FillingType, int>();
@@ -180,7 +182,7 @@ public class GameManagerEx
     //하루 운영 메서드
     public void OnUpdate()
     {
-        if (isRunning == false)
+        if (isRunning == false && dayState != DayState.Closing)
             return;
 
         switch (dayState)
@@ -224,8 +226,6 @@ public class GameManagerEx
 
             case DayState.Closing:
                 FinalizeDaily();
-                dayState = DayState.Opening;
-
                 break;
         }
 
@@ -276,6 +276,8 @@ public class GameManagerEx
         todayRevenue = 0;
         openingMoney = Money;
         hasFinalizedDaily = false;
+        isSettlingDaily = false;
+        nextSettlementRetryAt = 0f;
         didAlertClosingTime = false;
 
         //2. UI화면
@@ -301,10 +303,10 @@ public class GameManagerEx
 
     void FinalizeDaily()
     {
-        if (hasFinalizedDaily == true)
+        if (hasFinalizedDaily || isSettlingDaily || Time.realtimeSinceStartup < nextSettlementRetryAt)
             return;
 
-        hasFinalizedDaily = true;
+        isSettlingDaily = true;
         Debug.Log("2. 하루 끝 & 엔딩 체크");
         isRunning = false;
         IsTutorialClockPaused = false;
@@ -314,23 +316,27 @@ public class GameManagerEx
         todayRevenue = Money - openingMoney;
         //Debug.Log($"현재 돈: {Money} - 오늘 시작 보유금 {openingMoney}");
         //Debug.Log($"오늘 매출: {todayRevenue} - 재료비: {ingredientCost} = 오늘 순수익 {netProfit}");
-        Money -= ingredientCost;
-
-        SaveService.Instance.CommitDay(
+        SaveService.Instance.SettleDay(
             Day,
-            Money,
+            todayRevenue,
+            ingredientCost,
             totalFishBunsSold,
             totalCustomers,
-            todayRevenue,
-            netProfit);
+            (success, message) =>
+            {
+                isSettlingDaily = false;
+                if (!success)
+                {
+                    nextSettlementRetryAt = Time.realtimeSinceStartup + 5f;
+                    Debug.LogError($"영업일 정산을 다시 시도합니다: {message}");
+                    return;
+                }
 
-
-
-        Managers.UI.CloseUI();
-        Managers.UI.ShowUI<UI_DayEnd>();
-
-
-
+                hasFinalizedDaily = true;
+                dayState = DayState.Opening;
+                Managers.UI.CloseUI();
+                Managers.UI.ShowUI<UI_DayEnd>();
+            });
     }
 
     public void StartNextDay()

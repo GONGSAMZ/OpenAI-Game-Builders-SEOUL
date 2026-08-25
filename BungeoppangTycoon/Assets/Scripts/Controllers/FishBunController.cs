@@ -102,7 +102,47 @@ public class FishBunController : MonoBehaviour,
             return;
         }
 
+        if (state == CookingState.filled &&
+            ToolController.selectedTool != null &&
+            ToolController.selectedTool.CompareTag("kettle"))
+        {
+            FishBunController adjacent = GameplayItemEffects.HasItem(
+                    SaveService.Data,
+                    GameplayItemEffects.DualPourItemId)
+                ? FindAdjacentFishBun(CookingState.filled)
+                : null;
+            cooking();
+            adjacent?.cooking();
+            return;
+        }
+
+        if ((state == CookingState.topBatter || state == CookingState.cooking) &&
+            GameplayItemEffects.HasItem(SaveService.Data, GameplayItemEffects.DoubleGoldenMoldItemId))
+        {
+            CookingState expectedState = state;
+            FishBunController adjacent = FindAdjacentFishBun(expectedState);
+            bool advanceTogether = CanAdvanceCookingNow() && adjacent != null &&
+                                   adjacent.CanAdvanceCookingNow();
+            cooking();
+            if (advanceTogether)
+                adjacent.cooking();
+            return;
+        }
+
         cooking();
+    }
+
+    bool CanAdvanceCookingNow() =>
+        (state == CookingState.topBatter || state == CookingState.cooking) &&
+        Managers.Game.delta - startDelta >= requiredTime;
+
+    FishBunController FindAdjacentFishBun(CookingState expectedState)
+    {
+        if (parentMold == null || !parentMold.TryGetComponent(out MoldController mold))
+            return null;
+        MoldController adjacentMold = GameplayItemEffects.FindAdjacentMold(mold);
+        FishBunController adjacent = adjacentMold != null ? adjacentMold.ActiveFishBun : null;
+        return adjacent != null && adjacent.state == expectedState ? adjacent : null;
     }
 
     #endregion
@@ -307,7 +347,8 @@ public class FishBunController : MonoBehaviour,
             return;
 
         
-        float speedMultiplier = GamePlatformClient.Instance?.BakingTimeMultiplier ?? 1f;
+        // 프리미엄 황금 틀과 당일 조리 피버를 붓기 시작 시점에 한 번만 고정한다.
+        float speedMultiplier = GameplayItemEffects.CurrentBakingTimeMultiplier();
         requiredTime = BaseRequiredTime * speedMultiplier;
         burntingTime = BaseBurntingTime * speedMultiplier;
         startDelta = Managers.Game.delta; //1단계 굽기 측정 시작

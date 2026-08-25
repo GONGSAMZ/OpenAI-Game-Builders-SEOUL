@@ -1,10 +1,11 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
 /// 하루가 끝난 뒤 열리는 장사 준비 상점 화면입니다.
-/// 재료는 보유금으로 구매하며, 해금된 재료는 다음 영업일 시작 시 조리 화면에 나타납니다.
+/// 팀원이 만든 재료·도구 카드 구조는 유지하고 서버의 계정별 일반 상점 상태를 바인딩합니다.
 /// </summary>
 public class UI_Store : UI_Base
 {
@@ -19,29 +20,20 @@ public class UI_Store : UI_Base
     private TextMeshProUGUI fillingTabLabel;
     private TextMeshProUGUI itemTabLabel;
     private TextMeshProUGUI beanCoinNum;
+    private TextMeshProUGUI moneyNum;
     private GameObject fillingCards;
     private GameObject itemCards;
+    private string processingProductId;
 
-    private readonly struct FillingStoreItem
+    private static readonly Dictionary<string, string> CardProducts = new()
     {
-        public readonly string CardName;
-        public readonly FillingType Filling;
-        public readonly int Price;
-
-        public FillingStoreItem(string cardName, FillingType filling, int price)
-        {
-            CardName = cardName;
-            Filling = filling;
-            Price = price;
-        }
-    }
-
-    private static readonly FillingStoreItem[] FillingStoreItems =
-    {
-        new("RedBeanCard", FillingType.redBean, 1200),
-        new("CustardCard", FillingType.custard, 1400),
-        new("ChocolateCard", FillingType.nutella, 1600),
-        new("GreenTeaCard", FillingType.greenTea, 1800)
+        { "RedBeanCard", "filling-red-bean" },
+        { "CustardCard", "filling-custard" },
+        { "ChocolateCard", "filling-nutella" },
+        { "GreenTeaCard", "filling-green-tea" },
+        { "GoldenPanCard", "item-double-golden-mold" },
+        { "DualPourCard", "item-dual-pour" },
+        { "CookingFeverCard", "item-cooking-fever" }
     };
 
     protected override void Init()
@@ -58,13 +50,15 @@ public class UI_Store : UI_Base
 
         SetText("TitleText", "내일 장사 준비");
         SetText("MoneyText", "보유금");
-        SetText("MoneyNum", $"{Managers.Game.Money:N0}원");
+        moneyNum = Util.Find<TextMeshProUGUI>(gameObject, "MoneyNum", true);
         SetText("BeanCoinText", "팥코인");
         beanCoinNum = Util.Find<TextMeshProUGUI>(gameObject, "BeanCoinNum", true);
-        RefreshPlatformCurrency();
+        RefreshBalances();
 
         if (GamePlatformClient.Instance != null)
-            GamePlatformClient.Instance.StoreStateChanged += RefreshPlatformCurrency;
+            GamePlatformClient.Instance.StoreStateChanged += RefreshBalances;
+        SaveService.Instance.GameStoreChanged += BindStoreCards;
+        SaveService.Instance.DataChanged += RefreshBalances;
 
         if (nextDayButton != null)
             AddEvent(nextDayButton.gameObject, Managers.Game.StartNextDay);
@@ -73,15 +67,16 @@ public class UI_Store : UI_Base
         if (itemButton != null)
             AddEvent(itemButton.gameObject, ShowItems);
 
-        BindFillingPurchaseButtons();
+        ConfigurePurchaseButtons();
+        SetCardsLoading();
 
         ShowFillings();
+        SaveService.Instance.RefreshGameStore(OnStoreRefreshed);
     }
 
     private void ShowFillings()
     {
         SetCategory(true);
-        RefreshFillingPurchaseCards();
     }
 
     private void ShowItems()
@@ -124,82 +119,147 @@ public class UI_Store : UI_Base
             text.text = value;
     }
 
-    private void RefreshPlatformCurrency()
+    private void ConfigurePurchaseButtons()
     {
-        if (beanCoinNum == null)
-            return;
-
-        GamePlatformClient client = GamePlatformClient.Instance;
-        beanCoinNum.text = client != null && client.IsLoggedIn
-            ? $"{client.RedBeanCoinBalance:N0}개"
-            : "—";
-    }
-
-    private void BindFillingPurchaseButtons()
-    {
-        foreach (FillingStoreItem item in FillingStoreItems)
+        foreach ((string cardName, string productId) in CardProducts)
         {
-            Transform card = Util.Find<Transform>(gameObject, item.CardName, true);
-            Button purchaseButton = card != null
+            Transform card = Util.Find<Transform>(gameObject, cardName, true);
+            Button purchase = card != null
                 ? Util.Find<Button>(card.gameObject, "PurchaseButton", true)
                 : null;
-            if (purchaseButton == null)
-                continue;
-
-            FillingStoreItem capturedItem = item;
-            purchaseButton.onClick.AddListener(() => TryPurchaseFilling(capturedItem));
+            if (purchase == null) continue;
+            string capturedProductId = productId;
+            purchase.onClick.AddListener(() => Purchase(capturedProductId));
         }
-
-        RefreshFillingPurchaseCards();
     }
 
-    private void TryPurchaseFilling(FillingStoreItem item)
+    private void SetCardsLoading()
     {
-        if (Managers.Game.IsFillingUnlocked(item.Filling))
+        foreach ((string cardName, _) in CardProducts)
         {
-            RefreshFillingPurchaseCards();
-            return;
+            Transform card = Util.Find<Transform>(gameObject, cardName, true);
+            if (card == null) continue;
+            SetCardButton(card.gameObject, "불러오는 중", false);
         }
-
-        if (Managers.Game.Money < item.Price)
-        {
-            Debug.Log($"[상점] 보유금이 부족합니다: {item.Filling} / 필요 {item.Price:N0}원");
-            return;
-        }
-
-        if (!SaveService.Instance.PurchaseFilling(item.Filling, item.Price, Managers.Game.Money))
-            return;
-
-        Managers.Game.Money -= item.Price;
-        SetText("MoneyNum", $"{Managers.Game.Money:N0}원");
-        RefreshFillingPurchaseCards();
+        Transform next = Util.Find<Transform>(gameObject, "NextItemCard", true);
+        if (next != null)
+            SetCardButton(next.gameObject, "준비 중", false);
     }
 
-    private void RefreshFillingPurchaseCards()
+    private void BindStoreCards()
     {
-        foreach (FillingStoreItem item in FillingStoreItems)
+        if (this == null) return;
+        GameStoreCatalogData catalog = SaveService.Instance.GameStoreCatalog;
+        GameStoreStateData state = SaveService.Instance.GameStoreState;
+        if (catalog == null || state == null)
         {
-            Transform card = Util.Find<Transform>(gameObject, item.CardName, true);
-            if (card == null)
-                continue;
-
-            TextMeshProUGUI priceText = Util.Find<TextMeshProUGUI>(card.gameObject, "PriceText", true);
-            Button purchaseButton = Util.Find<Button>(card.gameObject, "PurchaseButton", true);
-            TextMeshProUGUI buttonText = Util.Find<TextMeshProUGUI>(card.gameObject, "Label", true);
-            bool owned = Managers.Game.IsFillingUnlocked(item.Filling);
-
-            if (priceText != null)
-                priceText.text = $"{item.Price:N0}원";
-            if (purchaseButton != null)
-                purchaseButton.interactable = !owned;
-            if (buttonText != null)
-                buttonText.text = owned ? "구매 완료" : "구매 가능";
+            SetCardsLoading();
+            RefreshBalances();
+            return;
         }
+
+        foreach ((string cardName, string productId) in CardProducts)
+        {
+            Transform card = Util.Find<Transform>(gameObject, cardName, true);
+            if (card == null) continue;
+            GameStoreProductData product = catalog.Find(productId);
+            GameStoreProductStateData productState = state.Find(productId);
+            if (product == null || productState == null)
+            {
+                SetCardButton(card.gameObject, "준비 중", false);
+                continue;
+            }
+
+            SetCardText(card.gameObject, "ProductNameText", product.displayName);
+            SetCardText(card.gameObject, "ProductDescriptionText", product.description);
+            SetCardText(card.gameObject, "PriceText", $"{product.price:N0}원");
+
+            bool processing = processingProductId == productId;
+            bool purchasable = !processing && productState.status == "purchasable";
+            string label = processing ? "구매 처리 중" : StatusLabel(productState.status);
+            SetCardButton(card.gameObject, label, purchasable);
+        }
+
+        Transform next = Util.Find<Transform>(gameObject, "NextItemCard", true);
+        if (next != null)
+            SetCardButton(next.gameObject, "준비 중", false);
+        RefreshBalances();
+    }
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "owned" => "보유 중",
+        "purchasable" => "구매 가능",
+        "insufficient-funds" => "잔액 부족",
+        "login-required" => "로그인 필요",
+        _ => "잠김"
+    };
+
+    private static void SetCardText(GameObject card, string objectName, string value)
+    {
+        TextMeshProUGUI text = Util.Find<TextMeshProUGUI>(card, objectName, true);
+        if (text != null) text.text = value;
+    }
+
+    private static void SetCardButton(GameObject card, string labelValue, bool interactable)
+    {
+        Button button = Util.Find<Button>(card, "PurchaseButton", true);
+        if (button == null) return;
+        button.interactable = interactable;
+        TextMeshProUGUI label = Util.Find<TextMeshProUGUI>(button.gameObject, "Label", true);
+        RawImage surface = Util.Find<RawImage>(button.gameObject, "PurchaseSurface", true);
+        if (label != null)
+        {
+            label.text = labelValue;
+            label.color = interactable ? ActiveTabTextColor : InactiveTabTextColor;
+        }
+        if (surface != null)
+            surface.color = interactable ? Color.white : new Color(1f, 1f, 1f, 0.45f);
+    }
+
+    private void Purchase(string productId)
+    {
+        if (!string.IsNullOrEmpty(processingProductId)) return;
+        processingProductId = productId;
+        BindStoreCards();
+        SaveService.Instance.PurchaseGameStoreProduct(productId, (success, message) =>
+        {
+            if (this == null) return;
+            processingProductId = null;
+            if (!success)
+                Debug.LogWarning($"[상점] {message}");
+            BindStoreCards();
+        });
+    }
+
+    private void OnStoreRefreshed(bool success, string message)
+    {
+        if (this == null) return;
+        if (!success)
+            Debug.LogWarning($"[상점] {message}");
+        BindStoreCards();
+    }
+
+    private void RefreshBalances()
+    {
+        if (moneyNum != null)
+            moneyNum.text = $"{SaveService.Data.run.money:N0}원";
+
+        GamePlatformClient client = GamePlatformClient.Instance;
+        if (beanCoinNum != null)
+            beanCoinNum.text = client != null && client.IsLoggedIn
+                ? $"{client.RedBeanCoinBalance:N0}개"
+                : "—";
     }
 
     private void OnDestroy()
     {
         if (GamePlatformClient.Instance != null)
-            GamePlatformClient.Instance.StoreStateChanged -= RefreshPlatformCurrency;
+            GamePlatformClient.Instance.StoreStateChanged -= RefreshBalances;
+        if (SaveService.Instance != null)
+        {
+            SaveService.Instance.GameStoreChanged -= BindStoreCards;
+            SaveService.Instance.DataChanged -= RefreshBalances;
+        }
     }
 }

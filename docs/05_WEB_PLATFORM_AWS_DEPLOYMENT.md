@@ -2,12 +2,12 @@
 
 ## 구현 범위
 
-- Unity 6.3 LTS WebGL 빌드를 서버의 `/game/`에 제공
+- Unity 6.3 LTS WebGL 빌드를 S3·CloudFront의 `/game/`에 제공
 - 메인 화면에는 64px 상단 헤더와 게임 iframe만 표시
 - HIVE 가입·로그인, 장인 상점, OpenAI 기능은 서버 API와 Unity 브리지로 제공
 - HIVE 통합 Web Login과 HIVE 관리형 웹 상점 연결
 - mock 구매의 중복 지급 방지와 AWS DynamoDB 영속화
-- `DEV` 푸시 시 Unity 빌드 → Docker → ECR → ECS Fargate → CloudFront HTTPS 자동 배포
+- `DEV` 푸시 시 서버 Docker와 필요한 Unity 빌드를 병렬 준비해 ECR·S3·ECS·CloudFront에 자동 배포
 
 HIVE는 웹 로그인과 `shop.withhive.com/{keyword}` 웹 상점을 제공하지만 Unity WebGL/Node 서버의 범용 호스팅은 제공하지 않습니다. Crossplay Launcher 파일 서버는 Windows 실행 파일 배포용이므로 이 대회의 WebGL 제출 경로로 사용하지 않습니다.
 
@@ -15,12 +15,11 @@ HIVE는 웹 로그인과 `shop.withhive.com/{keyword}` 웹 상점을 제공하�
 
 ```text
 GitHub DEV push
-  -> GameCI Unity 6000.3.22f1 WebGL build
-  -> platform-server Docker image
-  -> Amazon ECR
-  -> ECS Fargate (Express + Unity static files)
-  -> ALB
+  -> [병렬] platform-server Docker image -> Amazon ECR -> ECS Fargate -> ALB
+  -> [필요할 때만] GameCI Unity 6000.3.22f1 WebGL build -> private S3
   -> CloudFront HTTPS public URL
+       -> /game/*: S3 Unity WebGL
+       -> 나머지 경로: ALB/ECS 플랫폼 서버
        -> HIVE Web Login / Web Shop
        -> DynamoDB inventory
 ```
@@ -53,7 +52,7 @@ aws cloudformation deploy \
 | `AWS_TASK_EXECUTION_ROLE_ARN` | `TaskExecutionRoleArn` |
 | `AWS_TASK_ROLE_ARN` | `TaskRoleArn` |
 
-Unity GameCI용 `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`는 GitHub Actions secrets로 등록합니다. 값이 없으면 DEV 워크플로는 실패하지 않고 배포 단계를 건너뜁니다.
+Unity GameCI용 `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`는 GitHub Actions secrets로 등록합니다. Unity 원본이 변경된 배포에서 값이 없으면 기존 빌드로 대체하지 않고 `prepare-unity`가 실패합니다. 서버 전용 변경에는 Unity 자격 증명을 사용하지 않습니다.
 
 ## HIVE와 OpenAI 실연동 전환
 
@@ -83,6 +82,7 @@ Unity GameCI용 `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`는 GitHub Actio
 
 - CloudFront 기본 도메인으로 HTTPS를 제공하므로 별도 도메인 없이 HIVE Redirect URI를 등록할 수 있습니다.
 - 서비스 스택의 `StoreProductImageBucketName` 출력은 HIVE 상품 이미지를 저장하는 비공개 S3 버킷입니다. `store-products/<전체-market-pid>.png` 키로 업로드하면 CloudFront `/store-products/`에서 제공됩니다.
+- 같은 비공개 버킷의 `game/`에는 검증된 `platform-server/game-dist/`가 저장되며 CloudFront `/game/*`에서 제공됩니다. 서버 Docker 이미지에는 WebGL 파일을 넣지 않습니다.
 - ALB, Fargate, CloudFront, DynamoDB에는 AWS 요금이 발생할 수 있습니다.
 - 세션은 프로토타입 범위에서 메모리 저장이므로 배포 후 다시 로그인할 수 있습니다. 구매 아이템은 DynamoDB에 유지됩니다.
 - 인프라 변경 전 `infra/aws/service.yml`의 비용과 IAM 범위를 팀에서 검토합니다.

@@ -7,6 +7,10 @@ on:
         description: "Previously deployed immutable ECR tag (40-char SHA-run attempt)"
         required: true
         type: string
+      game_source_hash:
+        description: "Optional 64-char Unity source hash; blank keeps the current game"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -23,6 +27,7 @@ jobs:
     timeout-minutes: 30
     env:
       IMAGE_TAG: ${{ inputs.image_tag }}
+      GAME_SOURCE_HASH: ${{ inputs.game_source_hash }}
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
       AWS_ECR_REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
@@ -47,6 +52,9 @@ jobs:
         shell: bash
         run: |
           [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}-[1-9][0-9]*$ ]]
+          if [[ -n "$GAME_SOURCE_HASH" ]]; then
+            [[ "$GAME_SOURCE_HASH" =~ ^[0-9a-f]{64}$ ]]
+          fi
 
       - uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -92,7 +100,48 @@ jobs:
             "$public_url/api/v1/health")
           test "$(jq -r '.revision' <<< "$health_json")" = "$expected_revision"
 
+          if [[ -n "$GAME_SOURCE_HASH" ]]; then
+            game_bucket=$(aws cloudformation describe-stacks \
+              --stack-name "$AWS_SERVICE_STACK" \
+              --query "Stacks[0].Outputs[?OutputKey=='GameAssetBucketName'].OutputValue | [0]" \
+              --output text)
+            test -n "$game_bucket"
+            release_prefix="game-releases/$GAME_SOURCE_HASH"
+            release_manifest=$(mktemp)
+            aws s3 cp \
+              "s3://$game_bucket/$release_prefix/build-manifest.json" \
+              "$release_manifest" \
+              --only-show-errors
+            test "$(jq -r '.sourceTreeSha256' "$release_manifest")" = "$GAME_SOURCE_HASH"
+            rm -f "$release_manifest"
+
+            aws s3 cp \
+              "s3://$game_bucket/$release_prefix/" \
+              "s3://$game_bucket/game/" \
+              --recursive \
+              --exclude index.html \
+              --exclude README.md \
+              --copy-props metadata-directive \
+              --only-show-errors
+            aws s3 cp \
+              "s3://$game_bucket/$release_prefix/index.html" \
+              "s3://$game_bucket/game/index.html" \
+              --copy-props metadata-directive \
+              --only-show-errors
+            aws s3api copy-object \
+              --bucket "$game_bucket" \
+              --copy-source "$game_bucket/$release_prefix/index.html" \
+              --key "game/" \
+              --metadata-directive COPY \
+              >/dev/null
+
+            game_manifest=$(curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors \
+              "$public_url/game/build-manifest.json")
+            test "$(jq -r '.sourceTreeSha256' <<< "$game_manifest")" = "$GAME_SOURCE_HASH"
+          fi
+
           echo "### 롤백 완료" >> "$GITHUB_STEP_SUMMARY"
           echo "- Image: $image_uri" >> "$GITHUB_STEP_SUMMARY"
           echo "- Revision: $expected_revision" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Unity source: ${GAME_SOURCE_HASH:-unchanged}" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL: $public_url" >> "$GITHUB_STEP_SUMMARY"

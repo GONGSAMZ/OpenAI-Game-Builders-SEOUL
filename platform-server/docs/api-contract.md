@@ -103,6 +103,18 @@ Hive 로그인 후 호출할 수 있습니다.
 
 ## 사용자별 게임 재화와 웹 상점
 
+### 일반 게임 돈 상점
+
+일반 상점은 아래 API를 사용하며 HIVE 팥 코인·프리미엄 상품과 분리한다. 카탈로그를 제외한 요청은 인증 세션이 필요하고 요청에서 PlayerID를 받지 않는다.
+
+- `GET /api/v1/game-store/catalog` — 일반 상점 상품, 가격, 카테고리, 소유 유형과 효과 반환
+- `GET /api/v1/game-store/me` — revision, 일반 돈, 해금 재료, 보유 도구, 예약 효과와 상품 상태 반환
+- `POST /api/v1/game-store/purchases` — `productId`, `expectedRevision`과 UUID `Idempotency-Key`로 구매
+- `POST /api/v1/game-run/settle-day` — 날짜, 매출, 재료비, 판매량, 손님 수를 제출하고 서버에서 잔액·다음 날짜 계산
+- `POST /api/v1/save/reset-run` — 일반 진행만 초기화하고 계정 영역과 HIVE 보유품 보존
+
+구매 상태는 `owned`, `purchasable`, `locked`, `insufficient-funds`다. 비로그인 Unity 클라이언트는 공개 카탈로그를 자체 `login-required` 보기 전용 상태로 표시한다. 변경 API는 최신 `expectedRevision`을 요구하며 충돌 시 `409 SAVE_CONFLICT`와 서버 프로필을 반환한다.
+
 ### `GET /api/v1/store/catalog`
 
 상품 목록과 현재 `mock`/`nicepay-test`/`hive-web-shop` 모드를 반환합니다. `STORE_CATALOG_SOURCE=hive`이면 로그인 PlayerID로 HIVE Web PG 상품 목록을 조회하고 5분간 캐시합니다. 로그인 전이나 초기 장애에는 기존 세 상품을 사용하며, 정상 동기화 뒤 장애가 발생하면 마지막 정상 캐시를 유지합니다.
@@ -254,6 +266,6 @@ HIVE 웹 상점의 결제 알림 URL입니다. `STORE_MODE=hive-web-shop`에서�
 - 다른 기기에서 먼저 저장했다면 `409 SAVE_CONFLICT`와 서버의 최신 `profile`을 반환한다.
 - 클라이언트는 충돌 시 서버 데이터를 우선하고 로컬 데이터는 백업한다.
 
-`SaveProfile` v3는 `run`, `account`, `settings`를 저장합니다. `account`에는 업적, 손님 도감·스토리, 영혼 도감과 누적 통계가 있고 `settings`에는 `masterVolume`, `keyboardHintsEnabled`, `tutorialCompleted`가 있습니다. 일반 진행은 revision 충돌 검사를 거치며 팥 코인·구매·장비는 이 문서가 아니라 서버 권한의 상점 레코드를 기준으로 합니다.
+`SaveProfile` v6는 `run`, `account`, `settings`를 저장합니다. `run`에는 일반 돈, 해금 재료, 일반 상점 도구와 다음 날 예약 효과가 있고 `account`에는 업적, 손님 도감·스토리, 영혼 도감과 누적 통계가 있습니다. `settings`에는 `masterVolume`, `keyboardHintsEnabled`, `tutorialCompleted`가 있습니다. 일반 경제 필드는 전용 트랜잭션 API만 변경하며, 팥 코인·HIVE 구매·프리미엄 장비는 이 문서가 아니라 기존 서버 권한의 상점 레코드를 기준으로 합니다.
 
-v2 계정은 최초 v3 클라이언트 접근 때만 기존 PlayerPrefs 설정을 채웁니다. 서버에 이미 v3 설정이 있으면 서버 값이 우선합니다. 손님 ID `jeonghyun`은 `jeonghyeon`으로 병합하며 복구 가능한 양쪽 진행을 합집합·최댓값으로 유지합니다.
+v2 계정은 최초 최신 클라이언트 접근 때만 기존 PlayerPrefs 설정을 채웁니다. 서버에 이미 설정이 있으면 서버 값이 우선합니다. 손님 ID `jeonghyun`은 `jeonghyeon`으로 병합하며 복구 가능한 양쪽 진행을 합집합·최댓값으로 유지합니다. 신규 v6 계정은 팥만 기본 보유하며 기존 계정의 네 기본 재료는 회수하지 않습니다.

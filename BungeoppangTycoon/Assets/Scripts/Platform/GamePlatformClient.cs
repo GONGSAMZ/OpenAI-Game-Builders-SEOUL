@@ -159,6 +159,87 @@ public sealed class GamePlatformClient : MonoBehaviour
         yield return SendJson("GET", "/api/v1/store/catalog", null, onSuccess);
     }
 
+    public IEnumerator GetGameStoreCatalog(Action<string> onSuccess, Action<long, string> onFailure = null)
+    {
+        yield return SendJsonDetailed(
+            "GET", "/api/v1/game-store/catalog", null, onSuccess, onFailure);
+    }
+
+    public IEnumerator GetGameStoreState(Action<string> onSuccess, Action<long, string> onFailure)
+    {
+        yield return SendJsonDetailed(
+            "GET", "/api/v1/game-store/me", null, onSuccess, onFailure);
+    }
+
+    public IEnumerator PurchaseGameStoreProduct(
+        string productId,
+        long expectedRevision,
+        string idempotencyKey,
+        Action<string> onSuccess,
+        Action<long, string> onFailure)
+    {
+        string payload = JsonUtility.ToJson(new GameStorePurchaseRequest
+        {
+            productId = productId,
+            expectedRevision = expectedRevision
+        });
+        yield return SendJsonDetailed(
+            "POST",
+            "/api/v1/game-store/purchases",
+            payload,
+            onSuccess,
+            onFailure,
+            idempotencyKey);
+    }
+
+    public IEnumerator SettleGameDay(
+        int day,
+        int revenue,
+        int ingredientCost,
+        int sold,
+        int customers,
+        long expectedRevision,
+        string idempotencyKey,
+        Action<string> onSuccess,
+        Action<long, string> onFailure)
+    {
+        string payload = JsonUtility.ToJson(new SettleGameDayRequest
+        {
+            day = day,
+            revenue = revenue,
+            ingredientCost = ingredientCost,
+            sold = sold,
+            customers = customers,
+            expectedRevision = expectedRevision
+        });
+        yield return SendJsonDetailed(
+            "POST",
+            "/api/v1/game-run/settle-day",
+            payload,
+            onSuccess,
+            onFailure,
+            idempotencyKey);
+    }
+
+    public IEnumerator ResetGameRun(
+        long expectedRevision,
+        string idempotencyKey,
+        Action<string> onSuccess,
+        Action<long, string> onFailure)
+    {
+        string payload = JsonUtility.ToJson(new ResetGameRunRequest
+        {
+            expectedRevision = expectedRevision
+        });
+        yield return SendJsonDetailed(
+            "POST",
+            "/api/v1/save/reset-run",
+            payload,
+            onSuccess,
+            onFailure,
+            idempotencyKey);
+    }
+
     public IEnumerator GetInventory(Action<string> onSuccess)
     {
         int requestGeneration = sessionGeneration;
@@ -351,7 +432,8 @@ public sealed class GamePlatformClient : MonoBehaviour
         string path,
         string body,
         Action<string> onSuccess,
-        Action<long, string> onFailure)
+        Action<long, string> onFailure,
+        string idempotencyKey = null)
     {
         using var request = new UnityWebRequest(apiBaseUrl.TrimEnd('/') + path, method);
         request.downloadHandler = new DownloadHandlerBuffer();
@@ -367,6 +449,9 @@ public sealed class GamePlatformClient : MonoBehaviour
             if (!string.IsNullOrWhiteSpace(sessionToken))
                 request.SetRequestHeader("Authorization", "Bearer " + sessionToken);
         }
+
+        if (!string.IsNullOrWhiteSpace(idempotencyKey))
+            request.SetRequestHeader("Idempotency-Key", idempotencyKey);
 
         yield return request.SendWebRequest();
 
@@ -477,6 +562,30 @@ public sealed class GamePlatformClient : MonoBehaviour
     {
         public string productId;
         public string idempotencyKey;
+    }
+
+    [Serializable]
+    private sealed class GameStorePurchaseRequest
+    {
+        public string productId;
+        public long expectedRevision;
+    }
+
+    [Serializable]
+    private sealed class SettleGameDayRequest
+    {
+        public int day;
+        public int revenue;
+        public int ingredientCost;
+        public int sold;
+        public int customers;
+        public long expectedRevision;
+    }
+
+    [Serializable]
+    private sealed class ResetGameRunRequest
+    {
+        public long expectedRevision;
     }
 
     [Serializable]

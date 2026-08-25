@@ -1,32 +1,32 @@
 {
   "schemaVersion": 1,
   "unityVersion": "6000.3.22f1",
-  "sourceTreeSha256": "4300cf588cff29754a815e3812a1d2e8d79669f152b1847f98fd1a394dcf73fe",
+  "sourceTreeSha256": "54e5ce7a6589fc9e54a937302ccf808e250beda7be68291f653bcbb3469fb025",
   "artifacts": [
     {
-      "path": "Build/1d334c5f401d3fe0b4727187180e8988.framework.js.unityweb",
-      "size": 91086,
-      "sha256": "315543f667cca752f361cb758243fe620cb7ade050bb5761919d13c0b34f4438"
+      "path": "Build/273d3d820394f484f1846e1e9ecae157.data.unityweb",
+      "size": 124139998,
+      "sha256": "1eea515933f3d45d377280f7d746a471c1982271489c04d52ffa9a055481fc31"
     },
     {
-      "path": "Build/32a977b509de35b1376a69441e7db92d.data.unityweb",
-      "size": 89654070,
-      "sha256": "e3e3d46323aec284dbcd3516efa42c5a1be8646d2eee8b2361de9c1fa4b3deff"
+      "path": "Build/36e8f0d8fc473a03349892e6f754e577.framework.js.unityweb",
+      "size": 91105,
+      "sha256": "253e68468a5a1720ab0d53ce94cd5642631232812504499cf163400a660a2c48"
     },
     {
-      "path": "Build/5033ee906cb79f527a955616a16c1fa2.wasm.unityweb",
-      "size": 12282365,
-      "sha256": "273edee991356d52614131bd30ea92a43fc81b7e13fe6dee447eb7c6da8defce"
+      "path": "Build/890b543a5d01844ec9df84daa8fcfee6.wasm.unityweb",
+      "size": 12294233,
+      "sha256": "b23243b8f7642d62560ce975f1fbf62f95f2e53a7897b3b86cf6595c40ed40d9"
     },
     {
-      "path": "Build/f0646758510d955465fbd46a7f6c38b2.loader.js",
+      "path": "Build/b4976ce0830ba27e25310b33d5665833.loader.js",
       "size": 47867,
-      "sha256": "55a797cb3319fb1df3adfcf8da6fa0013a5a122c49fd03acbe4507a55454d6dc"
+      "sha256": "c3c334d8ecd428a0d04d6658abea145751b25de8d0e6bd16c18e647c74b1390f"
     },
     {
       "path": "index.html",
       "size": 6470,
-      "sha256": "c240a2654cf413aa2e431a2d784835f7ed4083de0c980d737a30f96208e7d00e"
+      "sha256": "7c9651750e96bc6bc35dd3e23d540004240aaa77e5b3e6ad67b0a2c03321a677"
     }
   ]
 }

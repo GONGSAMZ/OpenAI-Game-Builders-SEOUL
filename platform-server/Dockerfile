@@ -16,6 +16,5 @@ COPY platform-server/package.json platform-server/pnpm-lock.yaml platform-server
 RUN pnpm install --prod --frozen-lockfile
 COPY --from=build /app/dist ./dist
 COPY platform-server/public ./public
-COPY platform-server/game-dist ./game-dist
 EXPOSE 3000
 CMD ["node", "dist/src/server.js"]

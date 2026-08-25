@@ -60,10 +60,12 @@ import {
 } from "./store/purchase-history.js";
 import {
   createPlayerSaveStore,
+  SaveIdempotencyConflictError,
   SaveRevisionConflictError,
   type PlayerSaveStore
 } from "./save/save-store.js";
 import { PlayerProfileService } from "./save/player-profile-service.js";
+import { GameEconomyError, GameStoreService } from "./game-store/service.js";
 
 const publicDirectory = path.resolve(process.cwd(), "public");
 const portalIndexTemplate = readFileSync(path.join(publicDirectory, "index.html"), "utf8");
@@ -115,7 +117,14 @@ const saveProfileSchema = z.object({
     unlockedFillingIds: z.array(z.string().min(1).max(100)).max(100),
     customerStories: z.array(customerStoryRunStateSchema).max(8).optional(),
     // 기존 클라이언트 호환용이며, 실제 상점 인벤토리의 기준 데이터는 별도 서버 저장소다.
-    ownedGameplayItemIds: z.array(z.string().min(1).max(100)).max(500).optional()
+    ownedGameplayItemIds: z.array(z.string().min(1).max(100)).max(500).optional(),
+    queuedDayEffects: z.array(z.object({
+      productId: z.string().min(1).max(100),
+      effectCode: z.string().min(1).max(100),
+      targetDay: z.number().int().min(1).max(1_000_000),
+      durationSeconds: z.number().min(0).max(86_400),
+      multiplier: z.number().min(0.01).max(1)
+    })).max(32).optional()
   }).passthrough(),
   account: z.object({
     customers: z.array(z.object({ customerId: z.string().min(1).max(100) }).passthrough()).max(100),
@@ -132,6 +141,26 @@ const saveProfileSchema = z.object({
 const savePutSchema = z.object({
   expectedRevision: z.number().int().min(0),
   profile: saveProfileSchema
+});
+
+const idempotencyKeySchema = z.string().uuid();
+
+const gameStorePurchaseSchema = z.object({
+  productId: z.string().trim().min(1).max(100),
+  expectedRevision: z.number().int().min(0)
+});
+
+const settleDaySchema = z.object({
+  day: z.number().int().min(1).max(1_000_000),
+  revenue: z.number().int().min(0).max(1_000_000_000),
+  ingredientCost: z.number().int().min(0).max(1_000_000_000),
+  sold: z.number().int().min(0).max(1_000_000),
+  customers: z.number().int().min(0).max(1_000_000),
+  expectedRevision: z.number().int().min(0)
+});
+
+const resetRunSchema = z.object({
+  expectedRevision: z.number().int().min(0)
 });
 
 const nicePayOrderSchema = z.object({
@@ -272,6 +301,7 @@ export function createApp(dependencies: AppDependencies) {
     dependencies.playerProgressStore ?? createPlayerProgressStore(config);
   const playerSaves = dependencies.playerSaves ?? createPlayerSaveStore(config);
   const playerProfiles = new PlayerProfileService(playerSaves, playerProgressStore);
+  const gameStore = new GameStoreService(playerSaves);
   const app = express();
   const requireGameSession = requireSession(sessions, sessionCookieName);
   const nicePayCallbackPath = "/api/v1/store/nicepay/callback";
@@ -527,6 +557,21 @@ export function createApp(dependencies: AppDependencies) {
     });
   });
 
+  app.get("/api/v1/game-store/catalog", (_request, response) => {
+    response.set("cache-control", "public, max-age=60").json(gameStore.getCatalog());
+  });
+
+  app.get(
+    "/api/v1/game-store/me",
+    requireGameSession,
+    async (_request: Request, response: Response) => {
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(await gameStore.getMe(session.subject));
+    }
+  );
+
   app.get(
     "/api/v1/store/me",
     requireGameSession,
@@ -618,6 +663,48 @@ export function createApp(dependencies: AppDependencies) {
     legacyHeaders: false,
     message: { error: { code: "RATE_LIMITED", message: "구매 요청이 너무 많습니다." } }
   });
+
+  app.post(
+    "/api/v1/game-store/purchases",
+    purchaseLimiter,
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const input = gameStorePurchaseSchema.parse(request.body);
+      const idempotencyKey = idempotencyKeySchema.parse(request.header("idempotency-key"));
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(await gameStore.purchase(session.subject, { ...input, idempotencyKey }));
+    }
+  );
+
+  app.post(
+    "/api/v1/game-run/settle-day",
+    purchaseLimiter,
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const input = settleDaySchema.parse(request.body);
+      const idempotencyKey = idempotencyKeySchema.parse(request.header("idempotency-key"));
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(await gameStore.settleDay(session.subject, { ...input, idempotencyKey }));
+    }
+  );
+
+  app.post(
+    "/api/v1/save/reset-run",
+    purchaseLimiter,
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const input = resetRunSchema.parse(request.body);
+      const idempotencyKey = idempotencyKeySchema.parse(request.header("idempotency-key"));
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(await gameStore.resetRun(session.subject, { ...input, idempotencyKey }));
+    }
+  );
 
   app.post(
     "/api/v1/store/nicepay/orders",
@@ -1059,6 +1146,16 @@ export function createApp(dependencies: AppDependencies) {
       .send(renderPortalIndex(config.revision));
   });
 
+  // 운영 CloudFront의 /game/*는 S3 WebGL 산출물로 전달된다. 슬래시 없는
+  // 진입점만 서버에서 정규화해 로컬 개발과 운영 주소를 동일하게 유지한다.
+  app.use((request, response, next) => {
+    if (request.path !== "/game") {
+      next();
+      return;
+    }
+    response.redirect(308, "/game/");
+  });
+
   app.use(
     "/game",
     express.static(config.gameBuildDirectory, {
@@ -1084,6 +1181,28 @@ export function createApp(dependencies: AppDependencies) {
     if (error instanceof ZodError) {
       response.status(400).json({
         error: { code: "INVALID_REQUEST", message: "요청 데이터 형식이 올바르지 않습니다.", details: error.issues }
+      });
+      return;
+    }
+
+    if (error instanceof SaveRevisionConflictError) {
+      response.status(409).json({
+        error: { code: "SAVE_CONFLICT", message: error.message },
+        profile: error.current ?? null
+      });
+      return;
+    }
+
+    if (error instanceof SaveIdempotencyConflictError) {
+      response.status(409).json({
+        error: { code: "IDEMPOTENCY_CONFLICT", message: error.message }
+      });
+      return;
+    }
+
+    if (error instanceof GameEconomyError) {
+      response.status(error.statusCode).json({
+        error: { code: error.code, message: error.message, details: error.details }
       });
       return;
     }

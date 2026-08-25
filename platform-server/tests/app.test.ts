@@ -115,6 +115,140 @@ describe("integration API", () => {
     await request(app).get("/api/v1/save/profile").expect(401);
   });
 
+  it("일반 상점 카탈로그는 공개하고 구매·경제 데이터는 계정과 revision으로 보호한다", async () => {
+    const playerSaves = new InMemoryPlayerSaveStore();
+    const app = createApp({ config: createTestConfig(), playerSaves });
+
+    const catalog = await request(app).get("/api/v1/game-store/catalog").expect(200);
+    expect(catalog.body).toEqual(expect.objectContaining({
+      currency: "game-money",
+      products: expect.arrayContaining([
+        expect.objectContaining({ productId: "filling-custard", price: 1400 }),
+        expect.objectContaining({ productId: "filling-green-tea", price: 1800, availability: "available" }),
+        expect.objectContaining({ productId: "filling-cream-cheese", availability: "coming-soon" }),
+        expect.objectContaining({ productId: "item-double-golden-mold", price: 4800 }),
+        expect.objectContaining({ productId: "filling-pizza", availability: "coming-soon" })
+      ])
+    }));
+    await request(app).get("/api/v1/game-store/me").expect(401);
+
+    const token = await login(app);
+    const auth = { Authorization: `Bearer ${token}` };
+    const initial = await request(app).get("/api/v1/game-store/me").set(auth).expect(200);
+    expect(initial.body).toEqual(expect.objectContaining({
+      revision: 1,
+      money: 5000,
+      unlockedFillingIds: ["red-bean"]
+    }));
+
+    const purchaseKey = "10000000-0000-4000-8000-000000000001";
+    const purchased = await request(app)
+      .post("/api/v1/game-store/purchases")
+      .set(auth)
+      .set("Idempotency-Key", purchaseKey)
+      .send({ productId: "filling-custard", expectedRevision: initial.body.revision })
+      .expect(200);
+    expect(purchased.body).toEqual(expect.objectContaining({
+      duplicate: false,
+      store: expect.objectContaining({
+        revision: 2,
+        money: 3600,
+        unlockedFillingIds: ["red-bean", "custard"]
+      })
+    }));
+
+    const duplicate = await request(app)
+      .post("/api/v1/game-store/purchases")
+      .set(auth)
+      .set("Idempotency-Key", purchaseKey)
+      .send({ productId: "filling-custard", expectedRevision: initial.body.revision })
+      .expect(200);
+    expect(duplicate.body.duplicate).toBe(true);
+    expect(duplicate.body.store.money).toBe(3600);
+
+    const protectedPut = await request(app)
+      .put("/api/v1/save/profile")
+      .set(auth)
+      .send({
+        expectedRevision: purchased.body.profile.revision,
+        profile: {
+          ...purchased.body.profile,
+          run: {
+            ...purchased.body.profile.run,
+            money: 999999,
+            unlockedFillingIds: ["red-bean", "custard", "nutella", "cream-cheese"],
+            ownedGameplayItemIds: ["item-dual-pour"]
+          }
+        }
+      })
+      .expect(200);
+    expect(protectedPut.body.profile.run).toEqual(expect.objectContaining({
+      money: 3600,
+      unlockedFillingIds: ["red-bean", "custard"],
+      ownedGameplayItemIds: []
+    }));
+
+    const stale = await request(app)
+      .post("/api/v1/game-store/purchases")
+      .set(auth)
+      .set("Idempotency-Key", "10000000-0000-4000-8000-000000000002")
+      .send({ productId: "item-dual-pour", expectedRevision: 1 })
+      .expect(409);
+    expect(stale.body.error.code).toBe("SAVE_CONFLICT");
+  });
+
+  it("일반 상점 정산·초기화 API가 같은 날짜를 중복 반영하지 않는다", async () => {
+    const app = createApp({ config: createTestConfig() });
+    const token = await login(app);
+    const auth = { Authorization: `Bearer ${token}` };
+    const initial = await request(app).get("/api/v1/game-store/me").set(auth).expect(200);
+
+    const settled = await request(app)
+      .post("/api/v1/game-run/settle-day")
+      .set(auth)
+      .set("Idempotency-Key", "20000000-0000-4000-8000-000000000001")
+      .send({
+        day: 1,
+        revenue: 3000,
+        ingredientCost: 800,
+        sold: 4,
+        customers: 2,
+        expectedRevision: initial.body.revision
+      })
+      .expect(200);
+    expect(settled.body.profile.run).toEqual(expect.objectContaining({
+      nextDay: 2,
+      money: 7200
+    }));
+
+    const repeated = await request(app)
+      .post("/api/v1/game-run/settle-day")
+      .set(auth)
+      .set("Idempotency-Key", "20000000-0000-4000-8000-000000000002")
+      .send({
+        day: 1,
+        revenue: 3000,
+        ingredientCost: 800,
+        sold: 4,
+        customers: 2,
+        expectedRevision: settled.body.profile.revision
+      })
+      .expect(409);
+    expect(repeated.body.error.code).toBe("DAY_ALREADY_SETTLED");
+
+    const reset = await request(app)
+      .post("/api/v1/save/reset-run")
+      .set(auth)
+      .set("Idempotency-Key", "20000000-0000-4000-8000-000000000003")
+      .send({ expectedRevision: settled.body.profile.revision })
+      .expect(200);
+    expect(reset.body.profile.run).toEqual(expect.objectContaining({
+      nextDay: 1,
+      money: 5000,
+      unlockedFillingIds: ["red-bean"]
+    }));
+  });
+
   it("health와 공개 설정을 반환한다", async () => {
     const app = createApp({ config: createTestConfig() });
     const health = await request(app).get("/api/v1/health").expect(200);
@@ -836,5 +970,14 @@ describe("integration API", () => {
     const page = await request(app).get("/game/").expect(200);
     expect(page.text).toContain("Unity test fixture");
     expect(page.headers["cache-control"]).toContain("no-store");
+  });
+
+  it("슬래시 없는 게임 주소를 정규화한다", async () => {
+    const app = createApp({
+      config: createTestConfig({
+        gameBuildDirectory: path.resolve(process.cwd(), "tests/fixtures/game")
+      })
+    });
+    await request(app).get("/game").expect(308).expect("Location", "/game/");
   });
 });

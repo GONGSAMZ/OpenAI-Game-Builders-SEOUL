@@ -18,6 +18,8 @@ public sealed class SaveService : MonoBehaviour
     private int accountLoadGeneration;
     // 원격 요청 시작 뒤에도 새 변경이 생겼는지 식별하는 로컬 변경 번호다.
     private int localMutationVersion;
+    private int pendingSettlementDay = -1;
+    private string pendingSettlementIdempotencyKey;
 
     public static SaveService Instance { get; private set; }
     public static SaveGameData Data => EnsureInstance().Current;
@@ -28,7 +30,10 @@ public sealed class SaveService : MonoBehaviour
     public bool IsReadyForGameplay =>
         !IsAccountLoading &&
         (GamePlatformClient.Instance == null || GamePlatformClient.Instance.IsSessionRestoreComplete);
+    public GameStoreCatalogData GameStoreCatalog { get; private set; }
+    public GameStoreStateData GameStoreState { get; private set; }
     public event Action DataChanged;
+    public event Action GameStoreChanged;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void CreateRuntimeService()
@@ -94,19 +99,6 @@ public sealed class SaveService : MonoBehaviour
 
     public bool IsFillingUnlocked(FillingType filling) =>
         Current.run.unlockedFillingIds.Contains(SaveIds.Filling(filling));
-
-    /// <summary>영업 준비 상점에서 재료를 구매하고 남은 보유금을 즉시 저장한다.</summary>
-    public bool PurchaseFilling(FillingType filling, int price, int currentMoney)
-    {
-        string id = SaveIds.Filling(filling);
-        if (Current.run.unlockedFillingIds.Contains(id) || price < 0 || currentMoney < price)
-            return false;
-
-        Current.run.money = currentMoney - price;
-        Current.run.unlockedFillingIds.Add(id);
-        Persist("재료 구매");
-        return true;
-    }
 
     public CustomerStoryRunState GetCustomerStoryRunState(CustomerType customerType) =>
         SaveDataFactory.FindOrCreateCustomerStoryState(Current, customerType);
@@ -195,43 +187,328 @@ public sealed class SaveService : MonoBehaviour
         Persist("영혼 발견");
     }
 
-    public void CommitDay(int day, int settledMoney, int sold, int customers, int revenue, int netProfit)
+    public void RefreshGameStore(Action<bool, string> onComplete = null)
     {
-        Current.run.nextDay = Mathf.Max(1, day + 1);
-        Current.run.money = settledMoney;
-        LifetimeStatsData stats = Current.account.lifetimeStats;
-        stats.totalSales += Mathf.Max(0, sold);
-        stats.totalCustomers += Mathf.Max(0, customers);
-        stats.totalRevenue += Mathf.Max(0, revenue);
-        stats.bestDailyProfit = Mathf.Max(stats.bestDailyProfit, netProfit);
-        AchievementCatalog.Evaluate(Current);
-        Persist("하루 마감");
+        StartCoroutine(RefreshGameStoreRoutine(onComplete));
+    }
+
+    public void PurchaseGameStoreProduct(string productId, Action<bool, string> onComplete)
+    {
+        if (!IsAccountSave || GamePlatformClient.Instance?.IsLoggedIn != true)
+        {
+            onComplete?.Invoke(false, "일반 상점 구매는 로그인 후 이용할 수 있습니다.");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(productId))
+        {
+            onComplete?.Invoke(false, "구매할 상품 정보가 없습니다.");
+            return;
+        }
+        StartCoroutine(PurchaseGameStoreProductRoutine(productId, onComplete));
+    }
+
+    public void SettleDay(
+        int day,
+        int revenue,
+        int ingredientCost,
+        int sold,
+        int customers,
+        Action<bool, string> onComplete)
+    {
+        if (!IsAccountSave)
+        {
+            Current.run.nextDay = Mathf.Max(1, day + 1);
+            Current.run.money += Mathf.Max(0, revenue) - Mathf.Max(0, ingredientCost);
+            Current.run.queuedDayEffects.RemoveAll(effect => effect == null || effect.targetDay <= day);
+            LifetimeStatsData stats = Current.account.lifetimeStats;
+            stats.totalSales += Mathf.Max(0, sold);
+            stats.totalCustomers += Mathf.Max(0, customers);
+            stats.totalRevenue += Mathf.Max(0, revenue);
+            stats.bestDailyProfit = Mathf.Max(stats.bestDailyProfit, revenue - ingredientCost);
+            AchievementCatalog.Evaluate(Current);
+            Managers.Game.Money = Current.run.money;
+            Persist("하루 마감");
+            onComplete?.Invoke(true, string.Empty);
+            return;
+        }
+        StartCoroutine(SettleDayRoutine(day, revenue, ingredientCost, sold, customers, onComplete));
     }
 
     public void ResetRunProgress(Action<bool, string> onComplete)
     {
-        SaveGameData beforeReset = SaveDataFactory.Clone(Current);
-        SaveDataFactory.ResetRun(Current);
-        PersistLocalOnly();
-
         if (!IsAccountSave)
         {
+            SaveDataFactory.ResetRun(Current);
+            PersistLocalOnly();
+            Managers.Game.Money = Current.run.money;
             DataChanged?.Invoke();
             onComplete?.Invoke(true, string.Empty);
             return;
         }
+        StartCoroutine(ResetRunProgressRoutine(onComplete));
+    }
 
-        FlushRemoteNow((success, message) =>
+    private IEnumerator RefreshGameStoreRoutine(Action<bool, string> onComplete)
+    {
+        GamePlatformClient client = GamePlatformClient.Instance;
+        if (client == null)
         {
-            bool serverConflictApplied = !success && message.StartsWith("다른 기기", StringComparison.Ordinal);
-            if (!success && !serverConflictApplied)
+            onComplete?.Invoke(false, "게임 서버 클라이언트를 찾을 수 없습니다.");
+            yield break;
+        }
+
+        string catalogJson = null;
+        string failure = string.Empty;
+        yield return client.GetGameStoreCatalog(
+            json => catalogJson = json,
+            (_, body) => failure = ReadApiError(body, "일반 상점 상품을 불러오지 못했습니다."));
+        if (string.IsNullOrWhiteSpace(catalogJson))
+        {
+            onComplete?.Invoke(false, failure);
+            yield break;
+        }
+        GameStoreCatalog = JsonUtility.FromJson<GameStoreCatalogData>(catalogJson);
+
+        if (!IsAccountSave || !client.IsLoggedIn)
+        {
+            GameStoreState = CreateReadOnlyGameStoreState();
+            GameStoreChanged?.Invoke();
+            onComplete?.Invoke(true, string.Empty);
+            yield break;
+        }
+
+        string stateJson = null;
+        failure = string.Empty;
+        yield return client.GetGameStoreState(
+            json => stateJson = json,
+            (_, body) => failure = ReadApiError(body, "일반 상점 보유 정보를 불러오지 못했습니다."));
+        if (string.IsNullOrWhiteSpace(stateJson))
+        {
+            onComplete?.Invoke(false, failure);
+            yield break;
+        }
+        ApplyGameStoreState(JsonUtility.FromJson<GameStoreStateData>(stateJson));
+        onComplete?.Invoke(true, string.Empty);
+    }
+
+    private IEnumerator PurchaseGameStoreProductRoutine(string productId, Action<bool, string> onComplete)
+    {
+        GamePlatformClient client = GamePlatformClient.Instance;
+        string json = null;
+        long failureStatus = 0;
+        string failureBody = string.Empty;
+        yield return client.PurchaseGameStoreProduct(
+            productId,
+            Current.revision,
+            Guid.NewGuid().ToString(),
+            value => json = value,
+            (status, body) =>
             {
-                Current = beforeReset;
-                PersistLocalOnly();
-                DataChanged?.Invoke();
-            }
-            onComplete?.Invoke(success, message);
-        }, preferLocalRunOnConflict: true);
+                failureStatus = status;
+                failureBody = body;
+            });
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            ApplyConflictProfile(failureStatus, failureBody);
+            onComplete?.Invoke(false, ReadApiError(failureBody, "상품을 구매하지 못했습니다."));
+            yield break;
+        }
+
+        GameStoreMutationEnvelope envelope = JsonUtility.FromJson<GameStoreMutationEnvelope>(json);
+        if (envelope?.profile == null || envelope.store == null)
+        {
+            onComplete?.Invoke(false, "구매 결과 형식이 올바르지 않습니다.");
+            yield break;
+        }
+        ApplyAuthoritativeProfile(envelope.profile);
+        GameStoreState = envelope.store;
+        GameStoreChanged?.Invoke();
+        onComplete?.Invoke(true, string.Empty);
+    }
+
+    private IEnumerator SettleDayRoutine(
+        int day,
+        int revenue,
+        int ingredientCost,
+        int sold,
+        int customers,
+        Action<bool, string> onComplete)
+    {
+        GamePlatformClient client = GamePlatformClient.Instance;
+        if (client == null || !client.IsLoggedIn)
+        {
+            onComplete?.Invoke(false, "로그인 세션이 없어 영업일을 정산할 수 없습니다.");
+            yield break;
+        }
+
+        string json = null;
+        long failureStatus = 0;
+        string failureBody = string.Empty;
+        yield return client.SettleGameDay(
+            day,
+            Mathf.Max(0, revenue),
+            Mathf.Max(0, ingredientCost),
+            Mathf.Max(0, sold),
+            Mathf.Max(0, customers),
+            Current.revision,
+            GetSettlementIdempotencyKey(day),
+            value => json = value,
+            (status, body) =>
+            {
+                failureStatus = status;
+                failureBody = body;
+            });
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            ApplyConflictProfile(failureStatus, failureBody);
+            onComplete?.Invoke(false, ReadApiError(failureBody, "영업일 정산에 실패했습니다."));
+            yield break;
+        }
+
+        GameRunMutationEnvelope envelope = JsonUtility.FromJson<GameRunMutationEnvelope>(json);
+        if (envelope?.profile == null)
+        {
+            onComplete?.Invoke(false, "정산 결과 형식이 올바르지 않습니다.");
+            yield break;
+        }
+        ApplyAuthoritativeProfile(envelope.profile);
+        pendingSettlementDay = -1;
+        pendingSettlementIdempotencyKey = null;
+        AchievementCatalog.Evaluate(Current);
+        Managers.Game.Money = Current.run.money;
+        Persist("하루 마감 업적 동기화");
+        onComplete?.Invoke(true, string.Empty);
+    }
+
+    private string GetSettlementIdempotencyKey(int day)
+    {
+        if (pendingSettlementDay == day && !string.IsNullOrWhiteSpace(pendingSettlementIdempotencyKey))
+            return pendingSettlementIdempotencyKey;
+        pendingSettlementDay = day;
+        pendingSettlementIdempotencyKey = Guid.NewGuid().ToString();
+        return pendingSettlementIdempotencyKey;
+    }
+
+    private IEnumerator ResetRunProgressRoutine(Action<bool, string> onComplete)
+    {
+        GamePlatformClient client = GamePlatformClient.Instance;
+        if (client == null || !client.IsLoggedIn)
+        {
+            onComplete?.Invoke(false, "로그인 세션이 없어 진행을 초기화할 수 없습니다.");
+            yield break;
+        }
+
+        string json = null;
+        long failureStatus = 0;
+        string failureBody = string.Empty;
+        yield return client.ResetGameRun(
+            Current.revision,
+            Guid.NewGuid().ToString(),
+            value => json = value,
+            (status, body) =>
+            {
+                failureStatus = status;
+                failureBody = body;
+            });
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            ApplyConflictProfile(failureStatus, failureBody);
+            onComplete?.Invoke(false, ReadApiError(failureBody, "진행을 초기화하지 못했습니다."));
+            yield break;
+        }
+
+        GameStoreMutationEnvelope envelope = JsonUtility.FromJson<GameStoreMutationEnvelope>(json);
+        if (envelope?.profile == null)
+        {
+            onComplete?.Invoke(false, "초기화 결과 형식이 올바르지 않습니다.");
+            yield break;
+        }
+        ApplyAuthoritativeProfile(envelope.profile);
+        GameStoreState = envelope.store;
+        GameStoreChanged?.Invoke();
+        onComplete?.Invoke(true, string.Empty);
+    }
+
+    private void ApplyAuthoritativeProfile(SaveGameData profile)
+    {
+        Current = SaveDataFactory.MergeAfterRemoteConflict(profile, Current);
+        SaveDataFactory.Normalize(Current);
+        PersistLocalOnly();
+        ApplyRuntimeSettings();
+        Managers.Game.Money = Current.run.money;
+        DataChanged?.Invoke();
+    }
+
+    private void ApplyGameStoreState(GameStoreStateData state)
+    {
+        if (state == null) return;
+        Current.revision = state.revision;
+        Current.run.money = state.money;
+        Current.run.unlockedFillingIds = new List<string>(state.unlockedFillingIds ?? Array.Empty<string>());
+        Current.run.ownedGameplayItemIds = new List<string>(state.ownedGameplayItemIds ?? Array.Empty<string>());
+        Current.run.queuedDayEffects = new List<QueuedDayEffectData>(
+            state.queuedDayEffects ?? Array.Empty<QueuedDayEffectData>());
+        SaveDataFactory.Normalize(Current);
+        PersistLocalOnly();
+        Managers.Game.Money = Current.run.money;
+        GameStoreState = state;
+        DataChanged?.Invoke();
+        GameStoreChanged?.Invoke();
+    }
+
+    private GameStoreStateData CreateReadOnlyGameStoreState()
+    {
+        List<GameStoreProductStateData> states = new();
+        foreach (GameStoreProductData product in GameStoreCatalog?.products ?? Array.Empty<GameStoreProductData>())
+        {
+            bool owned = product.effect?.code == "unlock-filling"
+                ? Current.run.unlockedFillingIds.Contains(product.effect.fillingId)
+                : product.ownership == "run-permanent"
+                    ? Current.run.ownedGameplayItemIds.Contains(product.productId)
+                    : Current.run.queuedDayEffects.Exists(value =>
+                        value != null && value.productId == product.productId &&
+                        value.targetDay == Current.run.nextDay);
+            states.Add(new GameStoreProductStateData
+            {
+                productId = product.productId,
+                status = product.availability != "available" ? "locked" : owned ? "owned" : "login-required"
+            });
+        }
+        return new GameStoreStateData
+        {
+            revision = Current.revision,
+            money = Current.run.money,
+            unlockedFillingIds = Current.run.unlockedFillingIds.ToArray(),
+            ownedGameplayItemIds = Current.run.ownedGameplayItemIds.ToArray(),
+            queuedDayEffects = Current.run.queuedDayEffects.ToArray(),
+            products = states.ToArray()
+        };
+    }
+
+    private void ApplyConflictProfile(long status, string body)
+    {
+        if (status != 409 || string.IsNullOrWhiteSpace(body)) return;
+        ApiErrorEnvelope conflict = JsonUtility.FromJson<ApiErrorEnvelope>(body);
+        if (conflict?.profile != null)
+            ApplyAuthoritativeProfile(conflict.profile);
+    }
+
+    private static string ReadApiError(string body, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return fallback;
+        try
+        {
+            ApiErrorEnvelope envelope = JsonUtility.FromJson<ApiErrorEnvelope>(body);
+            return string.IsNullOrWhiteSpace(envelope?.error?.message)
+                ? fallback
+                : envelope.error.message;
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
     private SaveGameData LoadOrCreate(string scope, bool migrateLegacy)
@@ -475,8 +752,10 @@ public sealed class SaveService : MonoBehaviour
             accountSubject = null;
             currentScope = GuestScope;
             Current = LoadOrCreate(currentScope, true);
+            GameStoreState = null;
             ApplyRuntimeSettings();
             DataChanged?.Invoke();
+            GameStoreChanged?.Invoke();
             return;
         }
         StartCoroutine(LoadAccount(subject, accountLoadGeneration));
@@ -531,8 +810,8 @@ public sealed class SaveService : MonoBehaviour
             yield break;
         }
 
-        SaveGameData guest = SaveDataFactory.Clone(Current);
-        guest.revision = 0;
+        // 서버에 저장이 없는 새 계정은 익명/다른 계정의 진행을 복사하지 않는다.
+        SaveGameData guest = SaveDataFactory.CreateDefault();
         accountSubject = subject;
         currentScope = accountScope;
         Current = guest;

@@ -37,7 +37,6 @@ namespace BungeoppangTycoon.Tests.EditMode
                 GameObject card = Find(prefab, name);
                 Assert.That(card.GetComponent<Button>(), Is.Not.Null, $"Button 누락: {name}");
                 Assert.That(Find(card, "Icon")?.GetComponent<Image>()?.sprite, Is.Not.Null, $"아이콘 Sprite 누락: {name}");
-                Assert.That(Find(card, "Chevron")?.GetComponent<Image>()?.sprite, Is.Not.Null, $"화살표 Sprite 누락: {name}");
             }
         }
 

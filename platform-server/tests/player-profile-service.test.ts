@@ -39,6 +39,34 @@ describe("PlayerProfileService", () => {
     expect(((await service.get("player-b"))?.account.achievements as unknown[])).toHaveLength(0);
   });
 
+  it("첫 전체 저장에서도 서버 경제 기본값을 클라이언트 입력보다 우선한다", async () => {
+    const saves = new InMemoryPlayerSaveStore();
+    const service = new PlayerProfileService(saves, new InMemoryPlayerProgressStore());
+    const injected = profile();
+    injected.run = {
+      nextDay: 99,
+      money: 999_999,
+      unlockedFillingIds: ["red-bean", "custard", "nutella"],
+      ownedGameplayItemIds: ["item-double-golden-mold"],
+      queuedDayEffects: [{
+        productId: "item-cooking-fever",
+        effectCode: "cook-time-multiplier",
+        targetDay: 99,
+        durationSeconds: 30,
+        multiplier: 0.8
+      }]
+    };
+
+    const saved = await service.put("player-a", 0, injected);
+    expect(saved.run).toEqual(expect.objectContaining({
+      nextDay: 1,
+      money: 5000,
+      unlockedFillingIds: ["red-bean"],
+      ownedGameplayItemIds: [],
+      queuedDayEffects: []
+    }));
+  });
+
   it("jeonghyun 데이터를 jeonghyeon으로 손실 없이 단조 병합한다", async () => {
     const saves = new InMemoryPlayerSaveStore();
     const service = new PlayerProfileService(saves, new InMemoryPlayerProgressStore());
@@ -59,7 +87,7 @@ describe("PlayerProfileService", () => {
     }));
   });
 
-  it("구버전 설정은 클라이언트 이관 전까지 v2로 유지하고 PUT에서 v4가 된다", async () => {
+  it("구버전 설정은 클라이언트 이관 전까지 v2로 유지하고 PUT에서 v6가 된다", async () => {
     const saves = new InMemoryPlayerSaveStore();
     const service = new PlayerProfileService(saves, new InMemoryPlayerProgressStore());
     await saves.put("player-a", 0, profile(2));
@@ -71,7 +99,7 @@ describe("PlayerProfileService", () => {
       ...legacy!,
       settings: { masterVolume: 0.25, keyboardHintsEnabled: false, tutorialCompleted: true }
     });
-    expect(upgraded.schemaVersion).toBe(4);
+    expect(upgraded.schemaVersion).toBe(6);
     expect((await service.get("player-a"))?.settings).toEqual(upgraded.settings);
   });
 

@@ -11,5 +11,3 @@
 !platform-server/src/**
 !platform-server/public/
 !platform-server/public/**
-!platform-server/game-dist/
-!platform-server/game-dist/**
