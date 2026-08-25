@@ -21,10 +21,10 @@ public class InputManager : MonoBehaviour
     bool isTouchMode;
     ToolController highlightedTool;
     readonly Dictionary<SpriteRenderer, SpriteRenderer> toolTargetOutlines = new();
+    static Material interactableOutlineMaterial;
 
     // 모든 상호작용 대상에 공통으로 쓰는 흰색 외곽선이다.
-    // 붕어빵처럼 작은 스프라이트에서도 눈에 띄도록 기존보다 두껍게 잡는다.
-    const float ToolTargetOutlineMinScale = 1.16f;
+    const string InteractableOutlineMaterialPath = "Materials/InteractableOutline";
     const float ToolTargetOutlinePulseSpeed = 5f;
     const float ToolTargetOutlineMinAlpha = 0.45f;
     const float ToolTargetOutlineMaxAlpha = 1f;
@@ -382,15 +382,14 @@ public class InputManager : MonoBehaviour
         outline.maskInteraction = source.maskInteraction;
         outline.sortingLayerID = source.sortingLayerID;
         outline.sortingOrder = source.sortingOrder - 1;
-        outlineObject.transform.localScale = Vector3.one * ToolTargetOutlineMinScale;
+        outline.sharedMaterial = GetInteractableOutlineMaterial();
 
         toolTargetOutlines.Add(source, outline);
     }
 
     void UpdateToolTargetOutlines()
     {
-        // 아트의 크기는 절대 바꾸지 않는다.
-        // 고정된 두꺼운 외곽선의 밝기만 변해, 테두리만 맥동하는 것처럼 보이게 한다.
+        // 원본 아트는 건드리지 않고, 셰이더가 만든 외곽선의 밝기만 맥박시킨다.
         float pulse = (Mathf.Sin(Time.unscaledTime * ToolTargetOutlinePulseSpeed) + 1f) * 0.5f;
         float alpha = Mathf.Lerp(ToolTargetOutlineMinAlpha, ToolTargetOutlineMaxAlpha, pulse);
 
@@ -406,8 +405,15 @@ public class InputManager : MonoBehaviour
             outline.size = source.size;
             outline.sortingLayerID = source.sortingLayerID;
             outline.sortingOrder = source.sortingOrder - 1;
-            outline.transform.localScale = Vector3.one * ToolTargetOutlineMinScale;
             outline.color = new Color(1f, 1f, 1f, alpha);
         }
+    }
+
+    static Material GetInteractableOutlineMaterial()
+    {
+        if (interactableOutlineMaterial == null)
+            interactableOutlineMaterial = Resources.Load<Material>(InteractableOutlineMaterialPath);
+
+        return interactableOutlineMaterial;
     }
 }
