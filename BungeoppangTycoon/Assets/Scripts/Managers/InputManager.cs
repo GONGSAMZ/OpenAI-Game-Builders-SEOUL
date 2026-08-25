@@ -20,12 +20,14 @@ public class InputManager : MonoBehaviour
     bool canUseSwipe;
     bool isTouchMode;
     ToolController highlightedTool;
-    readonly Dictionary<SpriteRenderer, Color> highlightedRenderers = new();
     readonly Dictionary<SpriteRenderer, SpriteRenderer> toolTargetOutlines = new();
 
-    const float ToolTargetOutlineMinScale = 1.08f;
-    const float ToolTargetOutlinePulseScale = 0.035f;
+    // 모든 상호작용 대상에 공통으로 쓰는 흰색 외곽선이다.
+    // 붕어빵처럼 작은 스프라이트에서도 눈에 띄도록 기존보다 두껍게 잡는다.
+    const float ToolTargetOutlineMinScale = 1.16f;
     const float ToolTargetOutlinePulseSpeed = 5f;
+    const float ToolTargetOutlineMinAlpha = 0.45f;
+    const float ToolTargetOutlineMaxAlpha = 1f;
 
     public FishBunController SelectedFishBun => selectedFishBun;
     public bool IsTouchMode => isTouchMode;
@@ -319,14 +321,6 @@ public class InputManager : MonoBehaviour
 
     public void ClearTargetHighlights()
     {
-        foreach ((SpriteRenderer renderer, Color originalColor) in highlightedRenderers)
-        {
-            if (renderer != null)
-                renderer.color = originalColor;
-        }
-
-        highlightedRenderers.Clear();
-
         foreach ((SpriteRenderer source, SpriteRenderer outline) in toolTargetOutlines)
         {
             if (outline != null)
@@ -341,31 +335,37 @@ public class InputManager : MonoBehaviour
     {
         ClearTargetHighlights();
 
-        foreach (GameObject customer in GameObject.FindGameObjectsWithTag("customer"))
-            Highlight(customer);
+        // 조리대 위 완성품은 진열대에 먼저 올려야 한다.
+        // 진열된 붕어빵을 선택했을 때만 손님을 전달 대상으로 표시한다.
+        if (selectedFishBun != null && selectedFishBun.IsOnDisplay)
+        {
+            foreach (GameObject customer in GameObject.FindGameObjectsWithTag("customer"))
+                HighlightTargetOutline(customer);
+        }
 
         GameObject display = GameObject.FindGameObjectWithTag("displayPlate");
         if (display != null)
-            Highlight(display);
+            HighlightTargetOutline(display);
 
         GameObject bin = GameObject.FindGameObjectWithTag("bin");
         if (bin != null)
-            Highlight(bin);
+            HighlightTargetOutline(bin);
     }
 
-    void Highlight(GameObject target)
+    void HighlightTargetOutline(GameObject target)
     {
-        SpriteRenderer renderer = target.GetComponentInChildren<SpriteRenderer>();
-        if (renderer == null || highlightedRenderers.ContainsKey(renderer))
-            return;
-
-        highlightedRenderers.Add(renderer, renderer.color);
-        renderer.color = Color.Lerp(renderer.color, new Color(1f, 0.78f, 0.2f, renderer.color.a), 0.35f);
+        SpriteRenderer source = target.GetComponentInChildren<SpriteRenderer>();
+        CreateOutline(source);
     }
 
     void HighlightToolTarget(GameObject target)
     {
         SpriteRenderer source = target.GetComponentInChildren<SpriteRenderer>();
+        CreateOutline(source);
+    }
+
+    void CreateOutline(SpriteRenderer source)
+    {
         if (source == null || toolTargetOutlines.ContainsKey(source))
             return;
 
@@ -389,8 +389,10 @@ public class InputManager : MonoBehaviour
 
     void UpdateToolTargetOutlines()
     {
-        float pulse = ToolTargetOutlineMinScale +
-            (Mathf.Sin(Time.unscaledTime * ToolTargetOutlinePulseSpeed) + 1f) * 0.5f * ToolTargetOutlinePulseScale;
+        // 아트의 크기는 절대 바꾸지 않는다.
+        // 고정된 두꺼운 외곽선의 밝기만 변해, 테두리만 맥동하는 것처럼 보이게 한다.
+        float pulse = (Mathf.Sin(Time.unscaledTime * ToolTargetOutlinePulseSpeed) + 1f) * 0.5f;
+        float alpha = Mathf.Lerp(ToolTargetOutlineMinAlpha, ToolTargetOutlineMaxAlpha, pulse);
 
         foreach ((SpriteRenderer source, SpriteRenderer outline) in toolTargetOutlines)
         {
@@ -404,7 +406,8 @@ public class InputManager : MonoBehaviour
             outline.size = source.size;
             outline.sortingLayerID = source.sortingLayerID;
             outline.sortingOrder = source.sortingOrder - 1;
-            outline.transform.localScale = Vector3.one * pulse;
+            outline.transform.localScale = Vector3.one * ToolTargetOutlineMinScale;
+            outline.color = new Color(1f, 1f, 1f, alpha);
         }
     }
 }

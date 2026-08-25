@@ -30,6 +30,9 @@ public class FishBunController : MonoBehaviour,
         get { return (state == CookingState.cooked); }
     }
 
+    // 진열대에 올린 완성품만 손님에게 전달할 수 있다.
+    public bool IsOnDisplay => isOnDisplay;
+
     //굽기 정도 측정 관련 변수
     float startDelta;
     float endDelta;
@@ -177,6 +180,15 @@ public class FishBunController : MonoBehaviour,
 
         if (target.CompareTag("customer"))
         {
+            // 조리대에서 막 구운 붕어빵은 바로 전달하지 않는다.
+            // 먼저 진열대에 놓아야 판매 대상으로 전환된다.
+            if (isOnDisplay == false)
+            {
+                Debug.Log("[조리] 완성된 붕어빵은 진열대에 놓은 뒤 손님에게 건넬 수 있습니다.");
+                transform.position = spawnPos;
+                return true;
+            }
+
             Debug.Log($"{target.name}에게 붕어빵 제공");
             if (TryServeFishBun(target) == false)
             {
