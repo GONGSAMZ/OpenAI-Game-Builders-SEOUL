@@ -206,7 +206,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
             return;
         }
 
-        bool completedBefore = CustomerStoryProgress.CompletedTopics.Contains(topicIndex);
+        bool completedBefore = CustomerStoryProgress.IsTopicCompleted(customerType, topicIndex);
         bool isNew = CustomerStoryProgress.CompleteTalkTopic(customerType, topicIndex);
         string reply = completedBefore ? story.Topics[topicIndex].RepeatReply : story.Topics[topicIndex].FirstReply;
 

@@ -180,7 +180,7 @@ public sealed class UI_CustomerStoryChoices : MonoBehaviour
         int visibleChoiceCount = 0;
         for (int topicIndex = 0; topicIndex < story.Topics.Length && visibleChoiceCount < choiceButtons.Length; topicIndex++)
         {
-            if (CustomerStoryProgress.CompletedTopics.Contains(topicIndex))
+            if (CustomerStoryProgress.IsTopicCompleted(story.CustomerType, topicIndex))
                 continue;
 
             visibleTopicIndices[visibleChoiceCount] = topicIndex;

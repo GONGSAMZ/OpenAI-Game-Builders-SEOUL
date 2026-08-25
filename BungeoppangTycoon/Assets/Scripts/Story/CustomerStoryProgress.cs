@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 /// <summary>계정별 SaveService 데이터를 기준으로 손님 이야기 진행과 특별 주문 상태를 관리합니다.</summary>
@@ -70,6 +71,10 @@ public static class CustomerStoryProgress
         return completed;
     }
 
+    /// <summary>해당 손님이 특정 대화 주제를 이미 완료했는지 확인합니다.</summary>
+    public static bool IsTopicCompleted(CustomerType customerType, int topicIndex) =>
+        CompletedTopicsFor(customerType).Contains(topicIndex);
+
     public static void InitializeGame()
     {
         guaranteedCustomerSpawned = false;
@@ -90,7 +95,7 @@ public static class CustomerStoryProgress
             $" | 필요한 맛 사용 가능={(fillingAvailable ? "예" : "아니요")}" +
             $" | 이전 플레이 마지막 대화 날짜={(previousLastTalkDay > 0 ? previousLastTalkDay + "일차" : "없음")}" +
             $" | 같은 날 재접속 대화 제한 유지=예" +
-            $" | 완료한 대화={CompletedTopics.Count}/{(activeStory != null ? activeStory.Topics.Length : 0)}" +
+            $" | 완료한 대화={(activeStory != null ? CompletedTopicsFor(activeStory.CustomerType).Count : 0)}/{(activeStory != null ? activeStory.Topics.Length : 0)}" +
             $" | 특별 주문 예정일={(RunState.nextSpecialOrderDay > 0 ? RunState.nextSpecialOrderDay + "일차" : "없음")}");
     }
 
