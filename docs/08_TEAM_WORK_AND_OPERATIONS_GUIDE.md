@@ -229,7 +229,7 @@ Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EM
 
 현재 개발 도구와 테스트 결제를 그대로 정식 제출판이라고 부르지 않는다. 제출 후보에서는 다음을 확인한다.
 
-- `STORE_DEV_TOOLS=false`로 외부 테스트 포인트 버튼 숨김
+- 외부 테스트 포인트 UI가 노출되지 않는지 확인하고 `STORE_DEV_TOOLS=false`로 개발용 지급 API 차단
 - `STORE_MODE`를 제출 정책에 맞게 확정
 - OpenAI 실제 기능과 `OPENAI_MODE=live` 검증
 - HIVE 로그인·로그아웃과 게스트 플레이 검증

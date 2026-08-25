@@ -214,7 +214,7 @@ PG/영수증/결제 알림 검증은 현재 개발 범위에서 영구 보류합
 
 ### `POST /api/v1/store/dev-grants`
 
-`STORE_DEV_TOOLS=true`에서만 열리는 개발용 지급 API입니다. 로그인 사용자의 `red-bean-coin`만 지급하며 UUID 중복 호출은 한 번만 반영됩니다. 정식 배포에서는 `STORE_DEV_TOOLS=false`로 UI와 API를 함께 닫습니다.
+`STORE_DEV_TOOLS=true`에서만 열리는 개발용 지급 API입니다. 로그인 사용자의 `red-bean-coin`만 지급하며 UUID 중복 호출은 한 번만 반영됩니다. 외부 웹 지급 UI는 제공하지 않으며 정식 배포에서는 `STORE_DEV_TOOLS=false`로 API를 닫습니다.
 
 ```json
 { "productId": "red-bean-100", "idempotencyKey": "33a1454b-180b-4ae1-b92a-cae426265b87" }

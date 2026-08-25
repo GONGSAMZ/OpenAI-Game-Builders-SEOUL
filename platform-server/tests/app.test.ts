@@ -279,14 +279,23 @@ describe("integration API", () => {
     expect(page.text).not.toContain("장인 상점");
     expect(page.text).not.toContain("OPENAI LAB");
     expect(page.text).not.toContain("개발 진단 로그");
-    expect(page.text).toContain('id="store-dev-tools"');
-    expect(page.text).toContain('id="dev-test-point-button"');
+    expect(page.text).not.toContain("dev-tools.js");
+    expect(page.text).not.toContain('id="store-dev-tools"');
+    expect(page.text).not.toContain('id="dev-test-point-button"');
+    expect(page.text).toContain('class="orientation-guard"');
+    expect(page.text).toContain("가로 화면에서 플레이해 주세요");
     expect(page.text).toContain('id="account-menu"');
     expect(page.text).toContain('id="logout-button"');
     expect(page.headers["content-security-policy"]).toContain("'unsafe-inline'");
     expect(page.headers["content-security-policy"]).toContain("'wasm-unsafe-eval'");
     expect(page.headers["content-security-policy"]).toContain("blob:");
     expect(page.headers["cache-control"]).toContain("no-store");
+
+    const styles = await request(app).get("/styles.css?v=test-revision").expect(200);
+    expect(styles.text).toContain(".orientation-guard");
+    expect(styles.text).toContain("@media (max-width: 720px) and (orientation: portrait)");
+    expect(styles.text).not.toContain(".store-dev-tools");
+    await request(app).get("/dev-tools.js").expect(404);
 
     await request(app)
       .get("/header.js?v=test-revision")

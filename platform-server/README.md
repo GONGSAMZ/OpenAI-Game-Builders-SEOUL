@@ -47,7 +47,7 @@ pnpm dev
 pnpm test:account-scope
 ```
 
-`.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다. 루트 화면에는 상단 헤더와 Unity 게임이 표시됩니다. `STORE_DEV_TOOLS=true`인 개발 환경에서만 게임 바깥 오른쪽에 테스트 결제 패널이 나타납니다. 로그인 사용자는 10,000P로 시작하고, 개발용 충전 또는 1,100P·5,500P·3,300P 상품 결제를 실행할 수 있습니다. 서버의 사용자별 잔액·인벤토리는 실행 중인 게임과 즉시 동기화됩니다.
+`.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다. 루트 화면에는 상단 헤더와 남은 영역을 채우는 Unity 게임만 표시되며 외부 개발 패널은 노출하지 않습니다. `STORE_DEV_TOOLS=true`인 개발 환경에서는 테스트 포인트 충전·개발용 지급 API를 사용할 수 있고, `pnpm test:account-scope`로 사용자별 잔액·인벤토리 격리와 멱등 처리를 검사합니다. 실행 중인 게임은 서버 상태를 주기적으로 동기화합니다.
 
 `STORE_MODE=nicepay-test`에서는 NICEPAY 테스트용 `NICEPAY_CLIENT_ID`와
 `NICEPAY_SECRET_KEY`가 필요하며, 카드 결제창의 테스트 거래는 실제 청구 없이 승인 후 팥 코인 또는 황금 틀을 지급합니다.
@@ -68,7 +68,7 @@ HIVE 전체 PG·영수증·결제 알림 검증은 현재 개발 범위에서 �
 
 HIVE Unity SDK가 WebGL을 빌드 대상으로 제공하지 않으므로 WebGL 게임은 브라우저 브리지에서 HIVE Web Login과 관리형 웹 상점을 사용하고, 서버는 HIVE Billing Server API를 사용합니다. `STORE_MODE=hive-web-shop`, `HIVE_WEB_SHOP_URL`, `HIVE_BILLING_APP_ID`, `HIVE_BILLING_AUTH_KEY`를 설정합니다. 게임 상점의 `팥 코인 충전` 버튼은 HIVE 웹 상점을 열며 서버는 결제 알림을 받은 뒤 PlayerID의 미소비 주문과 영수증을 검증하고, DynamoDB에 한 번만 지급한 뒤 HIVE에 지급 완료를 전송합니다.
 
-개발 환경에서는 `STORE_DEV_TOOLS=true`를 사용합니다. 정식 배포 전에는 반드시 `STORE_DEV_TOOLS=false`로 바꿔 테스트 지급 UI와 API를 함께 비활성화합니다. 상품·PG·콜백 URL과 Billing 인증 키 설정은 [HIVE Console 체크리스트](docs/hive-console-checklist.md)를 따릅니다.
+개발 환경에서는 `STORE_DEV_TOOLS=true`를 사용합니다. 외부 테스트 지급 UI는 제공하지 않으며, 정식 배포 전에는 반드시 `STORE_DEV_TOOLS=false`로 바꿔 개발용 API를 비활성화합니다. 상품·PG·콜백 URL과 Billing 인증 키 설정은 [HIVE Console 체크리스트](docs/hive-console-checklist.md)를 따릅니다.
 
 ### OpenAI API
 
