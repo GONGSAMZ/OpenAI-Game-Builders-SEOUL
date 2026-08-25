@@ -578,6 +578,13 @@ public sealed class SaveService : MonoBehaviour
 
     private void PersistLocalOnly()
     {
+        // 스크립트 재컴파일 또는 화면 전환 중 저장 요청이 먼저 들어와도,
+        // 특별 주문 성공 처리(그리고 바로 이어지는 컷씬)가 예외로 끊기지 않게 한다.
+        if (localStore == null)
+            localStore = new PlayerPrefsLocalSaveStore();
+        if (Current == null)
+            Current = LoadOrCreate(currentScope, true);
+
         Current.updatedAt = DateTime.UtcNow.ToString("O");
         SaveDataFactory.Normalize(Current);
         localStore.Save(currentScope, Current);

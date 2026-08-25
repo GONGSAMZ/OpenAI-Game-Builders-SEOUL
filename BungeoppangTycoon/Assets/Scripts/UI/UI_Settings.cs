@@ -1,19 +1,20 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using TMPro;
 
 /// <summary>설정 메인 메뉴입니다. 상세 기능은 각 전용 팝업 프리팹이 담당합니다.</summary>
 public class UI_Settings : UI_Base
 {
-    Button exitButton, quitButton, helpButton, achievementButton, documentsButton, resetButton;
+    Button headerCloseButton, quitButton, helpButton, achievementButton, documentsButton, resetButton;
     Button settingsButton;
 
     protected override void Init()
     {
         Managers.Game.isRunning = false;
-        exitButton = FindButton("ExitBtn"); quitButton = FindButton("QuitBtn"); helpButton = FindButton("HelpButton"); settingsButton = FindButton("SettingBtn");
+        headerCloseButton = FindButton("CloseButton"); quitButton = FindButton("QuitBtn"); helpButton = FindButton("HelpButton"); settingsButton = FindButton("SettingBtn");
         achievementButton = FindButton("AchivementButton"); documentsButton = FindButton("DocumentsButton"); resetButton = FindButton("ResetButton");
-        BindButton(exitButton, Close); BindButton(quitButton, Close); BindButton(settingsButton, OpenOptions);
+        BindButton(headerCloseButton, Close); BindButton(quitButton, Close); BindButton(settingsButton, OpenOptions);
         BindButton(documentsButton, OpenCollection);
         BindButton(achievementButton, SaveUiFactory.ShowAchievements);
         BindButton(resetButton, SaveUiFactory.ShowResetConfirmation);
@@ -32,6 +33,10 @@ public class UI_Settings : UI_Base
         if (label != null) label.text = "계속하기";
     }
     void OpenOptions() => Managers.UI.ShowUI<UI_SettingsOptions>(false);
+    void Update()
+    {
+        if (GameInput.KeyPressed(Key.Escape)) Close();
+    }
     void OpenCollection()
     {
         if (Resources.Load<GameObject>("Prefabs/UI/UI_Collection") != null)

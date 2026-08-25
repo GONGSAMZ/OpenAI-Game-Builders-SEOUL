@@ -21,7 +21,7 @@ export interface GameStoreProduct {
   effect: GameStoreEffect;
 }
 
-export const gameStoreCatalogVersion = "2026-08-23.1";
+export const gameStoreCatalogVersion = "2026-08-25.1";
 
 export const gameStoreProducts: readonly GameStoreProduct[] = [
   {
@@ -61,11 +61,11 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     productId: "filling-cream-cheese",
     category: "filling",
     displayName: "크림치즈",
-    description: "짭짤하고 부드러운 맛",
-    price: 1800,
+    description: "추후 해금되는 붕어빵 속",
+    price: 0,
     currency: "game-money",
     ownership: "run-permanent",
-    availability: "available",
+    availability: "coming-soon",
     effect: { code: "unlock-filling", fillingId: "cream-cheese" }
   },
   {
@@ -105,11 +105,11 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     productId: "filling-green-tea",
     category: "filling",
     displayName: "녹차",
-    description: "추후 해금되는 붕어빵 속",
-    price: 0,
+    description: "향긋하고 쌉싸름한 맛",
+    price: 1800,
     currency: "game-money",
     ownership: "run-permanent",
-    availability: "coming-soon",
+    availability: "available",
     effect: { code: "unlock-filling", fillingId: "green-tea" }
   },
   {

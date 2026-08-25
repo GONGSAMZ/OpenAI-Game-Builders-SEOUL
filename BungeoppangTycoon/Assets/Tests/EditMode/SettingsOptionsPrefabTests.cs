@@ -23,7 +23,7 @@ namespace BungeoppangTycoon.Tests.EditMode
                 "PaperPanel", "TitleText", "CloseButton", "VolumeCard",
                 "VolumeSlider", "VolumeValueText", "KeyboardCard",
                 "KeyboardHintToggle", "KeyboardHintStateText", "Keycap_Space",
-                "Keycap_1–8", "ResetZone", "ResetGameButton"
+                "Keycap_1–8"
             };
 
             foreach (string name in required)
@@ -38,7 +38,7 @@ namespace BungeoppangTycoon.Tests.EditMode
 
             string[] buttons =
             {
-                "CloseButton", "KeyboardHintToggle", "ResetGameButton"
+                "CloseButton", "KeyboardHintToggle"
             };
 
             foreach (string name in buttons)
@@ -71,7 +71,7 @@ namespace BungeoppangTycoon.Tests.EditMode
 
             string[] spriteObjects =
             {
-                "SettingsIcon", "CloseButton", "WarningIcon", "ResetGameButton"
+                "SettingsIcon", "CloseButton", "VolumeIcon"
             };
             foreach (string name in spriteObjects)
             {

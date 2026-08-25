@@ -33,6 +33,8 @@ describe("GameStoreService", () => {
     expect(catalog.products).toEqual(expect.arrayContaining([
       expect.objectContaining({ productId: "filling-red-bean", price: 1200 }),
       expect.objectContaining({ productId: "filling-custard", price: 1400 }),
+      expect.objectContaining({ productId: "filling-green-tea", price: 1800, availability: "available" }),
+      expect.objectContaining({ productId: "filling-cream-cheese", availability: "coming-soon" }),
       expect.objectContaining({ productId: "item-double-golden-mold", price: 4800 }),
       expect.objectContaining({
         productId: "item-cooking-fever",

@@ -59,6 +59,8 @@ public class UI_Game : UI_Base
         CameraController.ViewChanged += RefreshViewHints;
         InputManager.SelectedFishBunChanged += RefreshSelectedFishBun;
         InputManager.TouchModeChanged += RefreshTouchMode;
+        if (SaveService.Instance != null)
+            SaveService.Instance.DataChanged += RefreshHintSettings;
         RefreshViewHints(CameraController.Instance?.CurrentView ?? GameplayView.Customer);
         RefreshSelectedFishBun(InputManager.Instance?.SelectedFishBun);
 
@@ -87,6 +89,8 @@ public class UI_Game : UI_Base
         CameraController.ViewChanged -= RefreshViewHints;
         InputManager.SelectedFishBunChanged -= RefreshSelectedFishBun;
         InputManager.TouchModeChanged -= RefreshTouchMode;
+        if (SaveService.Instance != null)
+            SaveService.Instance.DataChanged -= RefreshHintSettings;
 
         if (GamePlatformClient.Instance != null)
             GamePlatformClient.Instance.StoreStateChanged -= RefreshPlatformCurrency;
@@ -102,6 +106,10 @@ public class UI_Game : UI_Base
             moneyText.text = ($"{Managers.Game.Money.ToString("N0")} 원 ");
         // WebGL 부모 헤더의 계정 변경을 이벤트 누락과 관계없이 즉시 반영한다.
         RefreshPlatformCurrency();
+
+        // 특별 주문을 시작하기 전에 선택한 재료가 있었다면 즉시 숨긴다.
+        if (CustomerStoryProgress.IsSpecialOrderActive && selectedFishBunText != null)
+            selectedFishBunText.gameObject.SetActive(false);
 
 
     }
@@ -234,15 +242,26 @@ public class UI_Game : UI_Base
         RefreshViewHints(CameraController.Instance?.CurrentView ?? GameplayView.Customer);
     }
 
+    void RefreshHintSettings()
+    {
+        RefreshViewHints(CameraController.Instance?.CurrentView ?? GameplayView.Customer);
+    }
+
     void RefreshSelectedFishBun(FishBunController fishBun)
     {
         if (selectedFishBunText == null)
             return;
 
-        bool hasSelection = fishBun != null;
+        // 특별 주문 중에는 화면 상단의 선택 재료명을 숨겨 정답 메뉴를 추측할 단서를 남기지 않는다.
+        bool hasSelection = fishBun != null && !CustomerStoryProgress.IsSpecialOrderActive;
         selectedFishBunText.gameObject.SetActive(hasSelection);
         if (hasSelection)
-            selectedFishBunText.text = $"선택됨  ·  {GetFillingName(fishBun.fillingType)} 붕어빵  |  W 진열 · E 버리기 · 손님 클릭";
+        {
+            string actions = fishBun.IsOnDisplay
+                ? "E 버리기 · 손님 클릭"
+                : "W 진열 · E 버리기";
+            selectedFishBunText.text = $"선택됨  ·  {GetFillingName(fishBun.fillingType)} 붕어빵  |  {actions}";
+        }
     }
 
     static string GetFillingName(FillingType filling)

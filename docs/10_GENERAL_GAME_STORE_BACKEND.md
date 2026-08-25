@@ -13,7 +13,7 @@
 | `RedBeanCard` | `filling-red-bean` | 팥 해금, 신규 계정 기본 보유 |
 | `CustardCard` | `filling-custard` | 슈크림 해금 |
 | `ChocolateCard` | `filling-nutella` | 초코 해금 |
-| `CreamCheeseCard` | `filling-cream-cheese` | 크림치즈 해금 |
+| `GreenTeaCard` | `filling-green-tea` | 녹차 해금 |
 | `GoldenPanCard` | `item-double-golden-mold` | 같은 단계의 인접 두 틀 동시 조리·뒤집기 |
 | `DualPourCard` | `item-dual-pour` | 인접 유효 틀까지 반죽 동시 붓기 |
 | `CookingFeverCard` | `item-cooking-fever` | 다음 날 첫 30초 굽기 시간 20% 단축 |
