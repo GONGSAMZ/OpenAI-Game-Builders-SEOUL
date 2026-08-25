@@ -162,6 +162,13 @@ public class GameManagerEx
     }
 
     //게임 생성 시 초기화 메서드
+    public static bool ShouldOpenStoreOnGameInit(SaveGameData saved)
+    {
+        return saved?.run != null &&
+               saved.run.activeDay == null &&
+               saved.run.nextDay > 1;
+    }
+
     public void InitGame()
     {
         Debug.Log("게임 초기화");
@@ -173,18 +180,29 @@ public class GameManagerEx
         //2. 저장된 영업 기록을 이번 씬의 임시 상태로 복사한다.
         // nextDay는 "다음에 시작할 날"이고, Opening에서 Day를 1 올리므로 여기서는 1을 뺀다.
         SaveGameData saved = SaveService.Data;
-        CurData.day = Mathf.Max(1, saved.run.nextDay) - 1;
+        bool shouldOpenStore = ShouldOpenStoreOnGameInit(saved);
+        int dayToResume = saved.run.activeDay != null
+            ? saved.run.activeDay.day
+            : saved.run.nextDay;
+        CurData.day = Mathf.Max(1, dayToResume) - 1;
         CurData.money = saved.run.money;
         CustomerStoryProgress.InitializeGame();
 
-        isRunning = true;
+        isRunning = !shouldOpenStore;
         IsTutorialClockPaused = false;
-        dayState = DayState.Opening;
+        dayState = shouldOpenStore ? DayState.Waiting : DayState.Opening;
         hasFinalizedDaily = false;
         isStartingDaily = false;
         nextDayStartRetryAt = 0f;
 
         numsOfCurCustomers = 0;
+
+        // 정산 완료 뒤 재접속한 경우에는 사용자가 재료를 고르고 직접 다음 날을 시작하게 한다.
+        if (shouldOpenStore)
+        {
+            Managers.UI.CloseUI();
+            Managers.UI.ShowUI<UI_Store>();
+        }
 
 
     }
@@ -281,7 +299,7 @@ public class GameManagerEx
         isStartingDaily = true;
         isRunning = false;
         int targetDay = CurData.day + 1;
-        SaveService.Instance.StartDay(targetDay, (success, message) =>
+        SaveService.Service.StartDay(targetDay, (success, message) =>
         {
             isStartingDaily = false;
             if (!success)
@@ -371,7 +389,7 @@ public class GameManagerEx
             capturedAt = DateTime.UtcNow.ToString("O")
         };
         isCheckpointing = true;
-        SaveService.Instance.SaveDayCheckpoint(checkpoint, (success, message) =>
+        SaveService.Service.SaveDayCheckpoint(checkpoint, (success, message) =>
         {
             isCheckpointing = false;
             nextCheckpointAt = Time.realtimeSinceStartup + 5f;
@@ -454,7 +472,9 @@ public class GameManagerEx
                 }
 
                 hasFinalizedDaily = true;
-                dayState = DayState.Opening;
+                // 정산 뒤에는 정산창과 상점을 거칠 때까지 다음 날을 시작하지 않는다.
+                // Opening은 UI_Store의 '다음 영업일' 버튼에서만 전환한다.
+                dayState = DayState.Waiting;
                 Managers.UI.CloseUI();
                 Managers.UI.ShowUI<UI_DayEnd>();
             });
@@ -506,6 +526,7 @@ public class GameManagerEx
             return;*/
 
         isRunning = true;
+        dayState = DayState.Opening;
 
 
     }

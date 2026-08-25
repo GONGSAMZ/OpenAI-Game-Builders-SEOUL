@@ -68,15 +68,25 @@ public class UIManager
     {
         if(isScene == true)
         {
+            if (scene == null)
+                return;
+
             Object.Destroy(scene);
+            scene = null;
         }
         else
         {
+            if (popup.Count == 0)
+            {
+                Debug.LogWarning("[UI] 닫을 팝업이 없습니다.");
+                popup_order = PopupSortingOrderBase;
+                return;
+            }
 
-            Object.Destroy(popup.Peek());
-            --popup_order;
-            popup.Pop();
-
+            GameObject target = popup.Pop();
+            if (target != null)
+                Object.Destroy(target);
+            popup_order = Mathf.Max(PopupSortingOrderBase, popup_order - 1);
         }
     }
 }
