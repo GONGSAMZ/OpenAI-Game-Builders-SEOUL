@@ -45,7 +45,7 @@ public enum CustomerType
 {
     //손님 종류
     JeongHyun,
-    HaYoung,
+    HaJin,
     MiJu,
     Sunja,
     Geonwoo,

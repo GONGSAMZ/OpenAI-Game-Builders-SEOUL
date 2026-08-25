@@ -46,7 +46,7 @@ public static class CustomerStoryCutsceneCatalog
     private static readonly Dictionary<CustomerType, CustomerStoryCutsceneData[]> Scenes = new()
     {
         { CustomerType.JeongHyun, JeongHyunScenes },
-        { CustomerType.HaYoung, Story("hajin",
+        { CustomerType.HaJin, Story("hajin",
             Scene("40초 안의 이야기", "중학교 1학년의 하진", "눈, 신호등, 우산, 붕어빵 김.\n하진은 평범한 길을 이어 40초의 이야기를 만들었다."),
             Scene("문제집 사이 스토리보드", "하진", "일정표에는 빈 시간이 없었다.\n하진의 장면은 문제집 사이에만 숨어 있었다."),
             Scene("다음 장면", "하진 · 민트붕 영혼", "영혼: “결말 말고, 다음 장면부터 네가 찍어!”\n하진은 먼저 자기 영상을 보여 주기로 했다."),

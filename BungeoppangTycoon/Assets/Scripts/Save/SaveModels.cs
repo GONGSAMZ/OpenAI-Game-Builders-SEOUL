@@ -135,7 +135,7 @@ public static class SaveIds
     public static string Customer(CustomerType type) => type switch
     {
         CustomerType.JeongHyun => "jeonghyeon",
-        CustomerType.HaYoung => "hajin",
+        CustomerType.HaJin => "hajin",
         CustomerType.MiJu => "miju",
         CustomerType.Sunja => "sunja",
         CustomerType.Geonwoo => "geonwoo",

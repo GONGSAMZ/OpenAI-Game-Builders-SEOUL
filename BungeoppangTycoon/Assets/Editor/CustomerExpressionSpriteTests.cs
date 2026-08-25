@@ -6,7 +6,7 @@ using UnityEngine;
 public sealed class CustomerExpressionSpriteTests
 {
     [TestCase(CustomerType.JeongHyun)]
-    [TestCase(CustomerType.HaYoung)]
+    [TestCase(CustomerType.HaJin)]
     [TestCase(CustomerType.MiJu)]
     [TestCase(CustomerType.Sunja)]
     [TestCase(CustomerType.Geonwoo)]

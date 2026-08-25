@@ -21,7 +21,7 @@ public static class CustomerCollectionCatalog
     private static readonly CustomerCollectionEntry[] entries =
     {
         Entry(CustomerType.JeongHyun, "정현", 32, "회사원", "퇴근길마다 들르는 정현 씨예요. 오늘도 자기 몫의 시간을 조금 남길 수 있을까요?", "Customers/01_JeongHyun", "내일의 나에게 남겨 두기", "칼퇴대장 크림붕", "jeonghyeon"),
-        Entry(CustomerType.HaYoung, "하진", 15, "중학생·영화감독 지망", "카메라와 스토리보드 노트를 챙겨 오는 하진이에요. 오늘은 어떤 장면을 상상하고 있을까요?", "Customers/02_HaYoung", "교과서 밖의 첫 장면", "샛길요정 민트붕", "hajin"),
+        Entry(CustomerType.HaJin, "하진", 15, "중학생·영화감독 지망", "카메라와 스토리보드 노트를 챙겨 오는 하진이에요. 오늘은 어떤 장면을 상상하고 있을까요?", "Customers/02_HaJin", "교과서 밖의 첫 장면", "샛길요정 민트붕", "hajin"),
         Entry(CustomerType.MiJu, "미주", 21, "대학생", "이어폰을 낀 미주가 붕어빵을 고르고 있어요. 미주가 정말 좋아하는 건 무엇일까요?", "Customers/03_MiJu", "내가 먼저 고른 노래", "취향선언 피자붕", "miju"),
         Entry(CustomerType.Sunja, "선자", 68, "은퇴한 재봉사", "수선함을 든 선자 씨예요. 오래된 물건을 고치듯, 어떤 시간을 붙잡고 있을까요?", "Customers/04_Sunja", "주머니에 담아 가는 겨울", "오늘출발 말차붕", "sunja"),
         Entry(CustomerType.Geonwoo, "건우", 11, "초등학생", "혼자서도 잘한다고 말하는 건우예요. 가방 속에 좋아하는 놀이가 숨어 있을지도 몰라요.", "Customers/05_Geonwoo", "오늘만은 어린이", "놀자대장 초코붕", "geonwoo"),

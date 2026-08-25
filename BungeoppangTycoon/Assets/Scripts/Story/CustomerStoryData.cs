@@ -45,7 +45,7 @@ public static class CustomerStoryCatalog
         },
     };
 
-    private static readonly CustomerStoryData HaJin = Story(CustomerType.HaYoung, "하진", FillingType.mint, QualityStatus.soft,
+    private static readonly CustomerStoryData HaJin = Story(CustomerType.HaJin, "하진", FillingType.mint, QualityStatus.soft,
         "시험 범위는 정해져 있는데, 제가 찍고 싶은 장면은 어디에도 적을 칸이 없어요.\n오늘은 고르지 않을게요. 평소 먹던 걸로 주세요.",
         "샛길요정 민트붕이 말했어요.\n‘샛길은 틀린 길이 아니라 아직 네가 표시하지 않은 길이야.’\n하진은 가게의 김과 골목 불빛을 찍어 첫 영화를 만들었어요.",
         "계획을 바꿔도 괜찮다고 말해 줄 조금 더 느긋한 친구가 필요해요.", "다음에 다시 와서 장면을 고를게요.",
