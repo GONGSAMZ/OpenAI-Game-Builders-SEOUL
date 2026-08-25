@@ -4,9 +4,65 @@ using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 public sealed class SavePipelineTests
 {
+    [Test]
+    public void GameInit_AfterSettlementWaitsForStore()
+    {
+        SaveGameData data = SaveDataFactory.CreateDefault();
+        data.run.nextDay = 2;
+        data.run.activeDay = null;
+
+        Assert.That(GameManagerEx.ShouldOpenStoreOnGameInit(data), Is.True);
+    }
+
+    [Test]
+    public void GameInit_FirstOrActiveDayStartsGameplay()
+    {
+        SaveGameData firstDay = SaveDataFactory.CreateDefault();
+        Assert.That(GameManagerEx.ShouldOpenStoreOnGameInit(firstDay), Is.False);
+
+        SaveGameData activeDay = SaveDataFactory.CreateDefault();
+        activeDay.run.nextDay = 2;
+        activeDay.run.activeDay = new ActiveDayData { day = 2, runId = "active-run" };
+        Assert.That(GameManagerEx.ShouldOpenStoreOnGameInit(activeDay), Is.False);
+    }
+
+    [Test]
+    public void CustomerStory_TopicCompletionUsesRequestedCustomer()
+    {
+        CustomerProgressData jeongHyun = SaveService.Service.GetCustomer(CustomerType.JeongHyun);
+        CustomerProgressData haJin = SaveService.Service.GetCustomer(CustomerType.HaJin);
+        var jeongHyunBackup = new System.Collections.Generic.List<string>(jeongHyun.completedTopicIds);
+        var haJinBackup = new System.Collections.Generic.List<string>(haJin.completedTopicIds);
+
+        try
+        {
+            jeongHyun.completedTopicIds.Clear();
+            haJin.completedTopicIds.Clear();
+            jeongHyun.completedTopicIds.Add(SaveIds.Topic(0));
+
+            Assert.That(CustomerStoryProgress.IsTopicCompleted(CustomerType.JeongHyun, 0), Is.True);
+            Assert.That(CustomerStoryProgress.IsTopicCompleted(CustomerType.HaJin, 0), Is.False);
+        }
+        finally
+        {
+            jeongHyun.completedTopicIds = jeongHyunBackup;
+            haJin.completedTopicIds = haJinBackup;
+        }
+    }
+
+    [Test]
+    public void UIManager_ClosingEmptyPopupDoesNotThrow()
+    {
+        UIManager manager = new();
+        LogAssert.Expect(LogType.Warning, "[UI] 닫을 팝업이 없습니다.");
+
+        Assert.DoesNotThrow(() => manager.CloseUI(false));
+    }
+
     [Test]
     public void ResetRun_PreservesAccountProgress()
     {
