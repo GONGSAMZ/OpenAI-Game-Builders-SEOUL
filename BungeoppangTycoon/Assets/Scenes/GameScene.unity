@@ -2819,7 +2819,7 @@ PrefabInstance:
     - target: {fileID: 2649933109947655072, guid: daf41981f7db8bd46b8a451a68d0ecf6, type: 3}
       propertyPath: m_Sprite
       value: 
-      objectReference: {fileID: -341632398, guid: 3ac839f1b2d84409f4e087c1e28694e0, type: 3}
+      objectReference: {fileID: -1249280825, guid: 3469ca662f01dac904978a749d62b3d3, type: 3}
     - target: {fileID: 4258062941406369946, guid: daf41981f7db8bd46b8a451a68d0ecf6, type: 3}
       propertyPath: m_SpriteTilingProperty.oldSize.y
       value: 7.5

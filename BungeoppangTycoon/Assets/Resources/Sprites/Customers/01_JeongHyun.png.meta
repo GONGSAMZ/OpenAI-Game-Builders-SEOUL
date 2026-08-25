@@ -127,9 +127,9 @@ TextureImporter:
       rect:
         serializedVersion: 2
         x: 0
-        y: 250
+        y: 320
         width: 512
-        height: 750
+        height: 704
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -148,10 +148,10 @@ TextureImporter:
       name: JeongHyun_Joy
       rect:
         serializedVersion: 2
-        x: 512
-        y: 250
+        x: 563
+        y: 320
         width: 512
-        height: 750
+        height: 704
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -170,10 +170,10 @@ TextureImporter:
       name: JeongHyun_Disappointed
       rect:
         serializedVersion: 2
-        x: 1024
-        y: 250
+        x: 1021
+        y: 320
         width: 512
-        height: 750
+        height: 704
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
