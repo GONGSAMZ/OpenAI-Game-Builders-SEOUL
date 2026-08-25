@@ -8,6 +8,7 @@ on:
       - "platform-server/**"
       - "infra/aws/**"
       - ".dockerignore"
+      - ".gitattributes"
       - ".github/workflows/deploy-dev-to-aws.yml"
   workflow_dispatch:
 
@@ -34,7 +35,7 @@ jobs:
       UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
       UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
     steps:
-      - id: check
+      - name: Validate deployment configuration
         shell: bash
         run: |
           missing=()
@@ -50,6 +51,117 @@ jobs:
             exit 1
           fi
 
+  # Unity 빌드, 서버 검증, 인프라 갱신은 서로 독립적이므로 preflight 직후 병렬로 시작한다.
+  prepare-unity:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+          lfs: true
+          sparse-checkout: |
+            .gitattributes
+            BungeoppangTycoon
+            platform-server
+
+      - id: unity-changes
+        name: Detect Unity source changes
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          rebuild=true
+          if [[ "$EVENT_NAME" == "push" && -n "${BEFORE_SHA:-}" && ! "$BEFORE_SHA" =~ ^0+$ ]]; then
+            if ! git cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+              git fetch --no-tags --depth=1 origin "$BEFORE_SHA"
+            fi
+            if git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- BungeoppangTycoon; then
+              rebuild=false
+            fi
+          fi
+          echo "rebuild=$rebuild" >> "$GITHUB_OUTPUT"
+          echo "Unity rebuild required: $rebuild"
+
+      - name: Cache Unity Library
+        if: steps.unity-changes.outputs.rebuild == 'true'
+        uses: actions/cache@v4
+        with:
+          path: BungeoppangTycoon/Library
+          key: Unity-Library-WebGL-${{ runner.os }}-${{ hashFiles('BungeoppangTycoon/ProjectSettings/ProjectVersion.txt', 'BungeoppangTycoon/Packages/manifest.json', 'BungeoppangTycoon/Packages/packages-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            Unity-Library-WebGL-${{ runner.os }}-${{ hashFiles('BungeoppangTycoon/ProjectSettings/ProjectVersion.txt', 'BungeoppangTycoon/Packages/manifest.json', 'BungeoppangTycoon/Packages/packages-lock.json') }}-
+
+      - name: Build Unity 6.3 WebGL
+        if: steps.unity-changes.outputs.rebuild == 'true'
+        uses: game-ci/unity-builder@v5
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: BungeoppangTycoon
+          unityVersion: 6000.3.22f1
+          targetPlatform: WebGL
+          buildMethod: WebGLBuildCommand.Build
+          allowDirtyBuild: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Stage rebuilt Unity game
+        if: steps.unity-changes.outputs.rebuild == 'true'
+        shell: bash
+        run: node platform-server/scripts/unity-build-manifest.mjs stage
+
+      - name: Verify Unity game and source hash
+        shell: bash
+        run: node platform-server/scripts/unity-build-manifest.mjs verify
+
+      - name: Upload verified Unity game
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-game-dist
+          path: platform-server/game-dist
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+      - name: Record Unity build decision
+        shell: bash
+        run: |
+          echo "### Unity WebGL 준비 완료" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Rebuilt: ${{ steps.unity-changes.outputs.rebuild }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Revision: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+  verify-platform-server:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: platform-server
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: platform-server
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: platform-server/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test:account-scope
+      - run: pnpm build
+
   update-infrastructure:
     needs: preflight
     runs-on: ubuntu-latest
@@ -61,6 +173,8 @@ jobs:
       AWS_BOOTSTRAP_STACK: openai-game-builders-seoul-bootstrap
     steps:
       - uses: actions/checkout@v7
+        with:
+          sparse-checkout: infra/aws
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
@@ -101,80 +215,34 @@ jobs:
             exit 1
           fi
 
-  build-and-deploy:
-    needs: [preflight, update-infrastructure]
+  build-image:
+    # 검증 결과를 기다리지 않고 이미지를 미리 만든다. 검증 실패 시 deploy-service가 차단된다.
+    needs: prepare-unity
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
+    outputs:
+      image-uri: ${{ steps.image-meta.outputs.image-uri }}
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
       AWS_ECR_REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
-      AWS_TASK_EXECUTION_ROLE_ARN: ${{ vars.AWS_TASK_EXECUTION_ROLE_ARN }}
-      AWS_TASK_ROLE_ARN: ${{ vars.AWS_TASK_ROLE_ARN }}
-      AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
-      AWS_RUNTIME_SECRET_ARN: ${{ vars.AWS_RUNTIME_SECRET_ARN }}
-      AWS_SERVICE_STACK: openai-game-builders-seoul-service
-      AWS_BOOTSTRAP_STACK: openai-game-builders-seoul-bootstrap
-      # AAA111 production Web Login credentials are stored server-side in Secrets Manager.
-      HIVE_MODE: production
-      STORE_MODE: ${{ vars.STORE_MODE || 'mock' }}
-      STORE_CATALOG_SOURCE: ${{ vars.STORE_CATALOG_SOURCE || 'hive' }}
-      STORE_DEV_TOOLS: ${{ vars.STORE_DEV_TOOLS || 'true' }}
-      HIVE_BILLING_APP_ID: ${{ vars.HIVE_BILLING_APP_ID }}
-      HIVE_WEB_SHOP_URL: ${{ vars.HIVE_WEB_SHOP_URL }}
-      OPENAI_MODE: ${{ vars.OPENAI_MODE || 'mock' }}
-      USE_RUNTIME_SECRETS: "true"
     steps:
       - uses: actions/checkout@v7
         with:
-          # Unity builder가 Git LFS 리소스를 내려받으며 작업 트리를 변경하지 않도록,
-          # 체크아웃 단계에서 LFS 파일까지 함께 복원한다.
-          lfs: true
-      - name: Cache Unity Library
-        uses: actions/cache@v4
-        with:
-          path: BungeoppangTycoon/Library
-          key: Unity-Library-WebGL-${{ runner.os }}-${{ hashFiles('BungeoppangTycoon/ProjectSettings/ProjectVersion.txt', 'BungeoppangTycoon/Packages/manifest.json', 'BungeoppangTycoon/Packages/packages-lock.json') }}-${{ github.sha }}
-          restore-keys: |
-            Unity-Library-WebGL-${{ runner.os }}-${{ hashFiles('BungeoppangTycoon/ProjectSettings/ProjectVersion.txt', 'BungeoppangTycoon/Packages/manifest.json', 'BungeoppangTycoon/Packages/packages-lock.json') }}-
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 11.19.0
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: platform-server/pnpm-lock.yaml
+          sparse-checkout: |
+            .dockerignore
+            platform-server
 
-      - name: Build Unity 6.3 WebGL
-        uses: game-ci/unity-builder@v5
-        env:
-          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
-          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
-          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
-        with:
-          projectPath: BungeoppangTycoon
-          unityVersion: 6000.3.22f1
-          targetPlatform: WebGL
-          buildMethod: WebGLBuildCommand.Build
-          # Unity가 리소스 가져오기 중 생성하는 메타데이터는 배포 산출물에 포함되지 않는다.
-          # 이 자동 변경 때문에 빌드 자체를 중단하지 않도록 허용한다.
-          allowDirtyBuild: true
-
-      - name: Stage Unity build in the server image
+      - name: Replace repository game with verified artifact
         shell: bash
-        run: node platform-server/scripts/unity-build-manifest.mjs stage
-
-      - name: Validate rebuilt Unity WebGL build
-        shell: bash
-        run: node platform-server/scripts/unity-build-manifest.mjs verify
-
-      - name: Verify platform server
-        working-directory: platform-server
         run: |
-          pnpm install --frozen-lockfile
-          pnpm check
-          pnpm build
+          rm -rf platform-server/game-dist
+          mkdir -p platform-server/game-dist
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: unity-game-dist
+          path: platform-server/game-dist
 
       - uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -182,8 +250,46 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
 
-      - name: Verify DynamoDB recovery and session expiry
+      - id: image-meta
+        name: Prepare immutable image URI
+        shell: bash
+        env:
+          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          image_uri="$ECR_REGISTRY/$AWS_ECR_REPOSITORY:$GITHUB_SHA-$GITHUB_RUN_ATTEMPT"
+          echo "image-uri=$image_uri" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push immutable image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: platform-server/Dockerfile
+          push: true
+          tags: ${{ steps.image-meta.outputs.image-uri }}
+          build-args: APP_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=platform-server-image
+          cache-to: type=gha,mode=max,scope=platform-server-image
+
+  verify-runtime-infrastructure:
+    needs: update-infrastructure
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      operations-alert-topic-arn: ${{ steps.runtime.outputs.operations-alert-topic-arn }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
+      AWS_BOOTSTRAP_STACK: openai-game-builders-seoul-bootstrap
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: runtime
+        name: Verify DynamoDB recovery and session expiry
         shell: bash
         run: |
           pitr_status=$(aws dynamodb describe-continuous-backups \
@@ -214,23 +320,44 @@ jobs:
             --query "Stacks[0].Outputs[?OutputKey=='OperationsAlertTopicArn'].OutputValue" \
             --output text)
           test -n "$operations_topic"
-          echo "OPERATIONS_ALERT_TOPIC_ARN=$operations_topic" >> "$GITHUB_ENV"
+          echo "operations-alert-topic-arn=$operations_topic" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push immutable image
-        shell: bash
-        env:
-          ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
-        run: |
-          image_uri="$ECR_REGISTRY/$AWS_ECR_REPOSITORY:$GITHUB_SHA-$GITHUB_RUN_ATTEMPT"
-          docker build \
-            --file platform-server/Dockerfile \
-            --build-arg "APP_REVISION=$GITHUB_SHA" \
-            --tag "$image_uri" \
-            .
-          docker push "$image_uri"
-          echo "IMAGE_URI=$image_uri" >> "$GITHUB_ENV"
+  deploy-service:
+    needs: [build-image, verify-platform-server, verify-runtime-infrastructure]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      public-url: ${{ steps.deploy.outputs.public-url }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      AWS_TASK_EXECUTION_ROLE_ARN: ${{ vars.AWS_TASK_EXECUTION_ROLE_ARN }}
+      AWS_TASK_ROLE_ARN: ${{ vars.AWS_TASK_ROLE_ARN }}
+      AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
+      AWS_RUNTIME_SECRET_ARN: ${{ vars.AWS_RUNTIME_SECRET_ARN }}
+      AWS_SERVICE_STACK: openai-game-builders-seoul-service
+      AWS_BOOTSTRAP_STACK: openai-game-builders-seoul-bootstrap
+      IMAGE_URI: ${{ needs.build-image.outputs.image-uri }}
+      OPERATIONS_ALERT_TOPIC_ARN: ${{ needs.verify-runtime-infrastructure.outputs.operations-alert-topic-arn }}
+      HIVE_MODE: production
+      STORE_MODE: ${{ vars.STORE_MODE || 'mock' }}
+      STORE_CATALOG_SOURCE: ${{ vars.STORE_CATALOG_SOURCE || 'hive' }}
+      STORE_DEV_TOOLS: ${{ vars.STORE_DEV_TOOLS || 'true' }}
+      HIVE_BILLING_APP_ID: ${{ vars.HIVE_BILLING_APP_ID }}
+      HIVE_WEB_SHOP_URL: ${{ vars.HIVE_WEB_SHOP_URL }}
+      OPENAI_MODE: ${{ vars.OPENAI_MODE || 'mock' }}
+      USE_RUNTIME_SECRETS: "true"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: infra/aws
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Deploy ECS Fargate service
+      - id: deploy
+        name: Deploy ECS Fargate service
         shell: bash
         run: |
           aws cloudformation deploy \
@@ -253,7 +380,31 @@ jobs:
               "OpenAiMode=$OPENAI_MODE" \
               "OperationsAlertTopicArn=$OPERATIONS_ALERT_TOPIC_ARN"
 
-      - name: Publish default store product images
+          public_url=$(aws cloudformation describe-stacks \
+            --stack-name "$AWS_SERVICE_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='PublicUrl'].OutputValue" \
+            --output text)
+          test -n "$public_url"
+          echo "public-url=$public_url" >> "$GITHUB_OUTPUT"
+
+  publish-store-assets:
+    needs: deploy-service
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      AWS_SERVICE_STACK: openai-game-builders-seoul-service
+      PUBLIC_URL: ${{ needs.deploy-service.outputs.public-url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: BungeoppangTycoon/Assets/Resources/Sprites/StoreProducts
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Publish and verify default store product images
         shell: bash
         run: |
           image_bucket=$(aws cloudformation describe-stacks \
@@ -275,34 +426,45 @@ jobs:
             "s3://$image_bucket/store-products/com.gongsamz.bungeoppang.goldenpan.png" \
             --content-type image/png --cache-control public,max-age=300
 
-      - name: Verify public endpoint
+          curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors \
+            "$PUBLIC_URL/store-products/com.gongsamz.bungeoppang.redbean100.png" \
+            --output /dev/null
+
+  verify-public-core:
+    needs: deploy-service
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PUBLIC_URL: ${{ needs.deploy-service.outputs.public-url }}
+    steps:
+      - name: Verify public API, portal, Unity and HIVE login
         shell: bash
         run: |
-          public_url=$(aws cloudformation describe-stacks \
-            --stack-name "$AWS_SERVICE_STACK" \
-            --query "Stacks[0].Outputs[?OutputKey=='PublicUrl'].OutputValue" \
-            --output text)
           health_json=$(curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors \
-            "$public_url/api/v1/health")
+            "$PUBLIC_URL/api/v1/health")
           test "$(jq -r '.revision' <<< "$health_json")" = "$GITHUB_SHA"
 
-          version_json=$(curl --fail --show-error "$public_url/api/v1/version")
+          version_json=$(curl --fail --show-error "$PUBLIC_URL/api/v1/version")
           test "$(jq -r '.revision' <<< "$version_json")" = "$GITHUB_SHA"
 
-          curl --fail --show-error "$public_url/" | grep -q 'id="account-menu"'
-          game_html=$(curl --fail --show-error "$public_url/game/")
+          curl --fail --show-error "$PUBLIC_URL/" | grep -q 'id="account-menu"'
+          game_html=$(curl --fail --show-error "$PUBLIC_URL/game/")
           grep -q '/game-bridge.js' <<< "$game_html"
           grep -q 'createUnityInstance' <<< "$game_html"
 
-          curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors \
-            "$public_url/store-products/com.gongsamz.bungeoppang.redbean100.png" \
-            --output /dev/null
-
-          login_json=$(curl --fail --show-error "$public_url/api/v1/auth/hive/login")
+          login_json=$(curl --fail --show-error "$PUBLIC_URL/api/v1/auth/hive/login")
           login_url=$(jq -r '.loginUrl' <<< "$login_json")
           [[ "$login_url" == https://weblogin.withhive.com/login?param=* ]]
 
+  deployment-summary:
+    needs: [deploy-service, publish-store-assets, verify-public-core]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record successful deployment
+        env:
+          PUBLIC_URL: ${{ needs.deploy-service.outputs.public-url }}
+        run: |
           echo "### 배포 완료" >> "$GITHUB_STEP_SUMMARY"
-          echo "- URL: $public_url" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: $PUBLIC_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- Revision: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Smoke: health/version/portal/Unity/HIVE login URL/store image 통과" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Core/API/Unity/HIVE/store image 검증 통과" >> "$GITHUB_STEP_SUMMARY"

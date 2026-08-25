@@ -18,6 +18,8 @@ jobs:
         working-directory: platform-server
     steps:
       - uses: actions/checkout@v7
+        with:
+          sparse-checkout: platform-server
       - uses: pnpm/action-setup@v6
         with:
           version: 11.19.0

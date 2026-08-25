@@ -191,24 +191,25 @@ API만 `live`로 바꾸고 게임에서 사용하지 않는 상태는 기능 완
 
 ## 9. AWS에 배포할 때
 
-일반 배포에는 AWS 콘솔 로그인이 필요하지 않다. 검증된 변경을 `DEV`에 push하면 GitHub OIDC가 자동으로 정확히 그 커밋의 Unity 원본을 WebGL로 새로 빌드하고, 서버 검사, 산출물 해시 검증, bootstrap 데이터 인프라 갱신, ECR 이미지 생성, 서비스 CloudFormation 배포와 공개 URL Smoke Test를 실행한다. 저장소에 남아 있던 `game-dist`를 최신 빌드처럼 대신 배포하는 우회 경로는 두지 않는다.
+일반 배포에는 AWS 콘솔 로그인이 필요하지 않다. 검증된 변경을 `DEV`에 push하면 GitHub OIDC가 자동 배포를 실행한다. `preflight` 뒤에는 Unity 준비, 플랫폼 서버 검증, bootstrap 데이터 인프라 갱신이 병렬로 시작된다. Unity 소스가 바뀐 커밋은 정확히 그 원본으로 WebGL을 새로 빌드하고, Unity 소스가 바뀌지 않은 서버·워크플로 전용 커밋은 저장된 `game-dist`의 소스·산출물 해시를 재검증해 불필요한 Unity 빌드만 생략한다. 해시가 다르면 배포는 실패해야 정상이다.
+
+검증된 Unity 산출물은 작업 간 artifact로 전달된다. 컨테이너 이미지는 서버 검증 결과를 기다리는 동안 미리 빌드하되, 서버·계정 격리 테스트나 인프라 검증이 실패하면 ECS 배포 단계가 실행되지 않는다. 서비스 반영 후 공개 API·게임·HIVE 검증과 상점 이미지 게시·검증도 병렬로 실행된다.
 
 루트 포털은 서버의 `APP_REVISION`을 CSS, JavaScript와 게임 iframe URL에 자동으로 붙인다. 배포 뒤 화면만 이전 버전이면 먼저 페이지를 새로고침하고 HTML의 `?v=<commit SHA>`와 `/api/v1/version`이 같은지 확인한다. 포털 고정 파일은 `no-cache`로 재검증되므로 날짜나 임의 문자열을 `index.html`에 하드코딩하지 않는다.
 
-구매 내역은 DynamoDB `SubjectCreatedAtIndex`를 사용한다. 워크플로의 `Update account data infrastructure` 단계가 bootstrap 스택을 먼저 갱신하고 인덱스가 `ACTIVE`인지 확인한 뒤 서버를 배포하므로, 이 단계를 건너뛰어 새 서버만 배포하지 않는다.
+구매 내역은 DynamoDB `SubjectCreatedAtIndex`를 사용한다. 워크플로의 `update-infrastructure`와 `verify-runtime-infrastructure`가 bootstrap 스택을 갱신하고 인덱스·PITR·TTL을 확인하며, 이 검증과 이미지 빌드가 모두 성공한 뒤에만 서버를 배포한다.
 
 Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`와 AWS 변수 중 하나라도 없으면 preflight가 즉시 실패해야 정상이다. 누락된 Unity 빌드를 건너뛰고 이전 WebGL을 배포하도록 설정하지 않는다.
 
 배포 성공 조건:
 
-- `Verify platform server`
-- `Build Unity 6.3 WebGL`
-- `Validate rebuilt Unity WebGL build`
-- `Update account data infrastructure`
-- `Verify DynamoDB recovery and session expiry`
-- `Deploy ECS Fargate service`
-- `Publish default store product images`
-- `Verify public endpoint`
+- `prepare-unity`의 WebGL 빌드 또는 기존 빌드 해시 검증
+- `verify-platform-server`의 서버·계정 격리 테스트
+- `update-infrastructure`와 `verify-runtime-infrastructure`
+- `build-image`의 검증된 Unity artifact 포함 이미지 게시
+- `deploy-service`의 ECS Fargate 반영
+- 병렬 `publish-store-assets`와 `verify-public-core`
+- `deployment-summary`
 
 배포 뒤 `/api/v1/version`의 SHA가 push한 커밋과 같아야 한다. 실패하면 먼저 Actions의 실패 단계와 CloudFormation 이벤트를 읽는다. 원인을 확인하지 않고 반복 실행하거나 정상 브랜치를 강제 덮어쓰지 않는다.
 
