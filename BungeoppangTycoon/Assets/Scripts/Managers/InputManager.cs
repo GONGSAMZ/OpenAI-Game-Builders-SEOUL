@@ -21,7 +21,9 @@ public class InputManager : MonoBehaviour
     bool isTouchMode;
     ToolController highlightedTool;
     readonly Dictionary<SpriteRenderer, SpriteRenderer> toolTargetOutlines = new();
+    readonly MaterialPropertyBlock outlinePropertyBlock = new();
     static Material interactableOutlineMaterial;
+    static readonly int SpriteUvRectId = Shader.PropertyToID("_SpriteUVRect");
 
     // 모든 상호작용 대상에 공통으로 쓰는 흰색 외곽선이다.
     const string InteractableOutlineMaterialPath = "Materials/InteractableOutline";
@@ -383,6 +385,7 @@ public class InputManager : MonoBehaviour
         outline.sortingLayerID = source.sortingLayerID;
         outline.sortingOrder = source.sortingOrder - 1;
         outline.sharedMaterial = GetInteractableOutlineMaterial();
+        ApplyOutlineSpriteUvRect(source.sprite, outline);
 
         toolTargetOutlines.Add(source, outline);
     }
@@ -405,8 +408,30 @@ public class InputManager : MonoBehaviour
             outline.size = source.size;
             outline.sortingLayerID = source.sortingLayerID;
             outline.sortingOrder = source.sortingOrder - 1;
+            ApplyOutlineSpriteUvRect(source.sprite, outline);
             outline.color = new Color(1f, 1f, 1f, alpha);
         }
+    }
+
+    void ApplyOutlineSpriteUvRect(Sprite sprite, SpriteRenderer outline)
+    {
+        if (sprite == null || outline == null)
+            return;
+
+        Vector2[] uvs = sprite.uv;
+        float minX = 1f, minY = 1f, maxX = 0f, maxY = 0f;
+        foreach (Vector2 uv in uvs)
+        {
+            minX = Mathf.Min(minX, uv.x);
+            minY = Mathf.Min(minY, uv.y);
+            maxX = Mathf.Max(maxX, uv.x);
+            maxY = Mathf.Max(maxY, uv.y);
+        }
+
+        // 표정 시트의 이 스프라이트 영역 밖은 셰이더가 읽지 못하게 막는다.
+        outline.GetPropertyBlock(outlinePropertyBlock);
+        outlinePropertyBlock.SetVector(SpriteUvRectId, new Vector4(minX, minY, maxX, maxY));
+        outline.SetPropertyBlock(outlinePropertyBlock);
     }
 
     static Material GetInteractableOutlineMaterial()

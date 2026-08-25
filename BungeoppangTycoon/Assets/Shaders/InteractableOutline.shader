@@ -8,6 +8,7 @@ Shader "Bungeoppang/Interactable Outline"
         // SpriteRenderer.color가 이 색과 알파를 전달한다.
         [HideInInspector] _Color ("Tint", Color) = (1,1,1,1)
         [HideInInspector] _RendererColor ("RendererColor", Color) = (1,1,1,1)
+        [HideInInspector] _SpriteUVRect ("Sprite UV Rect", Vector) = (0,0,1,1)
         [HideInInspector] _AlphaTex ("External Alpha", 2D) = "white" {}
         [HideInInspector] _EnableExternalAlpha ("Enable External Alpha", Float) = 0
     }
@@ -56,6 +57,7 @@ Shader "Bungeoppang/Interactable Outline"
             CBUFFER_START(UnityPerMaterial)
                 half4 _Color;
                 float _OutlineWidth;
+                float4 _SpriteUVRect;
             CBUFFER_END
 
             Varyings OutlineVertex(Attributes input)
@@ -74,6 +76,15 @@ Shader "Bungeoppang/Interactable Outline"
                 return SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv).a;
             }
 
+            half SampleAlphaInsideSprite(float2 uv)
+            {
+                // 한 파일에 든 다른 표정 조각까지 외곽선으로 읽지 않도록 현재 조각 내부로 제한한다.
+                float2 halfTexel = _MainTex_TexelSize.xy * 0.5;
+                float2 minimum = _SpriteUVRect.xy + halfTexel;
+                float2 maximum = _SpriteUVRect.zw - halfTexel;
+                return SampleAlpha(clamp(uv, minimum, maximum));
+            }
+
             half4 OutlineFragment(Varyings input) : SV_Target
             {
                 half sourceAlpha = SampleAlpha(input.uv);
@@ -81,14 +92,14 @@ Shader "Bungeoppang/Interactable Outline"
 
                 // 원본 픽셀 밖에서만 주변 알파를 읽어 실제 테두리만 남긴다.
                 half neighbourAlpha = 0;
-                neighbourAlpha = max(neighbourAlpha, SampleAlpha(input.uv + float2( offset.x, 0)));
-                neighbourAlpha = max(neighbourAlpha, SampleAlpha(input.uv + float2(-offset.x, 0)));
-                neighbourAlpha = max(neighbourAlpha, SampleAlpha(input.uv + float2(0,  offset.y)));
-                neighbourAlpha = max(neighbourAlpha, SampleAlpha(input.uv + float2(0, -offset.y)));
-                neighbourAlpha = max(neighbourAlpha, SampleAlpha(input.uv + float2( offset.x,  offset.y)));
-                neighbourAlpha = max(neighbourAlpha, SampleAlpha(input.uv + float2(-offset.x,  offset.y)));
-                neighbourAlpha = max(neighbourAlpha, SampleAlpha(input.uv + float2( offset.x, -offset.y)));
-                neighbourAlpha = max(neighbourAlpha, SampleAlpha(input.uv + float2(-offset.x, -offset.y)));
+                neighbourAlpha = max(neighbourAlpha, SampleAlphaInsideSprite(input.uv + float2( offset.x, 0)));
+                neighbourAlpha = max(neighbourAlpha, SampleAlphaInsideSprite(input.uv + float2(-offset.x, 0)));
+                neighbourAlpha = max(neighbourAlpha, SampleAlphaInsideSprite(input.uv + float2(0,  offset.y)));
+                neighbourAlpha = max(neighbourAlpha, SampleAlphaInsideSprite(input.uv + float2(0, -offset.y)));
+                neighbourAlpha = max(neighbourAlpha, SampleAlphaInsideSprite(input.uv + float2( offset.x,  offset.y)));
+                neighbourAlpha = max(neighbourAlpha, SampleAlphaInsideSprite(input.uv + float2(-offset.x,  offset.y)));
+                neighbourAlpha = max(neighbourAlpha, SampleAlphaInsideSprite(input.uv + float2( offset.x, -offset.y)));
+                neighbourAlpha = max(neighbourAlpha, SampleAlphaInsideSprite(input.uv + float2(-offset.x, -offset.y)));
 
                 half outlineAlpha = saturate(neighbourAlpha - sourceAlpha) * input.color.a;
                 return half4(input.color.rgb, outlineAlpha);
