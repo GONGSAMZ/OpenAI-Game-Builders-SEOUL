@@ -592,7 +592,7 @@ jobs:
             aws s3 cp \
               "s3://$bucket/$release_prefix/$relative" \
               "s3://$bucket/game/$relative" \
-              --copy-props default \
+              --copy-props metadata-directive \
               --only-show-errors
           done < <(find "$root" -type f \
             ! -name index.html \
@@ -603,12 +603,12 @@ jobs:
           aws s3 cp \
             "s3://$bucket/$release_prefix/build-manifest.json" \
             "s3://$bucket/game/build-manifest.json" \
-            --copy-props default \
+            --copy-props metadata-directive \
             --only-show-errors
           aws s3 cp \
             "s3://$bucket/$release_prefix/index.html" \
             "s3://$bucket/game/index.html" \
-            --copy-props default \
+            --copy-props metadata-directive \
             --only-show-errors
           # S3 REST origin은 /game/을 index.html로 자동 해석하지 않으므로
           # 슬래시로 끝나는 실제 요청 키도 같은 index 객체로 활성화한다.

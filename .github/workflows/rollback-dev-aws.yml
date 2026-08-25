@@ -121,12 +121,12 @@ jobs:
               --recursive \
               --exclude index.html \
               --exclude README.md \
-              --copy-props default \
+              --copy-props metadata-directive \
               --only-show-errors
             aws s3 cp \
               "s3://$game_bucket/$release_prefix/index.html" \
               "s3://$game_bucket/game/index.html" \
-              --copy-props default \
+              --copy-props metadata-directive \
               --only-show-errors
             aws s3api copy-object \
               --bucket "$game_bucket" \
