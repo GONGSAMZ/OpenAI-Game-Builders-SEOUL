@@ -211,6 +211,64 @@ Resources:
           QueryStringsConfig:
             QueryStringBehavior: none
 
+  GameAssetCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub ${AWS::StackName}-game-assets
+        Comment: Immutable Unity WebGL assets with a non-cacheable release index
+        DefaultTTL: 3600
+        MaxTTL: 31536000
+        MinTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  GameAssetResponseHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub ${AWS::StackName}-game-assets
+        Comment: Browser isolation and security headers for Unity WebGL
+        SecurityHeadersConfig:
+          ContentSecurityPolicy:
+            ContentSecurityPolicy: "default-src 'self'; base-uri 'self'; font-src 'self' https: data:; form-action 'self'; frame-ancestors 'self'; img-src 'self' data: blob:; object-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; script-src-attr 'none'; style-src 'self' https: 'unsafe-inline'; upgrade-insecure-requests; worker-src 'self' blob:; connect-src 'self'; frame-src 'self'"
+            Override: true
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: SAMEORIGIN
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: no-referrer
+            Override: true
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Override: true
+            Preload: false
+          XSSProtection:
+            ModeBlock: true
+            Override: true
+            Protection: true
+        CustomHeadersConfig:
+          Items:
+            - Header: Cross-Origin-Opener-Policy
+              Override: true
+              Value: same-origin-allow-popups
+            - Header: Cross-Origin-Resource-Policy
+              Override: true
+              Value: same-origin
+            - Header: Origin-Agent-Cluster
+              Override: true
+              Value: "?1"
+
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -230,6 +288,14 @@ Resources:
             S3OriginConfig:
               OriginAccessIdentity: ""
         CacheBehaviors:
+          - PathPattern: game/*
+            TargetOriginId: store-product-images
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: !Ref GameAssetCachePolicy
+            ResponseHeadersPolicyId: !Ref GameAssetResponseHeadersPolicy
+            Compress: false
           - PathPattern: store-products/*
             TargetOriginId: store-product-images
             ViewerProtocolPolicy: redirect-to-https
@@ -327,8 +393,6 @@ Resources:
               Value: !Sub https://${Distribution.DomainName}
             - Name: GAME_ORIGIN
               Value: !Sub https://${Distribution.DomainName}
-            - Name: GAME_BUILD_DIR
-              Value: /app/game-dist
             - Name: HIVE_MODE
               Value: !Ref HiveMode
             - Name: HIVE_REDIRECT_URI
@@ -434,3 +498,7 @@ Outputs:
     Value: !GetAtt Service.Name
   StoreProductImageBucketName:
     Value: !Ref StoreProductImageBucket
+  GameAssetBucketName:
+    Value: !Ref StoreProductImageBucket
+  DistributionId:
+    Value: !Ref Distribution

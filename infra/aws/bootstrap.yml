@@ -329,19 +329,24 @@ Resources:
                   - cloudfront:CreateDistribution
                   - cloudfront:CreateCachePolicy
                   - cloudfront:CreateOriginAccessControl
+                  - cloudfront:CreateResponseHeadersPolicy
                   - cloudfront:DeleteCachePolicy
                   - cloudfront:GetDistribution
                   - cloudfront:GetDistributionConfig
                   - cloudfront:GetCachePolicy
                   - cloudfront:GetOriginAccessControl
+                  - cloudfront:GetResponseHeadersPolicy
                   - cloudfront:ListCachePolicies
                   - cloudfront:ListOriginAccessControls
+                  - cloudfront:ListResponseHeadersPolicies
                   - cloudfront:DeleteDistribution
                   - cloudfront:DeleteOriginAccessControl
+                  - cloudfront:DeleteResponseHeadersPolicy
                   - cloudfront:TagResource
                   - cloudfront:UpdateCachePolicy
                   - cloudfront:UpdateDistribution
                   - cloudfront:UpdateOriginAccessControl
+                  - cloudfront:UpdateResponseHeadersPolicy
                 Resource: "*"
               - Effect: Allow
                 Action:

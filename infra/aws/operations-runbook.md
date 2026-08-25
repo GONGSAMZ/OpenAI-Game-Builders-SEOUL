@@ -5,6 +5,7 @@
 - `openai-game-builders-seoul-bootstrap`: GitHub OIDC 역할, immutable ECR, DynamoDB, Secrets Manager, ECS 역할, SNS 운영 알림, 월 $30 Budget을 소유합니다.
 - `openai-game-builders-seoul-service`: VPC, ALB, CloudFront, ECS Fargate, CloudWatch Logs/5xx Alarm을 소유합니다.
 - 공개 경로: CloudFront HTTPS → ALB HTTP → ECS `web:3000`
+- 게임 경로: CloudFront `/game/*` → 비공개 S3 `game/` (불변 원본은 `game-releases/<source hash>/`)
 - 상품 이미지 경로: CloudFront `/store-products/*` → 비공개 S3 버킷 (`StoreProductImageBucketName` 출력)
 - 데이터: 마켓·인벤토리·로그인 세션은 DynamoDB에 저장합니다. 세션은 `expiresAtEpoch` TTL로 만료됩니다.
 - 복구: DynamoDB PITR은 항상 켜며, 배포 전에 Actions가 PITR/TTL 상태를 검사합니다.
@@ -13,9 +14,9 @@
 
 `DEV`에 push하면 `Deploy DEV to AWS`가 다음 순서로 실행됩니다.
 
-1. Unity CI가 켜져 있으면 Unity 6.3 WebGL을 새로 빌드하고, 아니면 저장소의 검증된 WebGL 산출물을 사용합니다.
+1. Unity가 변경됐거나 현재 S3 빌드가 없으면 Unity 6.3 WebGL을 준비해 `game-releases/<source hash>/`와 활성 `game/`에 게시합니다. 동일한 게임이 이미 게시돼 있으면 이 작업을 생략합니다.
 2. Node 타입 검사·테스트·빌드를 통과시킵니다.
-3. `${GITHUB_SHA}-${GITHUB_RUN_ATTEMPT}` immutable ECR 태그를 push합니다.
+3. WebGL을 제외한 서버 이미지를 `${GITHUB_SHA}-${GITHUB_RUN_ATTEMPT}` immutable ECR 태그로 push합니다.
 4. CloudFormation으로 ECS task definition/service를 갱신합니다.
 5. `/health`, `/version`, 포털, Unity 로더, HIVE production 로그인 URL smoke test를 통과시킵니다.
 
@@ -32,7 +33,7 @@ curl https://d1tmcdkh8akpud.cloudfront.net/api/v1/version
 
 ECS deployment circuit breaker가 새 task를 정상 상태로 만들지 못하면 이전 task definition으로 자동 롤백합니다.
 
-이미 정상 배포된 과거 이미지로 명시적으로 되돌릴 때는 GitHub Actions에서 `Roll back DEV on AWS`를 열고 브랜치를 `DEV`로 선택한 뒤 과거 ECR 태그(예: `<40자리 SHA>-1`)를 입력합니다. 워크플로가 CloudFormation을 갱신하고 `/health`의 revision까지 검증합니다.
+이미 정상 배포된 과거 이미지로 명시적으로 되돌릴 때는 GitHub Actions에서 `Roll back DEV on AWS`를 열고 브랜치를 `DEV`로 선택한 뒤 과거 ECR 태그(예: `<40자리 SHA>-1`)를 입력합니다. 게임도 함께 되돌릴 때는 해당 성공 배포 Summary의 64자리 `Unity source`를 `game_source_hash`에 입력합니다. 비워 두면 현재 게임은 유지합니다. 워크플로는 서버 revision과 선택한 게임 manifest를 모두 검증합니다.
 
 이미지 태그는 성공한 `Deploy DEV to AWS` 실행의 Summary 또는 ECR에서 확인합니다. ECR은 최근 20개 immutable 이미지를 보존합니다.
 
@@ -53,7 +54,7 @@ DynamoDB Console에서 테이블의 `Backups` → `Point-in-time recovery` → `
 
 ## 캐시 정책
 
-CloudFront는 managed `CachingDisabled` 정책으로 원본 응답을 전달하므로 배포 후 invalidation이 필요하지 않습니다. 포털 및 Unity `index.html`/version API는 `no-store`, 압축 Unity 산출물은 최대 1시간 캐시입니다. 새 빌드는 파일명과 배포 revision으로 식별합니다.
+CloudFront의 일반 서버 경로는 managed `CachingDisabled` 정책을 사용합니다. Unity `index.html`은 `no-store`, manifest는 `no-cache`, 해시 이름의 압축 Unity 산출물은 1년 캐시하므로 invalidation이 필요하지 않습니다. 새 index는 모든 산출물을 게시한 뒤 마지막에 활성화합니다.
 
 ## 비용과 종료 기준
 

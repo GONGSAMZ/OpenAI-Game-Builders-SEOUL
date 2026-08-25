@@ -1146,6 +1146,16 @@ export function createApp(dependencies: AppDependencies) {
       .send(renderPortalIndex(config.revision));
   });
 
+  // 운영 CloudFront의 /game/*는 S3 WebGL 산출물로 전달된다. 슬래시 없는
+  // 진입점만 서버에서 정규화해 로컬 개발과 운영 주소를 동일하게 유지한다.
+  app.use((request, response, next) => {
+    if (request.path !== "/game") {
+      next();
+      return;
+    }
+    response.redirect(308, "/game/");
+  });
+
   app.use(
     "/game",
     express.static(config.gameBuildDirectory, {

@@ -81,7 +81,7 @@ Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점,
 | 브라우저 브리지 | `platform-server/public/game-bridge.js` | 로그인 팝업과 WebGL 통신 |
 | Unity WebGL 플러그인 | `BungeoppangTycoon/Assets/Plugins/WebGL/` | JavaScript와 Unity `SendMessage` 연결 |
 | Unity API 클라이언트 | `BungeoppangTycoon/Assets/Scripts/Platform/` | 게임 세션과 서버 API 호출 |
-| AWS 자동 배포 | `infra/aws/`, `.github/workflows/deploy-dev-to-aws.yml` | DEV → WebGL 빌드 → ECS/CloudFront 배포 |
+| AWS 자동 배포 | `infra/aws/`, `.github/workflows/deploy-dev-to-aws.yml` | DEV → 서버 이미지·S3 WebGL 병렬 준비 → ECS/CloudFront 배포 |
 | HIVE 상품 운영 스킬 | `skills/hive-store-catalog/` | 콘솔 상품 자동 동기화, PID 지급 규칙, 이미지 운영 |
 
 서버는 기본적으로 Hive와 OpenAI를 `mock` 모드로 실행하므로 외부 키 없이 전체 연결 흐름을 확인할 수 있습니다.

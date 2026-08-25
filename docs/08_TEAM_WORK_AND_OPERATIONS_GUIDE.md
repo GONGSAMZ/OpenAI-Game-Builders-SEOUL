@@ -9,7 +9,7 @@
 | 대상 | 기준 위치 | 설명 |
 |---|---|---|
 | Unity 원본 | `BungeoppangTycoon/` | Unity Hub에는 이 폴더를 프로젝트로 추가한다. |
-| 배포용 WebGL | `platform-server/game-dist/` | AWS에 배포되는 검증된 WebGL 산출물이다. |
+| 배포용 WebGL | `platform-server/game-dist/` | 해시 검증 후 S3 `game/`에 게시되는 WebGL 산출물이다. 서버 Docker에는 포함하지 않는다. |
 | 플랫폼 서버 | `platform-server/` | HIVE 로그인, 세션, 상점, 결제와 OpenAI 서버 프록시를 담당한다. |
 | 브라우저 브리지 | `platform-server/public/game-bridge.js` | 웹 페이지와 Unity WebGL 사이의 호출을 연결한다. |
 | AWS 인프라 | `infra/aws/` | CloudFront, ALB, ECS, DynamoDB, S3와 배포 역할을 정의한다. |
@@ -191,24 +191,24 @@ API만 `live`로 바꾸고 게임에서 사용하지 않는 상태는 기능 완
 
 ## 9. AWS에 배포할 때
 
-일반 배포에는 AWS 콘솔 로그인이 필요하지 않다. 검증된 변경을 `DEV`에 push하면 GitHub OIDC가 자동 배포를 실행한다. `preflight` 뒤에는 Unity 준비, 플랫폼 서버 검증, bootstrap 데이터 인프라 갱신이 병렬로 시작된다. Unity 소스가 바뀐 커밋은 정확히 그 원본으로 WebGL을 새로 빌드하고 소스·산출물 해시를 모두 검증한다. Unity 소스와 `game-dist`가 모두 바뀌지 않은 서버·워크플로 전용 커밋은 전체 Unity 프로젝트 체크아웃과 빌드를 생략하고 저장된 WebGL 산출물 해시만 재검증한다. Unity 소스 없이 `game-dist`만 바꾸거나 해시가 다르면 배포는 실패해야 정상이다.
+일반 배포에는 AWS 콘솔 로그인이 필요하지 않다. 검증된 변경을 `DEV`에 push하면 GitHub OIDC가 자동 배포를 실행한다. `preflight` 뒤에는 Unity 게시 필요 여부 확인, 서버 이미지 빌드, 플랫폼 서버 검증과 bootstrap 데이터 인프라 갱신이 병렬로 시작된다. Unity 소스가 바뀐 커밋은 정확히 그 원본으로 WebGL을 새로 빌드하고 소스·산출물 해시를 모두 검증한다. Unity가 바뀌지 않았고 S3의 `game/build-manifest.json`이 현재 산출물과 같으면 `prepare-unity` 전체를 생략한다. Unity 소스 없이 `game-dist`만 바꾸거나 해시가 다르면 배포는 실패해야 정상이다.
 
-검증된 Unity 산출물은 작업 간 artifact로 전달된다. 컨테이너 이미지는 서버 검증 결과를 기다리는 동안 미리 빌드하되, 서버·계정 격리 테스트나 인프라 검증이 실패하면 ECS 배포 단계가 실행되지 않는다. 서비스 반영 후 공개 API·게임·HIVE 검증과 상점 이미지 게시·검증도 병렬로 실행된다.
+검증된 Unity 산출물은 `platform-server/game-dist/`와 작업 간 artifact를 거쳐 비공개 S3의 `game/`에 게시되며 CloudFront `/game/*`가 이를 제공한다. `index.html`은 마지막에 교체하고 캐시하지 않으며 해시 이름의 Unity 파일은 장기 캐시한다. 서버 Docker에는 WebGL을 넣지 않으므로 `build-image`는 Unity 준비를 기다리지 않는다. 서버·계정 격리 테스트나 인프라 검증이 실패하면 ECS 배포는 실행되지 않고, 최종 공개 검증은 API revision과 S3 게임 manifest·gzip 헤더를 함께 확인한다.
 
 루트 포털은 서버의 `APP_REVISION`을 CSS, JavaScript와 게임 iframe URL에 자동으로 붙인다. 배포 뒤 화면만 이전 버전이면 먼저 페이지를 새로고침하고 HTML의 `?v=<commit SHA>`와 `/api/v1/version`이 같은지 확인한다. 포털 고정 파일은 `no-cache`로 재검증되므로 날짜나 임의 문자열을 `index.html`에 하드코딩하지 않는다.
 
 구매 내역은 DynamoDB `SubjectCreatedAtIndex`를 사용한다. 워크플로의 `update-infrastructure`와 `verify-runtime-infrastructure`가 bootstrap 스택을 갱신하고 인덱스·PITR·TTL을 확인하며, 이 검증과 이미지 빌드가 모두 성공한 뒤에만 서버를 배포한다.
 
-Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`와 AWS 변수 중 하나라도 없으면 preflight가 즉시 실패해야 정상이다. 누락된 Unity 빌드를 건너뛰고 이전 WebGL을 배포하도록 설정하지 않는다.
+Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EMAIL`, `UNITY_PASSWORD`는 Unity 원본이 바뀌어 재빌드할 때만 검사한다. 이때 값이 없으면 `prepare-unity`가 실패해야 정상이며 이전 WebGL로 대체하지 않는다. 서버 전용 배포는 Unity 자격 증명과 124MB WebGL 다운로드 없이 진행된다.
 
 배포 성공 조건:
 
-- `prepare-unity`의 WebGL 빌드 또는 기존 빌드 해시 검증
+- 필요한 경우 `prepare-unity`의 WebGL 빌드·해시 검증과 `publish-game-assets`의 S3 게시
 - `verify-platform-server`의 서버·계정 격리 테스트
 - `update-infrastructure`와 `verify-runtime-infrastructure`
-- `build-image`의 검증된 Unity artifact 포함 이미지 게시
+- `build-image`의 WebGL 미포함 서버 이미지 게시
 - `deploy-service`의 ECS Fargate 반영
-- 병렬 `publish-store-assets`와 `verify-public-core`
+- 병렬 `publish-store-assets`와 공개 API·S3 Unity를 확인하는 `verify-public-core`
 - `deployment-summary`
 
 배포 뒤 `/api/v1/version`의 SHA가 push한 커밋과 같아야 한다. 실패하면 먼저 Actions의 실패 단계와 CloudFormation 이벤트를 읽는다. 원인을 확인하지 않고 반복 실행하거나 정상 브랜치를 강제 덮어쓰지 않는다.

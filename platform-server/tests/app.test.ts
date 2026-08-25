@@ -971,4 +971,13 @@ describe("integration API", () => {
     expect(page.text).toContain("Unity test fixture");
     expect(page.headers["cache-control"]).toContain("no-store");
   });
+
+  it("슬래시 없는 게임 주소를 정규화한다", async () => {
+    const app = createApp({
+      config: createTestConfig({
+        gameBuildDirectory: path.resolve(process.cwd(), "tests/fixtures/game")
+      })
+    });
+    await request(app).get("/game").expect(308).expect("Location", "/game/");
+  });
 });
