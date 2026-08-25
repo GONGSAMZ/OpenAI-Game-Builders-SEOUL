@@ -8,9 +8,12 @@ public class UI_Settings : UI_Base
 {
     Button headerCloseButton, quitButton, helpButton, achievementButton, documentsButton, resetButton;
     Button settingsButton;
+    bool wasGameRunning;
+    bool isClosing;
 
     protected override void Init()
     {
+        wasGameRunning = Managers.Game.isRunning;
         Managers.Game.isRunning = false;
         headerCloseButton = FindButton("CloseButton"); quitButton = FindButton("QuitBtn"); helpButton = FindButton("HelpButton"); settingsButton = FindButton("SettingBtn");
         achievementButton = FindButton("AchivementButton"); documentsButton = FindButton("DocumentsButton"); resetButton = FindButton("ResetButton");
@@ -49,5 +52,12 @@ public class UI_Settings : UI_Base
         TextMeshProUGUI label = button != null ? button.GetComponentInChildren<TextMeshProUGUI>(true) : null;
         if (label != null) label.text = labelText;
     }
-    void Close() { Managers.UI.CloseUI(); Managers.UI.ShowUI<UI_Game>(); Managers.Game.isRunning = true; }
+    void Close()
+    {
+        if (isClosing) return;
+        isClosing = true;
+        Managers.UI.CloseUI();
+        Managers.UI.ShowUI<UI_Game>();
+        Managers.Game.isRunning = wasGameRunning;
+    }
 }
