@@ -303,6 +303,12 @@ public class GameManagerEx
         //1. 데이터 초기화
         delta = 0; 
         ++CurData.day;
+        // 상점 선택 단계가 건너뛰어진 저장 데이터라도 재료가 전부 꺼진 채 영업을 시작하지 않게 한다.
+        // 도메인 재로딩 직후에는 싱글턴 참조가 잠시 비어 있을 수 있다.
+        // Data 접근은 저장 서비스를 다시 만들므로, 그 뒤에만 복구를 실행한다.
+        if (SaveService.Instance == null)
+            _ = SaveService.Data;
+        SaveService.Instance?.RestoreSelectedFillingsIfEmpty();
         CustomerStoryProgress.BeginDay(CurData.day);
 
         totalFishBunsSold = 0;      

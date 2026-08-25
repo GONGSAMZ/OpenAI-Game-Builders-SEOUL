@@ -347,7 +347,8 @@ public class InputManager : MonoBehaviour
         {
             foreach (CustomerController customer in FindObjectsByType<CustomerController>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
             {
-                if (customer.CanReceiveFishBun)
+                // 주문을 받은 손님 전체가 아니라, 지금 든 붕어빵 맛을 실제로 주문한 손님만 표시한다.
+                if (customer.CanReceiveSelectedFishBun(selectedFishBun.fillingType))
                     HighlightTargetOutline(customer.Customer);
             }
         }

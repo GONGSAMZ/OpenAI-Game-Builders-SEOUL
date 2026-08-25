@@ -117,6 +117,30 @@ public sealed class SaveService : MonoBehaviour
     public bool IsFillingSelected(FillingType filling) =>
         Current.run.selectedFillingIds.Contains(SaveIds.Filling(filling));
 
+    /// <summary>
+    /// 비정상적으로 재료 선택 없이 영업을 시작하려 할 때, 이미 해금한 재료를 다시 오늘의 판매 재료로 넣는다.
+    /// 상점 화면을 거친 정상 흐름에서는 선택 목록이 비어 있지 않으므로 아무 것도 바꾸지 않는다.
+    /// </summary>
+    public bool RestoreSelectedFillingsIfEmpty()
+    {
+        if (Current.run.selectedFillingIds.Count > 0)
+            return false;
+
+        foreach (string fillingId in Current.run.unlockedFillingIds)
+        {
+            if (!string.IsNullOrWhiteSpace(fillingId) && !Current.run.selectedFillingIds.Contains(fillingId))
+                Current.run.selectedFillingIds.Add(fillingId);
+        }
+
+        // 저장 손상이나 오래된 데이터에도 최소한 팥은 항상 조리할 수 있게 보장한다.
+        if (Current.run.selectedFillingIds.Count == 0)
+            Current.run.selectedFillingIds.Add("red-bean");
+
+        Persist("빈 재료 선택 복구");
+        Debug.Log("[저장] 선택한 속재료가 비어 있어 해금된 재료로 복구했습니다.");
+        return true;
+    }
+
     public CustomerStoryRunState GetCustomerStoryRunState(CustomerType customerType) =>
         SaveDataFactory.FindOrCreateCustomerStoryState(Current, customerType);
 
