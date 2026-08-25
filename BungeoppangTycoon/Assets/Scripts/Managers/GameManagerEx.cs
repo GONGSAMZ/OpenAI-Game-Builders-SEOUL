@@ -268,6 +268,8 @@ public class GameManagerEx
         //1. 데이터 초기화
         delta = 0; 
         ++CurData.day;
+        // 상점 선택 단계가 건너뛰어진 저장 데이터라도 재료가 전부 꺼진 채 영업을 시작하지 않게 한다.
+        SaveService.Instance.RestoreSelectedFillingsIfEmpty();
         CustomerStoryProgress.BeginDay(CurData.day);
 
         totalFishBunsSold = 0;      

@@ -50,6 +50,9 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
     public SpriteRenderer StoryFocusRenderer => Customer != null ? Customer.GetComponent<SpriteRenderer>() : null;
     /// <summary>선택한 붕어빵을 실제로 받을 수 있는, 주문 접수 완료 상태의 손님인지 나타냅니다.</summary>
     public bool CanReceiveFishBun => Customer != null && Customer.activeInHierarchy && didAcceptOrder && !isLeaving && order.Count > 0;
+    /// <summary>현재 선택한 맛을 주문한 손님인지 나타냅니다. 전달 강조 표시에 사용합니다.</summary>
+    public bool CanReceiveSelectedFishBun(FillingType filling) =>
+        CanReceiveFishBun && order.TryGetValue(filling, out int remainingCount) && remainingCount > 0;
     #endregion
 
     #region 주문 관련 변수
@@ -166,6 +169,9 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
             startTime = Managers.Game.delta;
 
         Order();
+        if (order.Count == 0)
+            return;
+
         Managers.Game.acceptOrder(order);
         didAcceptOrder = true;
         TutorialSignals.Raise(TutorialEvent.CustomerOrderAccepted, Customer);
@@ -404,13 +410,34 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
             return;
         }
 
-        //맛 중복 방지를 위한 범위 리스트
+        // 주문 가능한 맛 목록입니다. 한 가지 맛을 여러 개 주문할 수 있으므로,
+        // 주문을 만들면서 선택한 맛을 목록에서 제거하지 않습니다.
         List<int> orderableFillingType = new List<int>();
 
         // 해금 개수가 아니라 저장된 재료 ID를 기준으로 주문 가능한 맛을 만든다.
         for (int i = 0; i < Util.GetEnumSize(typeof(FillingType)); ++i)
             if (Managers.Game.IsFillingUnlocked((FillingType)i))
                 orderableFillingType.Add(i);
+
+        // 비정상 종료·이전 저장 데이터 때문에 오늘의 선택 재료가 비어 있으면,
+        // 인덱스 0을 읽다가 손님 클릭 전체가 멈추지 않게 기본 재료를 즉시 복구한다.
+        if (orderableFillingType.Count == 0)
+        {
+            SaveService.Instance.RestoreSelectedFillingsIfEmpty();
+
+            for (int i = 0; i < Util.GetEnumSize(typeof(FillingType)); ++i)
+                if (Managers.Game.IsFillingUnlocked((FillingType)i))
+                    orderableFillingType.Add(i);
+        }
+
+        // 복구 서비스까지 사용할 수 없는 초기화 순서에서도 클릭을 예외로 끝내지 않는다.
+        if (orderableFillingType.Count == 0)
+        {
+            Debug.LogError("[주문] 선택된 속재료가 없어 주문을 만들 수 없습니다.", this);
+            UI_order.SetMessage("오늘 판매할 속재료를 먼저 골라 주세요.");
+            UI_order.gameObject.SetActive(true);
+            return;
+        }
 
         //1. 주문할 붕어빵 개수
         NumOfFishBun = UnityEngine.Random.Range(minFishBun, maxFishBun + 1);
@@ -422,7 +449,6 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
             //종류 랜덤
             int randomIndex = UnityEngine.Random.Range(0, orderableFillingType.Count);
             FillingType fillingType = (FillingType)orderableFillingType[randomIndex];
-            orderableFillingType.RemoveAt(randomIndex); //고른 맛 빼기
 
             //개수 랜덤
             int _numsOfFishBun; // fillingType맛으로 시킬 붕빵 개수
@@ -433,11 +459,14 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
                             _numsOfFishBun = 1;*/
 
             _numsOfFishBun = Random.Range(1, fishbun);
-            if(numsOfFishBun == 0)
-                _numsOfFishBun = 1;
-
             fishbun -= _numsOfFishBun;
-            order.Add(fillingType, _numsOfFishBun);
+
+            // 같은 맛이 다시 선택되면 주문 수량만 누적한다.
+            // Dictionary는 같은 키를 Add하면 예외가 나므로 기존 값을 갱신해야 한다.
+            if (order.ContainsKey(fillingType))
+                order[fillingType] += _numsOfFishBun;
+            else
+                order.Add(fillingType, _numsOfFishBun);
 
         }
 
