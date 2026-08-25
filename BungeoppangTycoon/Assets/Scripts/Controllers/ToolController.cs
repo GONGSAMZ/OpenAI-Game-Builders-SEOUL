@@ -1,6 +1,7 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
-public class ToolController : MonoBehaviour
+public class ToolController : MonoBehaviour, IPointerClickHandler
 {
     public static ToolController selectedTool;
     [SerializeField] public FillingType filling;
@@ -32,6 +33,13 @@ public class ToolController : MonoBehaviour
     {
         Select();
 
+    }
+
+    // 새 Input System + Physics2DRaycaster 경로에서도 도구를 클릭해 선택한다.
+    // OnMouseDown은 이전 입력 경로와의 호환용으로 그대로 둔다.
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        Select();
     }
 
     public void Select()
