@@ -18,6 +18,9 @@ public class FishBunController : MonoBehaviour,
     // 성공한 판매 뒤 Destroy가 적용되기 전 같은 드래그 종료 이벤트가 다시 들어오는 것을 막는다.
     bool isConsumed = false;
     bool isOnDisplay = false;
+    // EventSystem 포인터 이벤트와 Unity 마우스 이벤트가 같은 클릭에 함께 들어올 수 있다.
+    // 한 번의 클릭이 조리 단계를 두 번 넘기지 않도록 마지막 처리 프레임을 기록한다.
+    int lastCookingClickFrame = -1;
     SpriteRenderer fishBunRenderer;
     Vector3 baseScale;
     Color baseColor;
@@ -78,9 +81,21 @@ public class FishBunController : MonoBehaviour,
 
     public void OnPointerClick(PointerEventData eventData)
     {
-        if (Managers.Game.isRunning == false)
+        HandleCookingClick();
+    }
+
+    // 기존 마우스 조작 경로. Physics2DRaycaster/EventSystem 설정에 의존하지 않는다.
+    void OnMouseUpAsButton()
+    {
+        HandleCookingClick();
+    }
+
+    void HandleCookingClick()
+    {
+        if (lastCookingClickFrame == Time.frameCount || Managers.Game.isRunning == false)
             return;
 
+        lastCookingClickFrame = Time.frameCount;
         if (isDraggable)
         {
             InputManager.Instance?.SelectFishBun(this);

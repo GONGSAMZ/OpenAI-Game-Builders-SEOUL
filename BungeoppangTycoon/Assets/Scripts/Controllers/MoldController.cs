@@ -67,6 +67,17 @@ public class MoldController : MonoBehaviour
 
     public void OnPointerClick(PointerEventData eventData)
     {
+        TryCreateFishBun();
+    }
+
+    // 기존 마우스 조작 경로. UI 포인터 이벤트가 없는 환경에서도 틀을 클릭해 반죽을 붓는다.
+    void OnMouseUpAsButton()
+    {
+        TryCreateFishBun();
+    }
+
+    void TryCreateFishBun()
+    {
         if (Managers.Game.isRunning == false || ToolController.selectedTool == null)
             return;
 
