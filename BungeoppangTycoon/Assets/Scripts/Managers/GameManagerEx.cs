@@ -36,9 +36,9 @@ public class GameManagerEx
         set { CurData.money = value; }
     }
 
-    // 실제 재료 해금 여부는 저장된 재료 ID를 기준으로 판정한다.
+    // 이번 영업일에 팔기로 선택한 소만 주문과 조리에 사용한다.
     public bool IsFillingUnlocked(FillingType filling) =>
-        SaveService.Data.run.unlockedFillingIds.Contains(SaveIds.Filling(filling));
+        SaveService.Data.run.selectedFillingIds.Contains(SaveIds.Filling(filling));
     #endregion
 
     #region 시간 관련 변수
@@ -290,14 +290,11 @@ public class GameManagerEx
         //4. 필링 활성화/비활성화
         for (int i = 0; i < GetEnumSize(typeof(FillingType)); ++i)
         {
-            // 잠긴 재료는 씬에 아직 없어도 된다. 해금된 재료만 활성화한다.
-            if (IsFillingUnlocked((FillingType)i) == false)
-                continue;
-
+            bool selected = IsFillingUnlocked((FillingType)i);
             if (fillingArr[i] != null)
-                fillingArr[i].SetActive(true);
-            else
-                Debug.LogWarning($"해금된 재료 오브젝트를 찾을 수 없습니다: {(FillingType)i}");
+                fillingArr[i].SetActive(selected);
+            else if (selected)
+                Debug.LogWarning($"선택한 재료 오브젝트를 찾을 수 없습니다: {(FillingType)i}");
         }
     }
 

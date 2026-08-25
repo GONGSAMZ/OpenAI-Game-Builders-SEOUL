@@ -57,7 +57,11 @@
       shopLink.href = config.hiveWebShopUrl;
       shopLink.hidden = false;
     }
-    await restoreSession();
+    const gameFrame = document.getElementById("game-frame");
+    gameFrame?.addEventListener("load", () => {
+      window.gameBridge.broadcastSession(Boolean(session));
+    });
+    await restoreSession(true);
   }
 
   loginButton.addEventListener("click", async () => {

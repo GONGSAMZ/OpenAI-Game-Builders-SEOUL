@@ -36,6 +36,7 @@ public sealed class GamePlatformClient : MonoBehaviour
     public string AccountSubject => SessionSubject;
 
     public static GamePlatformClient Instance { get; private set; }
+    public static event Action<GamePlatformClient> InstanceChanged;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
     [DllImport("__Internal")]
@@ -75,6 +76,7 @@ public sealed class GamePlatformClient : MonoBehaviour
         }
         Instance = this;
         DontDestroyOnLoad(gameObject);
+        InstanceChanged?.Invoke(this);
 
 #if UNITY_WEBGL && !UNITY_EDITOR
         if (Uri.TryCreate(Application.absoluteURL, UriKind.Absolute, out Uri gameUri))
@@ -93,6 +95,7 @@ public sealed class GamePlatformClient : MonoBehaviour
     {
         if (Instance != this) return;
         Instance = null;
+        InstanceChanged?.Invoke(null);
     }
 
     public void Configure(string baseUrl)

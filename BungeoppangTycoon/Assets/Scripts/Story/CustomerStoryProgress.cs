@@ -290,7 +290,7 @@ public static class CustomerStoryProgress
 #endif
 
     private static bool IsFillingAvailable(FillingType filling) =>
-        SaveService.Instance.IsFillingUnlocked(filling);
+        SaveService.Instance.IsFillingSelected(filling);
 
     private static void RefreshActiveStory()
     {

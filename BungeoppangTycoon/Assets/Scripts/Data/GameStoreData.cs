@@ -40,6 +40,7 @@ public sealed class GameStoreStateData
     public long revision;
     public int money;
     public string[] unlockedFillingIds = Array.Empty<string>();
+    public string[] selectedFillingIds = Array.Empty<string>();
     public string[] ownedGameplayItemIds = Array.Empty<string>();
     public QueuedDayEffectData[] queuedDayEffects = Array.Empty<QueuedDayEffectData>();
     public GameStoreProductStateData[] products = Array.Empty<GameStoreProductStateData>();

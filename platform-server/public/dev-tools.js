@@ -120,6 +120,11 @@
     }
 
     window.setInterval(() => syncInventory(), 5000);
+    window.addEventListener("focus", () => syncInventory("최신 재화가 게임에 반영됐습니다."));
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible")
+        syncInventory("최신 재화가 게임에 반영됐습니다.");
+    });
   }
 
   configure().catch((error) => {

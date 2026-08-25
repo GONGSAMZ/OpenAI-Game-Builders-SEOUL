@@ -19,6 +19,7 @@ type JsonRecord = Record<string, unknown>;
 
 export type GameStoreProductStatus =
   | "owned"
+  | "selected"
   | "purchasable"
   | "locked"
   | "insufficient-funds";
@@ -32,6 +33,7 @@ export interface GameStoreMe {
   revision: number;
   money: number;
   unlockedFillingIds: string[];
+  selectedFillingIds: string[];
   ownedGameplayItemIds: string[];
   queuedDayEffects: JsonRecord[];
   products: GameStoreProductState[];
@@ -94,8 +96,8 @@ function fingerprint(value: unknown): string {
 
 function isOwned(profile: PlayerSaveProfile, product: GameStoreProduct): boolean {
   const run = record(profile.run);
-  if (product.effect.code === "unlock-filling") {
-    return stringArray(run.unlockedFillingIds).includes(product.effect.fillingId ?? "");
+  if (product.effect.code === "select-filling") {
+    return stringArray(run.selectedFillingIds).includes(product.effect.fillingId ?? "");
   }
   if (product.ownership === "run-permanent") {
     return stringArray(run.ownedGameplayItemIds).includes(product.productId);
@@ -108,7 +110,9 @@ function isOwned(profile: PlayerSaveProfile, product: GameStoreProduct): boolean
 
 function productStatus(profile: PlayerSaveProfile, product: GameStoreProduct): GameStoreProductStatus {
   if (product.availability !== "available") return "locked";
-  if (isOwned(profile, product)) return "owned";
+  if (isOwned(profile, product)) {
+    return product.effect.code === "select-filling" ? "selected" : "owned";
+  }
   return Number(record(profile.run).money) < product.price
     ? "insufficient-funds"
     : "purchasable";
@@ -121,6 +125,7 @@ function toMe(profile: PlayerSaveProfile): GameStoreMe {
     revision: normalized.revision,
     money: Number(run.money),
     unlockedFillingIds: stringArray(run.unlockedFillingIds),
+    selectedFillingIds: stringArray(run.selectedFillingIds),
     ownedGameplayItemIds: stringArray(run.ownedGameplayItemIds),
     queuedDayEffects: structuredClone(effectArray(run.queuedDayEffects)),
     products: gameStoreProducts.map((product) => ({
@@ -164,8 +169,12 @@ export class GameStoreService {
         if (isOwned(profile, product)) {
           throw new GameEconomyError(
             409,
-            product.ownership === "next-day-consumable" ? "EFFECT_ALREADY_QUEUED" : "ALREADY_OWNED",
-            product.ownership === "next-day-consumable"
+            product.effect.code === "select-filling"
+              ? "FILLING_ALREADY_SELECTED"
+              : product.ownership === "next-day-consumable" ? "EFFECT_ALREADY_QUEUED" : "ALREADY_OWNED",
+            product.effect.code === "select-filling"
+              ? "다음 영업일에 이미 판매할 소입니다."
+              : product.ownership === "next-day-consumable"
               ? "다음 영업일에 이미 적용할 효과입니다."
               : "이미 보유한 상품입니다."
           );
@@ -179,9 +188,12 @@ export class GameStoreService {
         }
 
         run.money = money - product.price;
-        if (product.effect.code === "unlock-filling") {
+        if (product.effect.code === "select-filling") {
           run.unlockedFillingIds = [
             ...new Set([...stringArray(run.unlockedFillingIds), product.effect.fillingId!])
+          ];
+          run.selectedFillingIds = [
+            ...new Set([...stringArray(run.selectedFillingIds), product.effect.fillingId!])
           ];
         } else if (product.ownership === "run-permanent") {
           run.ownedGameplayItemIds = [
@@ -234,6 +246,7 @@ export class GameStoreService {
 
         run.money = Number(run.money) + input.revenue - input.ingredientCost;
         run.nextDay = input.day + 1;
+        run.selectedFillingIds = [];
         run.queuedDayEffects = effectArray(run.queuedDayEffects).filter(
           (effect) => Number(effect.targetDay) > input.day
         );

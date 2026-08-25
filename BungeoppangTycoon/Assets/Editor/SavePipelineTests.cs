@@ -27,6 +27,7 @@ public sealed class SavePipelineTests
         Assert.That(data.run.nextDay, Is.EqualTo(1));
         Assert.That(data.run.money, Is.EqualTo(SaveDataFactory.InitialMoney));
         Assert.That(data.run.unlockedFillingIds, Is.EqualTo(new[] { "red-bean" }));
+        Assert.That(data.run.selectedFillingIds, Is.EqualTo(new[] { "red-bean" }));
         Assert.That(data.run.customerStories, Is.Empty);
         Assert.That(data.run.queuedDayEffects, Is.Empty);
         Assert.That(data.account.discoveredSouls.Count, Is.EqualTo(1));
@@ -80,7 +81,7 @@ public sealed class SavePipelineTests
             SaveGameData legacy = new() { schemaVersion = 2 };
             SaveDataFactory.Normalize(legacy);
 
-            Assert.That(legacy.schemaVersion, Is.EqualTo(6));
+            Assert.That(legacy.schemaVersion, Is.EqualTo(7));
             Assert.That(legacy.settings.masterVolume, Is.EqualTo(0.35f).Within(0.001f));
             Assert.That(legacy.settings.keyboardHintsEnabled, Is.False);
             Assert.That(legacy.settings.tutorialCompleted, Is.True);
@@ -190,7 +191,7 @@ public sealed class SavePipelineTests
 
         CustomerStoryRunState state = data.run.customerStories.Find(
             value => value.customerId == "jeonghyeon");
-        Assert.That(data.schemaVersion, Is.EqualTo(6));
+        Assert.That(data.schemaVersion, Is.EqualTo(7));
         Assert.That(state.specialOrderState, Is.EqualTo(CustomerStorySchedule.Scheduled));
     }
 
@@ -214,13 +215,29 @@ public sealed class SavePipelineTests
 
         SaveDataFactory.Normalize(legacy);
 
-        Assert.That(legacy.schemaVersion, Is.EqualTo(6));
+        Assert.That(legacy.schemaVersion, Is.EqualTo(7));
         Assert.That(legacy.run.unlockedFillingIds, Is.EquivalentTo(new[]
         {
             "red-bean", "custard", "nutella", "cream-cheese"
         }));
         Assert.That(legacy.run.queuedDayEffects, Has.Count.EqualTo(1));
         Assert.That(legacy.run.queuedDayEffects[0].targetDay, Is.EqualTo(3));
+    }
+
+    [Test]
+    public void Normalize_V6Fillings_DoesNotTreatPermanentUnlocksAsDailySelections()
+    {
+        SaveGameData legacy = SaveDataFactory.CreateDefault();
+        legacy.schemaVersion = 6;
+        legacy.run.nextDay = 2;
+        legacy.run.unlockedFillingIds = new() { "red-bean", "custard", "nutella", "green-tea" };
+        legacy.run.selectedFillingIds = null;
+
+        SaveDataFactory.Normalize(legacy);
+
+        Assert.That(legacy.schemaVersion, Is.EqualTo(7));
+        Assert.That(legacy.run.unlockedFillingIds, Has.Count.EqualTo(4));
+        Assert.That(legacy.run.selectedFillingIds, Is.Empty);
     }
 
     [Test]

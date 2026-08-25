@@ -96,7 +96,7 @@ pnpm unity:verify
 
 ### 도감·스토리 계정 동기화
 
-- 현재 단일 기준은 DynamoDB `PLAYER#<subject> / SAVE#MAIN`의 `SaveProfile v6`다. 영업 진행, 일반 돈, 일반 상점 보유 상태, 업적, 손님 도감·스토리, 영혼 도감, 누적 통계와 설정을 revision 충돌 검사로 저장한다. 일반 경제 필드는 전용 조건부 트랜잭션 API만 변경한다.
+- 현재 단일 기준은 DynamoDB `PLAYER#<subject> / SAVE#MAIN`의 `SaveProfile v7`이다. 영업 진행, 일반 돈, 일반 상점 보유 상태와 일일 소 선택, 업적, 손님 도감·스토리, 영혼 도감, 누적 통계와 설정을 revision 충돌 검사로 저장한다. 일반 경제 필드는 전용 조건부 트랜잭션 API만 변경한다.
 - `/api/v1/progress`와 두 변경 경로는 구버전 호환용이다. 내부에서는 `SAVE#MAIN`만 갱신하며 기존 `PROGRESS#CUSTOMER`는 최초 접근 때 단조 병합한 뒤 기준 데이터로 사용하지 않는다.
 - `masterVolume`, `keyboardHintsEnabled`, `tutorialCompleted`도 계정 설정이다. 구버전 계정에 서버 설정이 없을 때만 기존 PlayerPrefs를 한 번 승격하고, 서버 값이 있으면 서버를 우선한다.
 - 손님 ID는 `jeonghyeon`이 표준이다. 기존 `jeonghyun` 값은 완료 항목의 합집합과 횟수·날짜 최댓값으로 병합한다.
@@ -246,7 +246,7 @@ Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EM
 - HIVE Production 회원가입·로그인·로그아웃과 DynamoDB 세션
 - 사용자별 팥 코인·인벤토리·황금 틀 장착 저장
 - NICEPAY 테스트 결제 후 사용자별 지급
-- SaveProfile v6 기반 영업 진행·일반 상점·업적·도감·스토리·영혼·설정의 계정 저장
+- SaveProfile v7 기반 영업 진행·일반 상점·일일 소 선택·업적·도감·스토리·영혼·설정의 계정 저장
 - 사용자별 구매 내역 API와 인게임 상품/구매 내역 탭
 - HIVE Console 상품의 인게임 카탈로그 자동 구성
 - 정확한 DEV Unity 소스를 매번 새로 빌드하는 WebGL 해시 검증과 `DEV` → AWS 자동 배포·롤백
