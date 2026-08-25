@@ -63,7 +63,7 @@ public static class CustomerCollectionProgress
     {
         add
         {
-            SaveService.Instance.DataChanged += value;
+            SaveService.Service.DataChanged += value;
         }
         remove
         {
@@ -72,7 +72,7 @@ public static class CustomerCollectionProgress
         }
     }
 
-    public static void MarkMet(CustomerType customerType) => SaveService.Instance.MarkCustomerMet(customerType);
+    public static void MarkMet(CustomerType customerType) => SaveService.Service.MarkCustomerMet(customerType);
 
-    public static bool HasMet(CustomerType customerType) => SaveService.Instance.HasMet(customerType);
+    public static bool HasMet(CustomerType customerType) => SaveService.Service.HasMet(customerType);
 }

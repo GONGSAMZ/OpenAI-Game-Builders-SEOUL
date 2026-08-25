@@ -23,9 +23,7 @@ public sealed class CustomerStoryCutscenePlayer : MonoBehaviour
 
     public static void PlaySpecialOrderSuccess(CustomerType customerType, Action finished)
     {
-        CustomerStoryCutscenePlayer player = Ensure();
-        if (player != null)
-            player.Open(CustomerStoryCutsceneCatalog.Get(customerType), finished);
+        OpenOrFinish(customerType, finished);
     }
 
     /// <summary>손님이 등장할 때 컷씬 화면을 미리 만들어, 주문 성공 프레임에서의 생성 지연을 없앱니다.</summary>
@@ -36,9 +34,27 @@ public sealed class CustomerStoryCutscenePlayer : MonoBehaviour
 
     public static void Replay(CustomerType customerType, Action finished)
     {
-        CustomerStoryCutscenePlayer player = Ensure();
-        if (player != null)
-            player.Open(CustomerStoryCutsceneCatalog.Get(customerType), finished);
+        OpenOrFinish(customerType, finished);
+    }
+
+    private static void OpenOrFinish(CustomerType customerType, Action finished)
+    {
+        OpenOrFinish(Ensure(), customerType, finished);
+    }
+
+    private static void OpenOrFinish(
+        CustomerStoryCutscenePlayer player,
+        CustomerType customerType,
+        Action finished)
+    {
+        if (player == null)
+        {
+            // 프리팹이 깨져도 손님 퇴장이나 도감 복귀 흐름은 반드시 계속되어야 한다.
+            finished?.Invoke();
+            return;
+        }
+
+        player.Open(CustomerStoryCutsceneCatalog.Get(customerType), finished);
     }
 
     // 기존 호출부와 호환됩니다.
@@ -63,7 +79,13 @@ public sealed class CustomerStoryCutscenePlayer : MonoBehaviour
             instance = go.AddComponent<CustomerStoryCutscenePlayer>();
 
         CustomerStoryCutsceneView view = go.GetComponent<CustomerStoryCutsceneView>();
-        if (view == null || view.ArtImage == null || view.BodyText == null)
+        if (view == null ||
+            view.ArtImage == null ||
+            view.ProgressText == null ||
+            view.TitleText == null ||
+            view.SpeakerText == null ||
+            view.BodyText == null ||
+            view.HintText == null)
         {
             Debug.LogError("[손님 이야기] 컷씬 프리팹의 필수 UI 참조가 비어 있습니다.");
             Destroy(go);

@@ -423,7 +423,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         // 인덱스 0을 읽다가 손님 클릭 전체가 멈추지 않게 기본 재료를 즉시 복구한다.
         if (orderableFillingType.Count == 0)
         {
-            SaveService.Instance.RestoreSelectedFillingsIfEmpty();
+            SaveService.Service.RestoreSelectedFillingsIfEmpty();
 
             for (int i = 0; i < Util.GetEnumSize(typeof(FillingType)); ++i)
                 if (Managers.Game.IsFillingUnlocked((FillingType)i))
@@ -524,26 +524,11 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
         Managers.Game.serveOrder(order, filling);
 
-        //분노Point 판정
-        int perfectPoint = (100 / NumOfFishBun);
-        int normalPoint = (int)(perfectPoint * 0.8);
-
         //1. 종류가 맞는 지 체크
         if (order.ContainsKey(filling) == true)
         {
-
-            //맛 체크
-            if (baking == QualityStatus.perfect)
-            {
-                //Debug.Log($"{AngryPoint} - {perfectPoint}");
-                orderAngryPoint -= perfectPoint;
-                //Debug.Log($"{AngryPoint}로 내려감");
-
-            }
-            else
-                orderAngryPoint -= normalPoint;
-
-
+            // 각 붕어빵은 품질에 따른 감소를 정확히 한 번만 적용한다.
+            orderAngryPoint -= CalculateAngerReduction(NumOfFishBun, baking);
 
             //지불할 돈 적립
             pay += Define.FillingPrice[(int)filling];
@@ -556,7 +541,6 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
                 if (order.Count == 0)
                 {
-                    orderAngryPoint -= normalPoint;
                     BeginExit();
                 }
             }
@@ -575,6 +559,14 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         ++Managers.Game.totalFishBunsSold;
         
 
+    }
+
+    private static int CalculateAngerReduction(int totalFishBuns, QualityStatus baking)
+    {
+        int perfectPoint = 100 / Mathf.Max(1, totalFishBuns);
+        return baking == QualityStatus.perfect
+            ? perfectPoint
+            : (int)(perfectPoint * 0.8f);
     }
 
     void BeginExit(bool isAngry = false)

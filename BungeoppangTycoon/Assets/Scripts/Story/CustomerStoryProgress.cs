@@ -12,17 +12,17 @@ public static class CustomerStoryProgress
     private static CustomerType ActiveCustomerType => ActiveStory?.CustomerType ?? CustomerType.JeongHyun;
     private static CustomerProgressData SaveData => SaveService.Data.account.customers.Find(
         value => value.customerId == SaveIds.Customer(ActiveCustomerType))
-        ?? SaveService.Instance.GetCustomer(ActiveCustomerType);
+        ?? SaveService.Service.GetCustomer(ActiveCustomerType);
 
     // 당일 대화·특별 주문 날짜는 계정 수집 기록이 아니라 현재 영업 회차에 속한다.
     private static CustomerStoryRunState RunState =>
-        SaveService.Instance.GetCustomerStoryRunState(ActiveCustomerType);
+        SaveService.Service.GetCustomerStoryRunState(ActiveCustomerType);
 
     public static event Action Changed
     {
         add
         {
-            SaveService.Instance.DataChanged += value;
+            SaveService.Service.DataChanged += value;
         }
         remove
         {
@@ -54,12 +54,12 @@ public static class CustomerStoryProgress
     }
 
     public static bool IsStoryCompletedFor(CustomerType customerType) =>
-        SaveService.Instance.GetCustomer(customerType).storyCompleted;
+        SaveService.Service.GetCustomer(customerType).storyCompleted;
 
     public static IReadOnlyCollection<int> CompletedTopicsFor(CustomerType customerType)
     {
         CustomerStoryData story = CustomerStoryCatalog.Get(customerType);
-        CustomerProgressData progress = SaveService.Instance.GetCustomer(customerType);
+        CustomerProgressData progress = SaveService.Service.GetCustomer(customerType);
         if (story == null || progress.completedTopicIds == null)
             return Array.Empty<int>();
 
@@ -98,6 +98,16 @@ public static class CustomerStoryProgress
     {
         // 이야기 손님 우선 등장은 게임 실행 전체가 아니라 하루마다 한 번 판정해야 한다.
         guaranteedCustomerSpawned = false;
+
+        // 전날 마감 뒤 상점에서 선택한 재료가 바뀔 수 있으므로, 오늘 사용할 이야기 역시 다시 고른다.
+        RefreshActiveStory();
+        CustomerStoryData activeStory = ActiveStory;
+        if (activeStory != null)
+        {
+            bool fillingAvailable = IsFillingAvailable(activeStory.RequiredFilling);
+            RestorePendingSpecialOrderAfterRunReset(activeStory, fillingAvailable);
+        }
+        Persist();
     }
 
     public static bool TryGetGuaranteedCustomer(int totalCustomers, out CustomerType customerType)
@@ -207,7 +217,7 @@ public static class CustomerStoryProgress
         LastSpecialOrderMessage = string.Empty;
         // 특별 주문 화면에는 굽기 상태를 알려 주지 않는다. 플레이어가 확인할 수 있는
         // '붕어빵 종류'만 성공 조건으로 사용해야 정답을 줬는데 실패하는 일이 없다.
-        bool fillingMatch = filling == ActiveStory.RequiredFilling;
+        bool fillingMatch = IsSpecialOrderMatch(ActiveStory, filling, bake);
         if (fillingMatch)
         {
             SaveData.storyCompleted = true;
@@ -254,7 +264,7 @@ public static class CustomerStoryProgress
     public static void PrepareTalkTest()
     {
         ResetForDebug();
-        SaveService.Instance.UnlockFilling(FillingType.custard);
+        SaveService.Service.UnlockFilling(FillingType.custard);
         RefreshActiveStory();
         Persist();
         Debug.Log("[손님 이야기] 테스트 준비 완료: 다음 손님이 정현 대화로 등장합니다.");
@@ -290,20 +300,38 @@ public static class CustomerStoryProgress
 #endif
 
     private static bool IsFillingAvailable(FillingType filling) =>
-        SaveService.Instance.IsFillingSelected(filling);
+        SaveService.Service.IsFillingSelected(filling);
 
     private static void RefreshActiveStory()
     {
-        ActiveStory = null;
+        ActiveStory = FindActiveStory(SaveService.Data);
+    }
+
+    private static CustomerStoryData FindActiveStory(SaveGameData data)
+    {
+        if (data?.run?.selectedFillingIds == null)
+            return null;
+
         foreach (CustomerStoryData story in CustomerStoryCatalog.AllStories)
         {
-            if (IsStoryCompletedFor(story.CustomerType) || !IsFillingAvailable(story.RequiredFilling))
+            CustomerProgressData progress = data.account?.customers?.Find(
+                value => value.customerId == SaveIds.Customer(story.CustomerType));
+            bool completed = progress?.storyCompleted == true;
+            bool fillingAvailable = data.run.selectedFillingIds.Contains(SaveIds.Filling(story.RequiredFilling));
+            if (completed || !fillingAvailable)
                 continue;
 
-            ActiveStory = story;
-            break;
+            return story;
         }
+
+        return null;
     }
+
+    private static bool IsSpecialOrderMatch(
+        CustomerStoryData story,
+        FillingType filling,
+        QualityStatus bake) =>
+        story != null && filling == story.RequiredFilling;
 
     /// <summary>
     /// 게임 플레이만 초기화하면 계정의 대화 완료 기록은 남고 실행 데이터의 예약만 사라집니다.
@@ -326,6 +354,6 @@ public static class CustomerStoryProgress
 
     private static void Persist()
     {
-        SaveService.Instance.SaveStoryProgress();
+        SaveService.Service.SaveStoryProgress();
     }
 }
