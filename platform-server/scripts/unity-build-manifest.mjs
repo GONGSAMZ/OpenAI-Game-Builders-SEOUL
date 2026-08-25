@@ -200,11 +200,36 @@ async function verifyBuild() {
   );
 }
 
+async function verifyArtifactsOnly() {
+  await validateWebGlOutput(gameDistDirectory);
+  const manifestPath = path.join(gameDistDirectory, manifestFileName);
+  const expected = JSON.parse(await readFile(manifestPath, "utf8"));
+  if (
+    expected.schemaVersion !== 1 ||
+    typeof expected.unityVersion !== "string" ||
+    !/^[a-f0-9]{64}$/.test(expected.sourceTreeSha256 ?? "") ||
+    !Array.isArray(expected.artifacts)
+  ) {
+    throw new Error("Unity 빌드 매니페스트 스키마가 올바르지 않습니다.");
+  }
+
+  const actualArtifacts = await describeArtifacts(gameDistDirectory);
+  if (JSON.stringify(expected.artifacts) !== JSON.stringify(actualArtifacts)) {
+    throw new Error("Unity 빌드 매니페스트 불일치: WebGL 산출물");
+  }
+
+  console.log(
+    `UNITY_ARTIFACTS_VERIFIED version=${expected.unityVersion} source=${expected.sourceTreeSha256} artifacts=${actualArtifacts.length}`,
+  );
+}
+
 const command = process.argv[2];
 if (command === "stage") {
   await stageBuild();
 } else if (command === "verify") {
   await verifyBuild();
+} else if (command === "verify-artifacts") {
+  await verifyArtifactsOnly();
 } else {
-  throw new Error("사용법: node scripts/unity-build-manifest.mjs <stage|verify>");
+  throw new Error("사용법: node scripts/unity-build-manifest.mjs <stage|verify|verify-artifacts>");
 }

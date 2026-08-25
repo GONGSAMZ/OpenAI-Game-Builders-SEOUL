@@ -60,11 +60,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 2
-          lfs: true
-          sparse-checkout: |
-            .gitattributes
-            BungeoppangTycoon
-            platform-server
+          sparse-checkout: platform-server
 
       - id: unity-changes
         name: Detect Unity source changes
@@ -85,6 +81,29 @@ jobs:
           fi
           echo "rebuild=$rebuild" >> "$GITHUB_OUTPUT"
           echo "Unity rebuild required: $rebuild"
+
+      - name: Reject a detached game-dist update
+        if: steps.unity-changes.outputs.rebuild == 'false'
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if ! git diff --quiet "$BEFORE_SHA" "$GITHUB_SHA" -- platform-server/game-dist; then
+            echo "Unity 소스 변경 없이 game-dist만 변경할 수 없습니다." >&2
+            exit 1
+          fi
+
+      - name: Expand checkout for a Unity rebuild
+        if: steps.unity-changes.outputs.rebuild == 'true'
+        shell: bash
+        run: |
+          git sparse-checkout set --cone BungeoppangTycoon platform-server
+          git lfs pull --include="BungeoppangTycoon/**" --exclude=""
+
+      - name: Download committed WebGL artifact
+        if: steps.unity-changes.outputs.rebuild == 'false'
+        shell: bash
+        run: git lfs pull --include="platform-server/game-dist/**" --exclude=""
 
       - name: Cache Unity Library
         if: steps.unity-changes.outputs.rebuild == 'true'
@@ -118,9 +137,15 @@ jobs:
         shell: bash
         run: node platform-server/scripts/unity-build-manifest.mjs stage
 
-      - name: Verify Unity game and source hash
+      - name: Verify rebuilt Unity game and source hash
+        if: steps.unity-changes.outputs.rebuild == 'true'
         shell: bash
         run: node platform-server/scripts/unity-build-manifest.mjs verify
+
+      - name: Verify unchanged Unity artifact hashes
+        if: steps.unity-changes.outputs.rebuild == 'false'
+        shell: bash
+        run: node platform-server/scripts/unity-build-manifest.mjs verify-artifacts
 
       - name: Upload verified Unity game
         uses: actions/upload-artifact@v4
