@@ -73,6 +73,7 @@ public sealed class UI_Collection : UI_Base
     private void ShowCustomerList()
     {
         replayPanel.SetActive(false); detailPanel.SetActive(false); storyPanel.SetActive(false); customerPanel.SetActive(true);
+        SetTabButtonsVisible(true);
         BuildCustomerCards();
         SetTabVisual(customerTabButton, true); SetTabVisual(storyTabButton, false);
     }
@@ -80,6 +81,7 @@ public sealed class UI_Collection : UI_Base
     private void ShowStoryList()
     {
         replayPanel.SetActive(false); detailPanel.SetActive(false); customerPanel.SetActive(false); storyPanel.SetActive(true);
+        SetTabButtonsVisible(true);
         BuildStoryCards();
         SetTabVisual(customerTabButton, false); SetTabVisual(storyTabButton, true);
     }
@@ -98,6 +100,7 @@ public sealed class UI_Collection : UI_Base
     private void ShowDetail(CustomerCollectionEntry entry)
     {
         customerPanel.SetActive(false); detailPanel.SetActive(true);
+        SetTabButtonsVisible(false);
         detailPortrait.sprite = LoadPortrait(entry);
         detailName.text = entry.DisplayName; detailAge.text = entry.Age + "세"; detailJob.text = entry.Job;
         detailIntroduction.text = entry.PlayerIntroduction;
@@ -178,6 +181,7 @@ public sealed class UI_Collection : UI_Base
     private GameObject FindObject(string name) => Util.FindObject(gameObject, name, true);
     private TextMeshProUGUI FindText(string name) => Util.Find<TextMeshProUGUI>(gameObject, name, true);
     private void Clear(Transform parent) { for (int i = parent.childCount - 1; i >= 0; i--) Destroy(parent.GetChild(i).gameObject); }
+    private void SetTabButtonsVisible(bool visible) { if (customerTabButton != null) customerTabButton.gameObject.SetActive(visible); if (storyTabButton != null) storyTabButton.gameObject.SetActive(visible); }
     private void SetTabVisual(Button button, bool active) { Image image = button.GetComponent<Image>(); if (image != null) image.color = active ? new Color(.12f, .31f, .32f) : new Color(.83f, .70f, .47f); }
     private static Image CreateImage(string name, Transform parent, Sprite sprite) { GameObject go = new(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image)); go.transform.SetParent(parent, false); Image image = go.GetComponent<Image>(); image.sprite = sprite; image.preserveAspect = true; return image; }
     private static TextMeshProUGUI CreateText(string name, Transform parent, float size, FontStyles style) { GameObject go = new(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI)); go.transform.SetParent(parent, false); TextMeshProUGUI text = go.GetComponent<TextMeshProUGUI>(); text.font = Resources.Load<TMP_FontAsset>("omyuPretty SDF") ?? TMP_Settings.defaultFontAsset; text.fontSize = size; text.fontStyle = style; text.color = new Color(.16f, .16f, .14f); text.alignment = TextAlignmentOptions.Center; text.raycastTarget = false; return text; }
