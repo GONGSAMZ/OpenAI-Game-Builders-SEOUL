@@ -112,6 +112,9 @@ public class GameManagerEx
     }
 
     public int todayRevenue;
+    private int batterUses;
+    private readonly int[] salesByFilling = new int[GetEnumSize(typeof(FillingType))];
+    private readonly int[] fillingUses = new int[GetEnumSize(typeof(FillingType))];
 
     public int netProfit //오늘 순수익
     {
@@ -127,6 +130,10 @@ public class GameManagerEx
 
     bool hasFinalizedDaily;
     bool isSettlingDaily;
+    bool isStartingDaily;
+    bool isCheckpointing;
+    float nextDayStartRetryAt;
+    float nextCheckpointAt;
     float nextSettlementRetryAt;
 
     //현재 주문
@@ -151,6 +158,7 @@ public class GameManagerEx
         numsOfCurCustomers = 0;
         IsTutorialClockPaused = false;
         isRunning = false;
+        isStartingDaily = false;
     }
 
     //게임 생성 시 초기화 메서드
@@ -173,6 +181,8 @@ public class GameManagerEx
         IsTutorialClockPaused = false;
         dayState = DayState.Opening;
         hasFinalizedDaily = false;
+        isStartingDaily = false;
+        nextDayStartRetryAt = 0f;
 
         numsOfCurCustomers = 0;
 
@@ -182,14 +192,13 @@ public class GameManagerEx
     //하루 운영 메서드
     public void OnUpdate()
     {
-        if (isRunning == false && dayState != DayState.Closing)
+        if (isRunning == false && dayState != DayState.Closing && dayState != DayState.Opening)
             return;
 
         switch (dayState)
         {
             case DayState.Opening:
-                InitDaily();
-                dayState = DayState.Running;
+                BeginDailyOnServer();
                 break;
 
             case DayState.Running:
@@ -229,6 +238,9 @@ public class GameManagerEx
                 break;
         }
 
+        if (dayState == DayState.Running)
+            TrySaveCheckpoint();
+
         /*//하루 시작 처리 (1회성)
         if (hasInitialized == false)
         {
@@ -261,6 +273,29 @@ public class GameManagerEx
     }
 
     #region 하루 루틴 처리
+    void BeginDailyOnServer()
+    {
+        if (isStartingDaily || Time.realtimeSinceStartup < nextDayStartRetryAt)
+            return;
+
+        isStartingDaily = true;
+        isRunning = false;
+        int targetDay = CurData.day + 1;
+        SaveService.Instance.StartDay(targetDay, (success, message) =>
+        {
+            isStartingDaily = false;
+            if (!success)
+            {
+                nextDayStartRetryAt = Time.realtimeSinceStartup + 5f;
+                Debug.LogError($"영업일 시작을 다시 시도합니다: {message}");
+                return;
+            }
+
+            InitDaily();
+            dayState = DayState.Running;
+        });
+    }
+
     void InitDaily()
     {
         Debug.Log("1. 하루 시작");
@@ -273,12 +308,18 @@ public class GameManagerEx
         totalFishBunsSold = 0;      
         totalCustomers = 0;         
         ingredientCost = 0;
+        batterUses = 0;
+        Array.Clear(salesByFilling, 0, salesByFilling.Length);
+        Array.Clear(fillingUses, 0, fillingUses.Length);
         todayRevenue = 0;
         openingMoney = Money;
         hasFinalizedDaily = false;
         isSettlingDaily = false;
         nextSettlementRetryAt = 0f;
         didAlertClosingTime = false;
+        isRunning = true;
+        isCheckpointing = false;
+        nextCheckpointAt = Time.realtimeSinceStartup + 5f;
 
         //2. UI화면
         Managers.UI.CloseUI();
@@ -286,6 +327,7 @@ public class GameManagerEx
 
         //3. 오브젝트 활성화/비활성화
         InitAction?.Invoke();
+        RestoreActiveCheckpoint();
 
         //4. 필링 활성화/비활성화
         for (int i = 0; i < GetEnumSize(typeof(FillingType)); ++i)
@@ -295,6 +337,80 @@ public class GameManagerEx
                 fillingArr[i].SetActive(selected);
             else if (selected)
                 Debug.LogWarning($"선택한 재료 오브젝트를 찾을 수 없습니다: {(FillingType)i}");
+        }
+    }
+
+    void TrySaveCheckpoint()
+    {
+        if (isCheckpointing || Time.realtimeSinceStartup < nextCheckpointAt ||
+            numsOfCurCustomers != 0 || order.Count != 0 || UI_Tutorial.IsRunning ||
+            CustomerStoryProgress.IsSpecialOrderActive ||
+            UnityEngine.Object.FindFirstObjectByType<FishBunController>() != null)
+            return;
+
+        ActiveDayData activeDay = SaveService.Data.run.activeDay;
+        if (activeDay == null || activeDay.day != Day || string.IsNullOrWhiteSpace(activeDay.runId))
+            return;
+
+        GameDayCheckpointData checkpoint = new()
+        {
+            elapsedSeconds = delta,
+            money = Money,
+            openingMoney = openingMoney,
+            revenue = Money - openingMoney,
+            ingredientCost = ingredientCost,
+            sold = totalFishBunsSold,
+            customers = totalCustomers,
+            batterUses = batterUses,
+            salesByFilling = CreateFillingCounts(salesByFilling),
+            fillingUses = CreateFillingCounts(fillingUses),
+            capturedAt = DateTime.UtcNow.ToString("O")
+        };
+        isCheckpointing = true;
+        SaveService.Instance.SaveDayCheckpoint(checkpoint, (success, message) =>
+        {
+            isCheckpointing = false;
+            nextCheckpointAt = Time.realtimeSinceStartup + 5f;
+            if (!success)
+                Debug.LogWarning($"영업 체크포인트를 다음 안전 시점에 다시 저장합니다: {message}");
+        });
+    }
+
+    void RestoreActiveCheckpoint()
+    {
+        ActiveDayData activeDay = SaveService.Data.run.activeDay;
+        GameDayCheckpointData checkpoint = activeDay?.checkpoint;
+        if (checkpoint == null || activeDay.day != Day || checkpoint.schemaVersion != 1)
+            return;
+
+        delta = Mathf.Clamp(checkpoint.elapsedSeconds, 0f, (endHour - startHour) * 60f);
+        Money = checkpoint.money;
+        openingMoney = checkpoint.openingMoney;
+        ingredientCost = Mathf.Max(0, checkpoint.ingredientCost);
+        todayRevenue = Mathf.Max(0, checkpoint.revenue);
+        totalFishBunsSold = Mathf.Max(0, checkpoint.sold);
+        totalCustomers = Mathf.Max(0, checkpoint.customers);
+        batterUses = Mathf.Max(0, checkpoint.batterUses);
+        RestoreFillingCounts(salesByFilling, checkpoint.salesByFilling);
+        RestoreFillingCounts(fillingUses, checkpoint.fillingUses);
+        Debug.Log($"[저장] Day {Day} 영업 체크포인트를 {minute}분 지점에서 복원했습니다.");
+    }
+
+    private static void RestoreFillingCounts(
+        int[] target,
+        List<GameRunFillingCountData> source)
+    {
+        Array.Clear(target, 0, target.Length);
+        if (source == null) return;
+        foreach (GameRunFillingCountData entry in source)
+        {
+            if (entry == null || entry.count <= 0) continue;
+            for (int index = 0; index < target.Length; index++)
+            {
+                if (SaveIds.Filling((FillingType)index) != entry.fillingId) continue;
+                target[index] = entry.count;
+                break;
+            }
         }
     }
 
@@ -315,10 +431,14 @@ public class GameManagerEx
         //Debug.Log($"오늘 매출: {todayRevenue} - 재료비: {ingredientCost} = 오늘 순수익 {netProfit}");
         SaveService.Instance.SettleDay(
             Day,
+            SaveService.Data.run.activeDay?.runId,
             todayRevenue,
             ingredientCost,
             totalFishBunsSold,
             totalCustomers,
+            batterUses,
+            CreateFillingCounts(salesByFilling),
+            CreateFillingCounts(fillingUses),
             (success, message) =>
             {
                 isSettlingDaily = false;
@@ -334,6 +454,43 @@ public class GameManagerEx
                 Managers.UI.CloseUI();
                 Managers.UI.ShowUI<UI_DayEnd>();
             });
+    }
+
+    public void RecordBatterUse()
+    {
+        batterUses++;
+        IngredientCost += Define.BatterCost;
+    }
+
+    public void RecordFillingUse(FillingType filling)
+    {
+        int index = (int)filling;
+        if (index < 0 || index >= fillingUses.Length) return;
+        fillingUses[index]++;
+        IngredientCost += (int)(Define.FillingPrice[index] * Define.FillingCostRate);
+    }
+
+    public void RecordSale(FillingType filling)
+    {
+        int index = (int)filling;
+        if (index < 0 || index >= salesByFilling.Length) return;
+        salesByFilling[index]++;
+        totalFishBunsSold++;
+    }
+
+    private static List<GameRunFillingCountData> CreateFillingCounts(int[] counts)
+    {
+        List<GameRunFillingCountData> result = new();
+        for (int index = 0; index < counts.Length; index++)
+        {
+            if (counts[index] <= 0) continue;
+            result.Add(new GameRunFillingCountData
+            {
+                fillingId = SaveIds.Filling((FillingType)index),
+                count = counts[index]
+            });
+        }
+        return result;
     }
 
     public void StartNextDay()

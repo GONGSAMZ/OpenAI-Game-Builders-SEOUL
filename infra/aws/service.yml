@@ -411,6 +411,8 @@ Resources:
               Value: dynamodb
             - Name: DYNAMODB_TABLE
               Value: !Ref DynamoDbTable
+            - Name: SESSION_TTL_SECONDS
+              Value: "604800"
             - Name: OPENAI_MODE
               Value: !Ref OpenAiMode
           Secrets:

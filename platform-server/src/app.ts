@@ -34,9 +34,10 @@ import {
 } from "./integrations/nicepay/order-store.js";
 import { sendNicePayCheckoutPage, sendNicePayResultPage } from "./nicepay-page.js";
 import {
+  createLoginAttemptStore,
   createSessionStore,
-  OneTimeAttemptStore,
   type GameSession,
+  type LoginAttemptStore,
   type SessionStore
 } from "./session-store.js";
 import {
@@ -95,11 +96,22 @@ const moldEquipmentSchema = z.object({
 });
 
 const progressCustomerIdSchema = z.enum(playerProgressCustomerIds);
+const saveCustomerIdSchema = z.union([
+  progressCustomerIdSchema,
+  z.literal("jeonghyun")
+]);
+const soulIdSchema = z.string().regex(
+  /^soul:(red-bean|custard|nutella|cream-cheese|pizza|mint|sweet-potato|green-tea):(soft|perfect|crisp)$/
+);
 
 const customerStoryRunStateSchema = z.object({
   customerId: progressCustomerIdSchema,
   lastTalkDay: z.number().int().min(-1).max(1_000_000),
-  nextSpecialOrderDay: z.number().int().min(-1).max(1_000_000)
+  nextSpecialOrderDay: z.number().int().min(-1).max(1_000_000),
+  specialOrderState: z.union([
+    z.literal(""),
+    z.enum(["scheduled", "retry"])
+  ]).optional()
 });
 
 const storyProgressSchema = z.object({
@@ -127,8 +139,8 @@ const saveProfileSchema = z.object({
     })).max(32).optional()
   }).passthrough(),
   account: z.object({
-    customers: z.array(z.object({ customerId: z.string().min(1).max(100) }).passthrough()).max(100),
-    discoveredSouls: z.array(z.object({ soulId: z.string().min(1).max(200) }).passthrough()).max(200),
+    customers: z.array(z.object({ customerId: saveCustomerIdSchema }).passthrough()).max(8),
+    discoveredSouls: z.array(z.object({ soulId: soulIdSchema }).passthrough()).max(24),
     achievements: z.array(z.object({ achievementId: z.string().min(1).max(100) }).passthrough()).max(200)
   }).passthrough(),
   settings: z.object({
@@ -150,13 +162,42 @@ const gameStorePurchaseSchema = z.object({
   expectedRevision: z.number().int().min(0)
 });
 
+const fillingCountSchema = z.object({
+  fillingId: z.enum([
+    "red-bean",
+    "custard",
+    "nutella",
+    "cream-cheese",
+    "pizza",
+    "mint",
+    "sweet-potato",
+    "green-tea"
+  ]),
+  count: z.number().int().min(0).max(1_000)
+});
+
+const startDaySchema = z.object({
+  day: z.number().int().min(1).max(1_000_000),
+  expectedRevision: z.number().int().min(0)
+});
+
 const settleDaySchema = z.object({
   day: z.number().int().min(1).max(1_000_000),
-  revenue: z.number().int().min(0).max(1_000_000_000),
-  ingredientCost: z.number().int().min(0).max(1_000_000_000),
-  sold: z.number().int().min(0).max(1_000_000),
-  customers: z.number().int().min(0).max(1_000_000),
+  runId: z.string().uuid(),
+  revenue: z.number().int().min(0).max(2_000_000),
+  ingredientCost: z.number().int().min(0).max(2_000_000),
+  sold: z.number().int().min(0).max(1_000),
+  customers: z.number().int().min(0).max(128),
+  batterUses: z.number().int().min(0).max(1_000),
+  salesByFilling: z.array(fillingCountSchema).max(8),
+  fillingUses: z.array(fillingCountSchema).max(8),
   expectedRevision: z.number().int().min(0)
+});
+
+const checkpointDaySchema = settleDaySchema.extend({
+  elapsedSeconds: z.number().min(0).max(180),
+  money: z.number().int().min(-1_000_000).max(2_000_000),
+  openingMoney: z.number().int().min(-1_000_000).max(1_000_000)
 });
 
 const resetRunSchema = z.object({
@@ -204,7 +245,7 @@ const hivePaymentNotificationSchema = z.object({
 interface AppDependencies {
   config: AppConfig;
   sessions?: SessionStore;
-  loginAttempts?: OneTimeAttemptStore;
+  loginAttempts?: LoginAttemptStore;
   hiveClient?: HiveWebLoginClient;
   billingClient?: HiveBillingGateway;
   nicePayGateway?: NicePayGateway;
@@ -288,7 +329,7 @@ function clearSessionCookie(response: Response, config: AppConfig): void {
 export function createApp(dependencies: AppDependencies) {
   const { config } = dependencies;
   const sessions = dependencies.sessions ?? createSessionStore(config);
-  const loginAttempts = dependencies.loginAttempts ?? new OneTimeAttemptStore();
+  const loginAttempts = dependencies.loginAttempts ?? createLoginAttemptStore(config);
   const hiveClient = dependencies.hiveClient ?? new HiveWebLoginClient(config.hive);
   const billingClient = dependencies.billingClient ?? new HiveBillingClient(config.hive);
   const nicePayGateway = dependencies.nicePayGateway ?? new NicePayClient(config.nicepay);
@@ -303,7 +344,11 @@ export function createApp(dependencies: AppDependencies) {
   const playerProfiles = new PlayerProfileService(playerSaves, playerProgressStore);
   const gameStore = new GameStoreService(playerSaves);
   const app = express();
-  const requireGameSession = requireSession(sessions, sessionCookieName);
+  const requireGameSession = requireSession(
+    sessions,
+    sessionCookieName,
+    (response, session) => setSessionCookie(response, config, session.token)
+  );
   const nicePayCallbackPath = "/api/v1/store/nicepay/callback";
 
   app.disable("x-powered-by");
@@ -390,8 +435,8 @@ export function createApp(dependencies: AppDependencies) {
     });
   });
 
-  app.get("/api/v1/auth/hive/login", (_request, response) => {
-    const attempt = loginAttempts.create();
+  app.get("/api/v1/auth/hive/login", async (_request, response) => {
+    const attempt = await loginAttempts.create();
     response.cookie(loginCookieName, attempt, {
       httpOnly: true,
       secure: config.nodeEnv === "production",
@@ -418,7 +463,7 @@ export function createApp(dependencies: AppDependencies) {
     }
 
     const attempt = readCookie(request, loginCookieName);
-    if (!loginAttempts.consume(attempt)) {
+    if (!await loginAttempts.consume(attempt)) {
       sendAuthBridgePage(response, config.gameOrigin, {
         type: "HIVE_AUTH_ERROR",
         message: "로그인 요청이 없거나 만료되었습니다."
@@ -444,7 +489,7 @@ export function createApp(dependencies: AppDependencies) {
 
   app.get(["/hive/cb", "/api/v1/auth/hive/callback"], async (request, response) => {
     const attempt = readCookie(request, loginCookieName);
-    if (!loginAttempts.consume(attempt)) {
+    if (!await loginAttempts.consume(attempt)) {
       sendAuthBridgePage(response, config.gameOrigin, {
         type: "HIVE_AUTH_ERROR",
         message: "로그인 요청이 없거나 만료되었습니다."
@@ -675,6 +720,34 @@ export function createApp(dependencies: AppDependencies) {
       response
         .set("cache-control", "private, no-store")
         .json(await gameStore.purchase(session.subject, { ...input, idempotencyKey }));
+    }
+  );
+
+  app.post(
+    "/api/v1/game-run/start-day",
+    purchaseLimiter,
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const input = startDaySchema.parse(request.body);
+      const idempotencyKey = idempotencyKeySchema.parse(request.header("idempotency-key"));
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(await gameStore.startDay(session.subject, { ...input, idempotencyKey }));
+    }
+  );
+
+  app.post(
+    "/api/v1/game-run/checkpoint",
+    purchaseLimiter,
+    requireGameSession,
+    async (request: Request, response: Response) => {
+      const input = checkpointDaySchema.parse(request.body);
+      const idempotencyKey = idempotencyKeySchema.parse(request.header("idempotency-key"));
+      const { session } = response.locals as AuthenticatedLocals;
+      response
+        .set("cache-control", "private, no-store")
+        .json(await gameStore.checkpointDay(session.subject, { ...input, idempotencyKey }));
     }
   );
 

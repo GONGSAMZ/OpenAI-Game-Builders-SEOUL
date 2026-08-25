@@ -117,7 +117,7 @@ public class MoldController : MonoBehaviour
             TutorialSignals.Raise(TutorialEvent.MoldFilled, _fishBun);
 
             //재료비 통계
-            Managers.Game.IngredientCost += Define.BatterCost; //반죽 원가
+            Managers.Game.RecordBatterUse();
         }
 
 

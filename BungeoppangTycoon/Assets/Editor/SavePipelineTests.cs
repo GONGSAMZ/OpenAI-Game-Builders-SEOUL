@@ -71,6 +71,33 @@ public sealed class SavePipelineTests
     }
 
     [Test]
+    public void LocalStore_PendingRemoteFlag_FollowsTheRecoverableSaveSlot()
+    {
+        const string scope = "editmode_pending_remote_test";
+        ClearScope(scope);
+        PlayerPrefsLocalSaveStore store = new();
+        SaveGameData synced = SaveDataFactory.CreateDefault();
+        synced.run.money = 6000;
+        store.Save(scope, synced, false);
+        SaveGameData pending = SaveDataFactory.Clone(synced);
+        pending.run.money = 9000;
+        store.Save(scope, pending, true);
+
+        Assert.That(store.TryLoad(scope, out SaveGameData latest, out bool latestPending), Is.True);
+        Assert.That(latest.run.money, Is.EqualTo(9000));
+        Assert.That(latestPending, Is.True);
+
+        string active = PlayerPrefs.GetString($"game_save_v2_{scope}_active");
+        PlayerPrefs.SetString($"game_save_v2_{scope}_{active}", "{broken-json");
+        PlayerPrefs.Save();
+
+        Assert.That(store.TryLoad(scope, out SaveGameData recovered, out bool recoveredPending), Is.True);
+        Assert.That(recovered.run.money, Is.EqualTo(6000));
+        Assert.That(recoveredPending, Is.False);
+        ClearScope(scope);
+    }
+
+    [Test]
     public void Normalize_V2Settings_MigratesLegacyPlayerPrefsOnce()
     {
         PlayerPrefs.SetFloat(SaveDataFactory.LegacyVolumeKey, 0.35f);
@@ -81,7 +108,7 @@ public sealed class SavePipelineTests
             SaveGameData legacy = new() { schemaVersion = 2 };
             SaveDataFactory.Normalize(legacy);
 
-            Assert.That(legacy.schemaVersion, Is.EqualTo(7));
+            Assert.That(legacy.schemaVersion, Is.EqualTo(8));
             Assert.That(legacy.settings.masterVolume, Is.EqualTo(0.35f).Within(0.001f));
             Assert.That(legacy.settings.keyboardHintsEnabled, Is.False);
             Assert.That(legacy.settings.tutorialCompleted, Is.True);
@@ -191,7 +218,7 @@ public sealed class SavePipelineTests
 
         CustomerStoryRunState state = data.run.customerStories.Find(
             value => value.customerId == "jeonghyeon");
-        Assert.That(data.schemaVersion, Is.EqualTo(7));
+        Assert.That(data.schemaVersion, Is.EqualTo(8));
         Assert.That(state.specialOrderState, Is.EqualTo(CustomerStorySchedule.Scheduled));
     }
 
@@ -215,7 +242,7 @@ public sealed class SavePipelineTests
 
         SaveDataFactory.Normalize(legacy);
 
-        Assert.That(legacy.schemaVersion, Is.EqualTo(7));
+        Assert.That(legacy.schemaVersion, Is.EqualTo(8));
         Assert.That(legacy.run.unlockedFillingIds, Is.EquivalentTo(new[]
         {
             "red-bean", "custard", "nutella", "cream-cheese"
@@ -235,7 +262,7 @@ public sealed class SavePipelineTests
 
         SaveDataFactory.Normalize(legacy);
 
-        Assert.That(legacy.schemaVersion, Is.EqualTo(7));
+        Assert.That(legacy.schemaVersion, Is.EqualTo(8));
         Assert.That(legacy.run.unlockedFillingIds, Has.Count.EqualTo(4));
         Assert.That(legacy.run.selectedFillingIds, Is.Empty);
     }
@@ -334,6 +361,44 @@ public sealed class SavePipelineTests
     }
 
     [Test]
+    public void MergeAfterRemoteConflict_PreservesRetryStateAtTheSameDueDay()
+    {
+        SaveGameData remote = SaveDataFactory.CreateDefault();
+        remote.run.customerStories.Add(new CustomerStoryRunState
+        {
+            customerId = "jeonghyeon",
+            nextSpecialOrderDay = 5,
+            specialOrderState = CustomerStorySchedule.Scheduled
+        });
+        SaveGameData local = SaveDataFactory.CreateDefault();
+        local.run.customerStories.Add(new CustomerStoryRunState
+        {
+            customerId = "jeonghyeon",
+            nextSpecialOrderDay = 5,
+            specialOrderState = CustomerStorySchedule.Retry
+        });
+
+        SaveGameData merged = SaveDataFactory.MergeAfterRemoteConflict(remote, local);
+
+        CustomerStoryRunState state = merged.run.customerStories.Find(
+            value => value.customerId == "jeonghyeon");
+        Assert.That(state.specialOrderState, Is.EqualTo(CustomerStorySchedule.Retry));
+    }
+
+    [TestCase(0, false)]
+    [TestCase(500, false)]
+    [TestCase(503, false)]
+    [TestCase(401, true)]
+    public void PlatformSession_OnlyExplicitUnauthorizedClearsAccount(long status, bool expected)
+    {
+        MethodInfo method = typeof(GamePlatformClient).GetMethod(
+            "IsAuthoritativeLogoutStatus",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.That(method, Is.Not.Null);
+        Assert.That(method.Invoke(null, new object[] { status }), Is.EqualTo(expected));
+    }
+
+    [Test]
     public void InAppMarketPrefab_ContainsPurchaseHistoryStatesAndPagination()
     {
         GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(
@@ -357,7 +422,11 @@ public sealed class SavePipelineTests
 
     private static void ClearScope(string scope)
     {
-        foreach (string suffix in new[] { "active", "a", "a_checksum", "b", "b_checksum" })
+        foreach (string suffix in new[]
+                 {
+                     "active", "a", "a_checksum", "a_pending_remote",
+                     "b", "b_checksum", "b_pending_remote"
+                 })
             PlayerPrefs.DeleteKey($"game_save_v2_{scope}_{suffix}");
         PlayerPrefs.Save();
     }

@@ -110,7 +110,9 @@ Hive 로그인 후 호출할 수 있습니다.
 - `GET /api/v1/game-store/catalog` — 일반 상점 상품, 가격, 카테고리, 소유 유형과 효과 반환
 - `GET /api/v1/game-store/me` — revision, 일반 돈, 해금 이력, 다음 날 선택 소, 보유 도구, 예약 효과와 상품 상태 반환
 - `POST /api/v1/game-store/purchases` — `productId`, `expectedRevision`과 UUID `Idempotency-Key`로 구매
-- `POST /api/v1/game-run/settle-day` — 날짜, 매출, 재료비, 판매량, 손님 수를 제출하고 서버에서 잔액·다음 날짜 계산
+- `POST /api/v1/game-run/start-day` — revision과 UUID 멱등 키로 서버 영업일·`runId` 발급
+- `POST /api/v1/game-run/checkpoint` — 서버 발급 `runId`에 안전 지점의 시간·매출·사용량을 저장
+- `POST /api/v1/game-run/settle-day` — `runId`, 소별 판매·사용량과 총계를 제출하고 서버가 가격표로 매출·원가·잔액·다음 날짜 계산
 - `POST /api/v1/save/reset-run` — 일반 진행만 초기화하고 계정 영역과 HIVE 보유품 보존
 
 구매 상태는 `owned`, `purchasable`, `locked`, `insufficient-funds`다. 비로그인 Unity 클라이언트는 공개 카탈로그를 자체 `login-required` 보기 전용 상태로 표시한다. 변경 API는 최신 `expectedRevision`을 요구하며 충돌 시 `409 SAVE_CONFLICT`와 서버 프로필을 반환한다.
@@ -266,6 +268,10 @@ HIVE 웹 상점의 결제 알림 URL입니다. `STORE_MODE=hive-web-shop`에서�
 - 다른 기기에서 먼저 저장했다면 `409 SAVE_CONFLICT`와 서버의 최신 `profile`을 반환한다.
 - 클라이언트는 충돌 시 서버 데이터를 우선하고 로컬 데이터는 백업한다.
 
-`SaveProfile` v7은 `run`, `account`, `settings`를 저장합니다. `run`에는 일반 돈, 영구 해금 이력 `unlockedFillingIds`, 다음 영업일 선택 `selectedFillingIds`, 일반 상점 도구와 예약 효과가 있고 `account`에는 업적, 손님 도감·스토리, 영혼 도감과 누적 통계가 있습니다. `settings`에는 `masterVolume`, `keyboardHintsEnabled`, `tutorialCompleted`가 있습니다. 일반 경제 필드는 전용 트랜잭션 API만 변경하며, 팥 코인·HIVE 구매·프리미엄 장비는 이 문서가 아니라 기존 서버 권한의 상점 레코드를 기준으로 합니다.
+`SaveProfile` v8은 `run`, `account`, `settings`를 저장합니다. `run`에는 일반 돈, 영구 해금 이력 `unlockedFillingIds`, 다음 영업일 선택 `selectedFillingIds`, 일반 상점 도구·예약 효과와 진행 중인 `activeDay` 안전 체크포인트가 있고 `account`에는 업적, 손님 도감·스토리, 영혼 도감과 누적 통계가 있습니다. `settings`에는 `masterVolume`, `keyboardHintsEnabled`, `tutorialCompleted`가 있습니다. 일반 경제·누적 통계·업적과 `activeDay`는 서버 권한 필드이며 전용 영업 트랜잭션 API만 변경합니다. 팥 코인·HIVE 구매·프리미엄 장비는 이 문서가 아니라 기존 서버 권한의 상점 레코드를 기준으로 합니다.
 
-v2 계정은 최초 최신 클라이언트 접근 때만 기존 PlayerPrefs 설정을 채웁니다. 서버에 이미 설정이 있으면 서버 값이 우선합니다. 손님 ID `jeonghyun`은 `jeonghyeon`으로 병합하며 복구 가능한 양쪽 진행을 합집합·최댓값으로 유지합니다. 신규 v7 계정의 첫날은 팥만 기본 선택합니다. 기존 계정의 해금 이력은 회수하지 않지만 v7 이관 때 매일 선택된 것으로 취급하지 않습니다.
+정산 API는 서버 발급 `runId`, 서버 시각상 가능한 손님 수, 손님당 주문 수, 선택한 소, 반죽·소 사용량과 서버 카탈로그 가격을 함께 검증합니다. 클라이언트가 임의의 절대 잔액·누적 통계·업적을 제출해도 반영하지 않습니다. 이 검증은 현재 싱글 플레이 계정 경제의 무결성 경계이며, 향후 경쟁 랭킹에는 서버 관측형 주문·판매 이벤트 원장을 별도로 추가해야 합니다.
+
+v2 계정은 최초 최신 클라이언트 접근 때만 기존 PlayerPrefs 설정을 채웁니다. 서버에 이미 설정이 있으면 서버 값이 우선합니다. 손님 ID `jeonghyun`은 `jeonghyeon`으로 병합하며 복구 가능한 양쪽 진행을 합집합·최댓값으로 유지합니다. 신규 v8 계정의 첫날은 팥만 기본 선택합니다. 기존 계정의 해금 이력은 회수하지 않지만 v7 이관 때 매일 선택된 것으로 취급하지 않습니다. `specialOrderState`는 빈 값·`scheduled`·`retry`만 허용하고 서버 왕복 후 그대로 보존합니다.
+
+운영 게임 세션은 7일 TTL이며 남은 시간이 절반 이하일 때 인증 API 사용으로 연장됩니다. 명시적 로그아웃과 장기 미사용은 만료되며, 일시적인 네트워크 오류나 5xx만으로 클라이언트 계정 상태를 지우지 않습니다. HIVE 로그인 nonce는 운영 DynamoDB에서 한 번만 원자적으로 소비합니다.

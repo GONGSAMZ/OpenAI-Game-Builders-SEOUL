@@ -33,7 +33,11 @@ export interface AuthenticatedLocals {
   session: GameSession;
 }
 
-export function requireSession(store: SessionStore, cookieName?: string) {
+export function requireSession(
+  store: SessionStore,
+  cookieName?: string,
+  onAuthenticated?: (response: Response, session: GameSession) => void
+) {
   return async (request: Request, response: Response, next: NextFunction): Promise<void> => {
     try {
       const token =
@@ -48,6 +52,7 @@ export function requireSession(store: SessionStore, cookieName?: string) {
       }
 
       (response.locals as AuthenticatedLocals).session = session;
+      onAuthenticated?.(response, session);
       next();
     } catch (error) {
       next(error);

@@ -11,6 +11,7 @@
   const logoutButton = document.getElementById("logout-button");
   const shopLink = document.getElementById("shop-link");
   let session = null;
+  let sessionResolved = false;
 
   function setMenuOpen(open) {
     const nextOpen = Boolean(open && session);
@@ -19,6 +20,7 @@
   }
 
   function renderSession(nextSession, notifyGame = true) {
+    sessionResolved = true;
     session = nextSession;
     const stableId = nextSession?.playerId || nextSession?.subject;
     const accountLabel = nextSession?.accountLabel || (
@@ -45,23 +47,31 @@
     try {
       const result = await window.gameBridge.getSession();
       renderSession(result.session, notifyGame);
-    } catch (_error) {
-      window.gameBridge.sessionToken = null;
-      renderSession(null, notifyGame);
+    } catch (error) {
+      if (error?.status === 401) {
+        window.gameBridge.sessionToken = null;
+        renderSession(null, notifyGame);
+        return;
+      }
+      loginButton.title = "서버 연결이 불안정합니다. 로그인 상태를 유지하며 다시 확인합니다.";
     }
   }
 
   async function configureHeader() {
-    const config = await window.gameBridge.getPublicConfig();
-    if (config.hiveWebShopUrl) {
+    const gameFrame = document.getElementById("game-frame");
+    gameFrame?.addEventListener("load", () => {
+      // null means "not resolved" until GET /auth/session returns 200 or 401.
+      // Never turn a slow/bootstrap failure into an authoritative logout.
+      if (sessionResolved) window.gameBridge.broadcastSession(Boolean(session));
+    });
+    const [config] = await Promise.all([
+      window.gameBridge.getPublicConfig().catch(() => null),
+      restoreSession(true)
+    ]);
+    if (config?.hiveWebShopUrl) {
       shopLink.href = config.hiveWebShopUrl;
       shopLink.hidden = false;
     }
-    const gameFrame = document.getElementById("game-frame");
-    gameFrame?.addEventListener("load", () => {
-      window.gameBridge.broadcastSession(Boolean(session));
-    });
-    await restoreSession(true);
   }
 
   loginButton.addEventListener("click", async () => {
@@ -112,5 +122,7 @@
     }
   });
 
-  configureHeader().catch(() => renderSession(null));
+  configureHeader().catch(() => {
+    loginButton.title = "서버 연결이 불안정합니다. 로그인 상태를 유지하며 다시 확인합니다.";
+  });
 })();

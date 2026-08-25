@@ -27,6 +27,42 @@ public sealed class RunProgressData
     public List<string> ownedGameplayItemIds = new();
     // 일반 상점에서 다음 영업일에 예약한 하루 한정 효과다.
     public List<QueuedDayEffectData> queuedDayEffects = new();
+    // 서버가 발급한 진행 중 영업일이다. 정산 성공 또는 새 게임 초기화 때 제거된다.
+    public ActiveDayData activeDay;
+}
+
+[Serializable]
+public sealed class ActiveDayData
+{
+    public string runId = string.Empty;
+    public int day;
+    public string startedAt = string.Empty;
+    public List<string> selectedFillingIds = new();
+    public GameDayCheckpointData checkpoint;
+}
+
+[Serializable]
+public sealed class GameRunFillingCountData
+{
+    public string fillingId = string.Empty;
+    public int count;
+}
+
+[Serializable]
+public sealed class GameDayCheckpointData
+{
+    public int schemaVersion = 1;
+    public float elapsedSeconds;
+    public int money;
+    public int openingMoney;
+    public int revenue;
+    public int ingredientCost;
+    public int sold;
+    public int customers;
+    public int batterUses;
+    public List<GameRunFillingCountData> salesByFilling = new();
+    public List<GameRunFillingCountData> fillingUses = new();
+    public string capturedAt = string.Empty;
 }
 
 [Serializable]
@@ -174,7 +210,7 @@ public static class SaveIds
 
 public static class SaveDataFactory
 {
-    public const int CurrentSchemaVersion = 7;
+    public const int CurrentSchemaVersion = 8;
     public const int InitialMoney = 5000;
     public const string LegacyVolumeKey = "settings_master_volume_v1";
     public const string LegacyKeyboardHintsKey = "settings_keyboard_hints_enabled_v1";
@@ -230,6 +266,15 @@ public static class SaveDataFactory
         data.run.customerStories ??= new List<CustomerStoryRunState>();
         data.run.ownedGameplayItemIds ??= new List<string>();
         data.run.queuedDayEffects ??= new List<QueuedDayEffectData>();
+        if (data.run.activeDay != null)
+        {
+            data.run.activeDay.runId ??= string.Empty;
+            data.run.activeDay.startedAt ??= string.Empty;
+            data.run.activeDay.selectedFillingIds ??= new List<string>();
+            NormalizeUniqueIds(data.run.activeDay.selectedFillingIds);
+            if (data.run.activeDay.day < 1 || string.IsNullOrWhiteSpace(data.run.activeDay.runId))
+                data.run.activeDay = null;
+        }
         foreach (string id in RequiredDefaultFillingIds)
             if (!data.run.unlockedFillingIds.Contains(id)) data.run.unlockedFillingIds.Add(id);
         NormalizeQueuedDayEffects(data.run.queuedDayEffects);
@@ -454,6 +499,8 @@ public static class SaveDataFactory
         SaveGameData localCopy = Clone(local);
         if (preferLocalRun)
             merged.run = CopyRun(localCopy.run);
+        else
+            MergeStoryStates(merged.run.customerStories, localCopy.run.customerStories);
 
         MergeAccount(merged.account, localCopy.account);
         merged.settings = new UserSettingsData
@@ -468,6 +515,43 @@ public static class SaveDataFactory
         return merged;
     }
 
+    private static void MergeStoryStates(
+        List<CustomerStoryRunState> target,
+        List<CustomerStoryRunState> source)
+    {
+        target ??= new List<CustomerStoryRunState>();
+        if (source == null) return;
+        foreach (CustomerStoryRunState localState in source)
+        {
+            if (localState == null || string.IsNullOrWhiteSpace(localState.customerId)) continue;
+            CustomerStoryRunState remoteState = target.Find(
+                value => value != null && value.customerId == localState.customerId);
+            if (remoteState == null)
+            {
+                target.Add(new CustomerStoryRunState
+                {
+                    customerId = localState.customerId,
+                    lastTalkDay = localState.lastTalkDay,
+                    nextSpecialOrderDay = localState.nextSpecialOrderDay,
+                    specialOrderState = localState.specialOrderState
+                });
+                continue;
+            }
+
+            remoteState.lastTalkDay = Math.Max(remoteState.lastTalkDay, localState.lastTalkDay);
+            if (localState.nextSpecialOrderDay > remoteState.nextSpecialOrderDay)
+            {
+                remoteState.nextSpecialOrderDay = localState.nextSpecialOrderDay;
+                remoteState.specialOrderState = localState.specialOrderState;
+            }
+            else if (localState.nextSpecialOrderDay == remoteState.nextSpecialOrderDay &&
+                     localState.specialOrderState == CustomerStorySchedule.Retry)
+            {
+                remoteState.specialOrderState = CustomerStorySchedule.Retry;
+            }
+        }
+    }
+
     private static RunProgressData CopyRun(RunProgressData source) => new()
     {
         nextDay = source.nextDay,
@@ -476,8 +560,24 @@ public static class SaveDataFactory
         selectedFillingIds = new List<string>(source.selectedFillingIds ?? new List<string>()),
         customerStories = CopyStoryStates(source.customerStories),
         ownedGameplayItemIds = new List<string>(source.ownedGameplayItemIds ?? new List<string>()),
-        queuedDayEffects = CopyQueuedDayEffects(source.queuedDayEffects)
+        queuedDayEffects = CopyQueuedDayEffects(source.queuedDayEffects),
+        activeDay = CopyActiveDay(source.activeDay)
     };
+
+    private static ActiveDayData CopyActiveDay(ActiveDayData source)
+    {
+        if (source == null) return null;
+        return new ActiveDayData
+        {
+            runId = source.runId,
+            day = source.day,
+            startedAt = source.startedAt,
+            selectedFillingIds = new List<string>(source.selectedFillingIds ?? new List<string>()),
+            checkpoint = source.checkpoint == null
+                ? null
+                : JsonUtility.FromJson<GameDayCheckpointData>(JsonUtility.ToJson(source.checkpoint))
+        };
+    }
 
     private static List<QueuedDayEffectData> CopyQueuedDayEffects(List<QueuedDayEffectData> source)
     {

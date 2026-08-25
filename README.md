@@ -65,7 +65,7 @@
 
 ## 🌐 웹 플랫폼 연동
 
-Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점, 계정별 SaveProfile v7·일반 상점·구매 내역과 OpenAI API를 처리합니다. 서버가 같은 도메인의 `/game/`에서 WebGL 빌드를 제공하며, 루트 화면은 상단 헤더와 게임만 표시합니다. HIVE·상점·OpenAI 기능은 서버 API와 Unity 브리지에 유지하고 게임 UI에서 호출할 수 있습니다. 외부 비밀키는 Unity나 브라우저에 포함하지 않고 서버 환경변수로만 관리합니다.
+Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점, 계정별 SaveProfile v8·영업 안전 체크포인트·일반 상점·구매 내역과 OpenAI API를 처리합니다. 서버가 같은 도메인의 `/game/`에서 WebGL 빌드를 제공하며, 루트 화면은 상단 헤더와 게임만 표시합니다. HIVE·상점·OpenAI 기능은 서버 API와 Unity 브리지에 유지하고 게임 UI에서 호출할 수 있습니다. 외부 비밀키는 Unity나 브라우저에 포함하지 않고 서버 환경변수로만 관리합니다.
 
 > 팀 작업 전에 **[팀 작업·운영 인수인계 가이드](docs/08_TEAM_WORK_AND_OPERATIONS_GUIDE.md)**를 확인하세요. Unity/WebGL 갱신, HIVE 상품 등록, NICEPAY 테스트 결제, AWS 배포·롤백, OpenAI live 전환과 콘솔 팀원 초대 절차의 기준 문서입니다.
 

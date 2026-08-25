@@ -197,10 +197,14 @@ public sealed class GamePlatformClient : MonoBehaviour
 
     public IEnumerator SettleGameDay(
         int day,
+        string runId,
         int revenue,
         int ingredientCost,
         int sold,
         int customers,
+        int batterUses,
+        List<GameRunFillingCountData> salesByFilling,
+        List<GameRunFillingCountData> fillingUses,
         long expectedRevision,
         string idempotencyKey,
         Action<string> onSuccess,
@@ -209,15 +213,74 @@ public sealed class GamePlatformClient : MonoBehaviour
         string payload = JsonUtility.ToJson(new SettleGameDayRequest
         {
             day = day,
+            runId = runId,
             revenue = revenue,
             ingredientCost = ingredientCost,
             sold = sold,
             customers = customers,
+            batterUses = batterUses,
+            salesByFilling = salesByFilling,
+            fillingUses = fillingUses,
             expectedRevision = expectedRevision
         });
         yield return SendJsonDetailed(
             "POST",
             "/api/v1/game-run/settle-day",
+            payload,
+            onSuccess,
+            onFailure,
+            idempotencyKey);
+    }
+
+    public IEnumerator StartGameDay(
+        int day,
+        long expectedRevision,
+        string idempotencyKey,
+        Action<string> onSuccess,
+        Action<long, string> onFailure)
+    {
+        string payload = JsonUtility.ToJson(new StartGameDayRequest
+        {
+            day = day,
+            expectedRevision = expectedRevision
+        });
+        yield return SendJsonDetailed(
+            "POST",
+            "/api/v1/game-run/start-day",
+            payload,
+            onSuccess,
+            onFailure,
+            idempotencyKey);
+    }
+
+    public IEnumerator CheckpointGameDay(
+        string runId,
+        int day,
+        GameDayCheckpointData checkpoint,
+        long expectedRevision,
+        string idempotencyKey,
+        Action<string> onSuccess,
+        Action<long, string> onFailure)
+    {
+        string payload = JsonUtility.ToJson(new CheckpointGameDayRequest
+        {
+            runId = runId,
+            day = day,
+            elapsedSeconds = checkpoint.elapsedSeconds,
+            money = checkpoint.money,
+            openingMoney = checkpoint.openingMoney,
+            revenue = checkpoint.revenue,
+            ingredientCost = checkpoint.ingredientCost,
+            sold = checkpoint.sold,
+            customers = checkpoint.customers,
+            batterUses = checkpoint.batterUses,
+            salesByFilling = checkpoint.salesByFilling,
+            fillingUses = checkpoint.fillingUses,
+            expectedRevision = expectedRevision
+        });
+        yield return SendJsonDetailed(
+            "POST",
+            "/api/v1/game-run/checkpoint",
             payload,
             onSuccess,
             onFailure,
@@ -462,7 +525,7 @@ public sealed class GamePlatformClient : MonoBehaviour
         {
             // The server session is authoritative. This also clears account data if a
             // cross-frame logout notification is missed or the session expires remotely.
-            if (request.responseCode == 401 && IsLoggedIn)
+            if (IsAuthoritativeLogoutStatus(request.responseCode) && IsLoggedIn)
                 OnHiveLogoutSuccess(string.Empty);
             onFailure?.Invoke(request.responseCode, request.downloadHandler.text);
             yield break;
@@ -481,7 +544,8 @@ public sealed class GamePlatformClient : MonoBehaviour
         int requestGeneration = sessionGeneration;
         bool restored = false;
         string sessionJson = null;
-        yield return SendJson(
+        long failureStatus = -1;
+        yield return SendJsonDetailed(
             "GET",
             "/api/v1/auth/session",
             null,
@@ -490,21 +554,29 @@ public sealed class GamePlatformClient : MonoBehaviour
                 restored = true;
                 sessionJson = json;
             },
-            false);
+            (status, _) => failureStatus = status);
 
         if (requestGeneration != sessionGeneration)
             yield break;
 
-        serverSessionAvailable = restored;
-        if (!restored)
+        if (restored)
         {
-            sessionToken = null;
-            SetSessionSubject(null);
-        }
-        else
-        {
+            serverSessionAvailable = true;
             ApplySession(sessionJson);
             SyncInventoryNow();
+        }
+        else if (IsAuthoritativeLogoutStatus(failureStatus))
+        {
+            // SendJsonDetailed가 로그인 중인 401을 이미 명시적 로그아웃으로 처리한다.
+            // 앱 최초 복원처럼 아직 로그인 상태가 아니었던 경우만 여기서 빈 상태를 확정한다.
+            serverSessionAvailable = false;
+            sessionToken = null;
+            SetSessionSubject(null);
+            ClearStoreState();
+        }
+        else if (IsLoggedIn)
+        {
+            Debug.LogWarning($"[Platform] 세션 확인이 일시적으로 실패했습니다(HTTP {failureStatus}). 로그인 상태를 유지하고 재시도합니다.");
         }
 
         if (notifyRestoreCompleted)
@@ -567,6 +639,8 @@ public sealed class GamePlatformClient : MonoBehaviour
         public string idempotencyKey;
     }
 
+    private static bool IsAuthoritativeLogoutStatus(long status) => status == 401;
+
     [Serializable]
     private sealed class GameStorePurchaseRequest
     {
@@ -578,10 +652,39 @@ public sealed class GamePlatformClient : MonoBehaviour
     private sealed class SettleGameDayRequest
     {
         public int day;
+        public string runId;
         public int revenue;
         public int ingredientCost;
         public int sold;
         public int customers;
+        public int batterUses;
+        public List<GameRunFillingCountData> salesByFilling;
+        public List<GameRunFillingCountData> fillingUses;
+        public long expectedRevision;
+    }
+
+    [Serializable]
+    private sealed class StartGameDayRequest
+    {
+        public int day;
+        public long expectedRevision;
+    }
+
+    [Serializable]
+    private sealed class CheckpointGameDayRequest
+    {
+        public string runId;
+        public int day;
+        public float elapsedSeconds;
+        public int money;
+        public int openingMoney;
+        public int revenue;
+        public int ingredientCost;
+        public int sold;
+        public int customers;
+        public int batterUses;
+        public List<GameRunFillingCountData> salesByFilling;
+        public List<GameRunFillingCountData> fillingUses;
         public long expectedRevision;
     }
 
