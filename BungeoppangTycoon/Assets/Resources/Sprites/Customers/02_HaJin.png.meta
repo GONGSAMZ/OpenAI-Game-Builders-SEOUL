@@ -123,13 +123,13 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: HaYoung_Default
+      name: HaJin_Default
       rect:
         serializedVersion: 2
-        x: 0
-        y: 0
-        width: 512
-        height: 1024
+        x: 126
+        y: 300
+        width: 386
+        height: 700
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -145,13 +145,13 @@ TextureImporter:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: HaYoung_Joy
+      name: HaJin_Joy
       rect:
         serializedVersion: 2
         x: 512
-        y: 0
+        y: 300
         width: 512
-        height: 1024
+        height: 700
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -167,13 +167,13 @@ TextureImporter:
       edges: []
       weights: []
     - serializedVersion: 2
-      name: HaYoung_Disappointed
+      name: HaJin_Disappointed
       rect:
         serializedVersion: 2
         x: 1024
-        y: 0
-        width: 512
-        height: 1024
+        y: 300
+        width: 348
+        height: 700
       alignment: 0
       pivot: {x: 0.5, y: 0.5}
       border: {x: 0, y: 0, z: 0, w: 0}
@@ -202,9 +202,9 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      HaYoung_Default: -1249280825
-      HaYoung_Disappointed: -1942686023
-      HaYoung_Joy: -1224532695
+      HaJin_Default: -1249280825
+      HaJin_Disappointed: -1942686023
+      HaJin_Joy: -1224532695
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: Figma source Yrun8rClSF4bLDLSsDDjuQ

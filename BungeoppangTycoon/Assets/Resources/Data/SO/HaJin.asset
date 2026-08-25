@@ -10,10 +10,10 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 46e9ca036e4d3c54e8fc681951f28e21, type: 3}
-  m_Name: HaYoung
+  m_Name: HaJin
   m_EditorClassIdentifier: 
   _customer: 1
-  spriteSheetPath: Customers/02_HaYoung
+  spriteSheetPath: Customers/02_HaJin
   flavor: 1
   greetingText:
   - "\uC548\uB155\uD558\uC138\uC694!"
