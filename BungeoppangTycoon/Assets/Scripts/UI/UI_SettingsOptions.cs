@@ -70,8 +70,14 @@ public sealed class UI_SettingsOptions : UI_SettingsPopupBase
             footerCloseButton.onClick.AddListener(() => Managers.UI.CloseUI(false));
 
         RefreshDescription();
-        if (EventSystem.current != null && closeButton != null)
-            EventSystem.current.SetSelectedGameObject(closeButton.gameObject);
+        if (EventSystem.current != null)
+        {
+            Selectable firstControl = volumeSlider != null
+                ? (Selectable)volumeSlider
+                : keyboardHintButton;
+            if (firstControl != null)
+                EventSystem.current.SetSelectedGameObject(firstControl.gameObject);
+        }
     }
 
     private void Update()
@@ -120,13 +126,21 @@ public sealed class UI_SettingsOptions : UI_SettingsPopupBase
                 : volumePercent > 0 ? "현재 소리: 작게"
                 : "현재 소리: 꺼짐";
         if (keyboardHintStateText != null)
+        {
             keyboardHintStateText.text = keyboardHintsEnabled ? "켜짐" : "꺼짐";
+            RectTransform stateRect = keyboardHintStateText.rectTransform;
+            stateRect.anchorMin = stateRect.anchorMax = new Vector2(0f, 1f);
+            stateRect.pivot = new Vector2(0f, 1f);
+            stateRect.anchoredPosition = keyboardHintsEnabled ? new Vector2(10f, -10f) : new Vector2(48f, -10f);
+            stateRect.sizeDelta = new Vector2(60f, 28f);
+            keyboardHintStateText.alignment = TextAlignmentOptions.Center;
+        }
         if (keyboardHintToggleBackground != null)
             keyboardHintToggleBackground.color = keyboardHintsEnabled
                 ? new Color(0.18f, 0.42f, 0.44f, 1f)
                 : new Color(0.40f, 0.38f, 0.33f, 1f);
         if (keyboardHintDescriptionText != null)
-            keyboardHintDescriptionText.text = "단축키를 화면에 표시해요.";
+            keyboardHintDescriptionText.text = keyboardHintsEnabled ? "단축키를 화면에 표시해요." : "단축키 안내를 화면에서 숨겨요.";
         if (keyboardHintToggleThumb != null)
         {
             keyboardHintToggleThumb.anchorMin = keyboardHintToggleThumb.anchorMax =

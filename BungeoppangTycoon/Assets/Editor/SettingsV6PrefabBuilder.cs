@@ -177,7 +177,7 @@ public static class SettingsV6PrefabBuilder
         SetTopLeft(root.GetComponent<RectTransform>(), 52, 128, 430, 34);
         Image track = SlicedSpriteImage("Background", root.transform, SettingsV4 + "Generated/slider-track-v4");
         SetAnchored(track.rectTransform, 0, .5f, 1, .5f, new Vector2(0, 18));
-        track.raycastTarget = false;
+        track.raycastTarget = true;
 
         GameObject fillArea = new("Fill Area", typeof(RectTransform));
         fillArea.transform.SetParent(root.transform, false);
@@ -192,6 +192,7 @@ public static class SettingsV6PrefabBuilder
         handleArea.transform.SetParent(root.transform, false);
         Stretch(handleArea.GetComponent<RectTransform>());
         Image handle = SpriteGraphic("Handle", handleArea.transform, SettingsV4 + "volume-knob", 0, 0, 38, 38);
+        handle.raycastTarget = true;
         handle.rectTransform.anchorMin = handle.rectTransform.anchorMax = new Vector2(1f, .5f);
         handle.rectTransform.pivot = new Vector2(.5f, .5f);
         handle.rectTransform.anchoredPosition = Vector2.zero;
