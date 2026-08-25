@@ -4,15 +4,51 @@ import type {
   PlayerProgressStore,
   StoryProgressInput
 } from "../progress/store.js";
+import { playerProgressCustomerIds } from "../progress/store.js";
 import {
   SaveRevisionConflictError,
   type PlayerSaveProfile,
   type PlayerSaveStore
 } from "./save-store.js";
 
-export const currentSchemaVersion = 7;
+export const currentSchemaVersion = 8;
 const progressMigrationId = "progress-v1";
 const requiredDefaultFillings = ["red-bean"];
+const validCustomerIds = new Set<string>(playerProgressCustomerIds);
+const validSoulIdPattern = /^soul:(red-bean|custard|nutella|cream-cheese|pizza|mint|sweet-potato|green-tea):(soft|perfect|crisp)$/;
+const serverAchievementDefinitions = [
+  { achievementId: "first-sale", target: 1, progress: (profile: PlayerSaveProfile) => lifetimeStat(profile, "totalSales") },
+  { achievementId: "sales-50", target: 50, progress: (profile: PlayerSaveProfile) => lifetimeStat(profile, "totalSales") },
+  { achievementId: "customers-30", target: 30, progress: (profile: PlayerSaveProfile) => lifetimeStat(profile, "totalCustomers") },
+  { achievementId: "revenue-50000", target: 50_000, progress: (profile: PlayerSaveProfile) => lifetimeStat(profile, "totalRevenue") },
+  { achievementId: "daily-profit-10000", target: 10_000, progress: (profile: PlayerSaveProfile) => lifetimeStat(profile, "bestDailyProfit") },
+  {
+    achievementId: "meet-all-customers",
+    target: 8,
+    progress: (profile: PlayerSaveProfile) => Math.min(
+      lifetimeStat(profile, "totalCustomers"),
+      normalizedCustomers(record(profile.account).customers)
+        .filter((customer) => customer.met === true).length
+    )
+  },
+  {
+    achievementId: "first-story",
+    target: 1,
+    progress: (profile: PlayerSaveProfile) => Math.min(
+      Math.floor(lifetimeStat(profile, "totalCustomers") / 3),
+      normalizedCustomers(record(profile.account).customers)
+        .filter((customer) => customer.storyCompleted === true).length
+    )
+  },
+  {
+    achievementId: "soul-collector-8",
+    target: 8,
+    progress: (profile: PlayerSaveProfile) => Math.min(
+      lifetimeStat(profile, "totalSales"),
+      normalizedSouls(record(profile.account).discoveredSouls).length
+    )
+  }
+] as const;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -64,7 +100,65 @@ function normalizedQueuedDayEffects(value: unknown): JsonRecord[] {
 }
 
 function canonicalCustomerId(value: unknown): string {
-  return value === "jeonghyun" ? "jeonghyeon" : String(value ?? "");
+  const canonical = value === "jeonghyun" ? "jeonghyeon" : String(value ?? "");
+  return validCustomerIds.has(canonical) ? canonical : "";
+}
+
+function normalizedSouls(value: unknown): JsonRecord[] {
+  const byId = new Map<string, JsonRecord>();
+  for (const raw of Array.isArray(value) ? value : []) {
+    const soul = structuredClone(record(raw));
+    const soulId = String(soul.soulId ?? "").trim();
+    if (!validSoulIdPattern.test(soulId) || byId.has(soulId)) continue;
+    soul.soulId = soulId;
+    byId.set(soulId, soul);
+  }
+  return [...byId.values()].sort((left, right) =>
+    String(left.soulId).localeCompare(String(right.soulId))
+  );
+}
+
+function normalizedLifetimeStats(value: unknown): JsonRecord {
+  const stats = record(value);
+  return {
+    totalSales: Math.max(0, Math.trunc(numberOr(stats.totalSales, 0))),
+    totalCustomers: Math.max(0, Math.trunc(numberOr(stats.totalCustomers, 0))),
+    totalRevenue: Math.max(0, Math.trunc(numberOr(stats.totalRevenue, 0))),
+    bestDailyProfit: Math.trunc(numberOr(stats.bestDailyProfit, 0))
+  };
+}
+
+function lifetimeStat(profile: PlayerSaveProfile, field: string): number {
+  return numberOr(normalizedLifetimeStats(record(profile.account).lifetimeStats)[field], 0);
+}
+
+export function recomputeServerAchievements(
+  profile: PlayerSaveProfile,
+  now = new Date().toISOString()
+): PlayerSaveProfile {
+  const normalized = normalizePlayerSaveProfile(profile);
+  const account = record(normalized.account);
+  const previous = new Map(
+    (Array.isArray(account.achievements) ? account.achievements : [])
+      .map((entry) => record(entry))
+      .filter((entry) => typeof entry.achievementId === "string")
+      .map((entry) => [String(entry.achievementId), entry])
+  );
+  account.achievements = serverAchievementDefinitions.map((definition) => {
+    const progress = Math.max(0, Math.trunc(definition.progress(normalized)));
+    const unlocked = progress >= definition.target;
+    const old = previous.get(definition.achievementId);
+    return {
+      achievementId: definition.achievementId,
+      progress,
+      unlocked,
+      unlockedAt: unlocked
+        ? typeof old?.unlockedAt === "string" && old.unlockedAt ? old.unlockedAt : now
+        : ""
+    };
+  });
+  normalized.account = account;
+  return normalized;
 }
 
 function mergeCustomer(target: JsonRecord, source: JsonRecord): void {
@@ -130,9 +224,9 @@ export function normalizePlayerSaveProfile(profile: PlayerSaveProfile): PlayerSa
 
   const account = record(normalized.account);
   account.customers = normalizedCustomers(account.customers);
-  account.discoveredSouls = Array.isArray(account.discoveredSouls) ? account.discoveredSouls : [];
+  account.discoveredSouls = normalizedSouls(account.discoveredSouls);
   account.achievements = Array.isArray(account.achievements) ? account.achievements : [];
-  account.lifetimeStats = record(account.lifetimeStats);
+  account.lifetimeStats = normalizedLifetimeStats(account.lifetimeStats);
   delete account.purchasedAccountItemIds;
 
   const settings = record(normalized.settings);
@@ -151,7 +245,7 @@ export function normalizePlayerSaveProfile(profile: PlayerSaveProfile): PlayerSa
 }
 
 export function createDefaultPlayerSaveProfile(): PlayerSaveProfile {
-  return normalizePlayerSaveProfile({
+  return recomputeServerAchievements(normalizePlayerSaveProfile({
     schemaVersion: currentSchemaVersion,
     revision: 0,
     updatedAt: "",
@@ -174,7 +268,28 @@ export function createDefaultPlayerSaveProfile(): PlayerSaveProfile {
       keyboardHintsEnabled: true,
       tutorialCompleted: false
     }
-  });
+  }));
+}
+
+function preserveLegacySpecialOrderStates(
+  nextRun: JsonRecord,
+  authoritativeRun: JsonRecord
+): void {
+  const authoritative = new Map(
+    (Array.isArray(authoritativeRun.customerStories) ? authoritativeRun.customerStories : [])
+      .map((entry) => record(entry))
+      .filter((entry) => typeof entry.customerId === "string")
+      .map((entry) => [String(entry.customerId), entry])
+  );
+  if (!Array.isArray(nextRun.customerStories)) return;
+  for (const raw of nextRun.customerStories) {
+    const state = record(raw);
+    if (Object.prototype.hasOwnProperty.call(state, "specialOrderState")) continue;
+    const previous = authoritative.get(String(state.customerId ?? ""));
+    if (typeof previous?.specialOrderState === "string") {
+      state.specialOrderState = previous.specialOrderState;
+    }
+  }
 }
 
 function mergeLegacyProgress(profile: PlayerSaveProfile, progress: PlayerProgress): boolean {
@@ -285,6 +400,7 @@ export class PlayerProfileService {
       current ?? createDefaultPlayerSaveProfile()
     ).run);
     const nextRun = record(normalized.run);
+    preserveLegacySpecialOrderStates(nextRun, authoritativeRun);
     // 일반 돈과 일반 상점 보유 상태는 첫 저장을 포함해 전용 트랜잭션 API만 변경한다.
     for (const protectedField of [
       "nextDay",
@@ -292,14 +408,38 @@ export class PlayerProfileService {
       "unlockedFillingIds",
       "selectedFillingIds",
       "ownedGameplayItemIds",
-      "queuedDayEffects"
+      "queuedDayEffects",
+      "activeDay"
     ]) {
       nextRun[protectedField] = structuredClone(authoritativeRun[protectedField]);
     }
     normalized.run = nextRun;
+    const authoritativeAccount = record(normalizePlayerSaveProfile(
+      current ?? createDefaultPlayerSaveProfile()
+    ).account);
+    const submittedAccount = record(normalized.account);
+    authoritativeAccount.customers = normalizedCustomers([
+      ...normalizedCustomers(authoritativeAccount.customers),
+      ...normalizedCustomers(submittedAccount.customers)
+    ]);
+    authoritativeAccount.discoveredSouls = normalizedSouls([
+      ...normalizedSouls(authoritativeAccount.discoveredSouls),
+      ...normalizedSouls(submittedAccount.discoveredSouls)
+    ]);
+    // 누적 통계와 업적은 정산/서버 규칙으로만 변경한다. 클라이언트는 표시용 사본을
+    // 보내더라도 기존 서버 값을 덮어쓸 수 없다.
+    authoritativeAccount.lifetimeStats = normalizedLifetimeStats(
+      authoritativeAccount.lifetimeStats
+    );
+    normalized.account = authoritativeAccount;
+    const serverDerived = recomputeServerAchievements(normalized);
     const legacy = await this.legacyProgress.getPlayerProgress(subject);
-    mergeLegacyProgress(normalized, legacy);
-    return this.saves.put(subject, expectedRevision, normalized);
+    mergeLegacyProgress(serverDerived, legacy);
+    return this.saves.put(
+      subject,
+      expectedRevision,
+      recomputeServerAchievements(serverDerived)
+    );
   }
 
   public async getProgress(subject: string): Promise<PlayerProgress> {

@@ -556,7 +556,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         UI_order.SetOrderText(order);
 
         //통계 업뎃
-        ++Managers.Game.totalFishBunsSold;
+        Managers.Game.RecordSale(filling);
         
 
     }

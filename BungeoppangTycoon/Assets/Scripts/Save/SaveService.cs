@@ -20,6 +20,8 @@ public sealed class SaveService : MonoBehaviour
     private int localMutationVersion;
     private int pendingSettlementDay = -1;
     private string pendingSettlementIdempotencyKey;
+    private int pendingStartDay = -1;
+    private string pendingStartDayIdempotencyKey;
     private GamePlatformClient platformClient;
     private bool initialized;
 
@@ -107,12 +109,18 @@ public sealed class SaveService : MonoBehaviour
 
     private void OnApplicationPause(bool paused)
     {
-        if (paused && Current != null) PersistLocalOnly();
+        if (!paused || Current == null) return;
+        PersistLocalOnly();
+        if (IsAccountSave && remoteDirty && !IsRemoteSyncing)
+            FlushRemoteNow((_, __) => { });
     }
 
     private void OnApplicationQuit()
     {
-        if (Current != null) PersistLocalOnly();
+        if (Current == null) return;
+        PersistLocalOnly();
+        if (IsAccountSave && remoteDirty && !IsRemoteSyncing)
+            FlushRemoteNow((_, __) => { });
     }
 
     public void UnlockFilling(FillingType filling)
@@ -280,6 +288,11 @@ public sealed class SaveService : MonoBehaviour
             onComplete?.Invoke(purchased, message);
             return;
         }
+        if (IsAccountLoading)
+        {
+            onComplete?.Invoke(false, "계정 저장을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.");
+            return;
+        }
         if (GamePlatformClient.Instance?.IsLoggedIn != true)
         {
             onComplete?.Invoke(false, "일반 상점 구매는 로그인 후 이용할 수 있습니다.");
@@ -293,18 +306,84 @@ public sealed class SaveService : MonoBehaviour
         StartCoroutine(PurchaseGameStoreProductRoutine(productId, onComplete));
     }
 
+    public void StartDay(int day, Action<bool, string> onComplete)
+    {
+        if (IsAccountLoading)
+        {
+            onComplete?.Invoke(false, "계정 저장을 불러오는 중입니다.");
+            return;
+        }
+        if (!IsAccountSave)
+        {
+            if (Current.run.activeDay != null &&
+                Current.run.activeDay.day == day &&
+                !string.IsNullOrWhiteSpace(Current.run.activeDay.runId))
+            {
+                onComplete?.Invoke(true, string.Empty);
+                return;
+            }
+            Current.run.activeDay = new ActiveDayData
+            {
+                runId = Guid.NewGuid().ToString(),
+                day = day,
+                startedAt = DateTime.UtcNow.ToString("O"),
+                selectedFillingIds = new List<string>(Current.run.selectedFillingIds)
+            };
+            Persist("영업 시작");
+            onComplete?.Invoke(true, string.Empty);
+            return;
+        }
+        if (Current.run.activeDay != null &&
+            Current.run.activeDay.day == day &&
+            !string.IsNullOrWhiteSpace(Current.run.activeDay.runId))
+        {
+            onComplete?.Invoke(true, string.Empty);
+            return;
+        }
+        StartCoroutine(StartDayRoutine(day, onComplete));
+    }
+
+    public void SaveDayCheckpoint(GameDayCheckpointData checkpoint, Action<bool, string> onComplete)
+    {
+        ActiveDayData activeDay = Current?.run?.activeDay;
+        if (checkpoint == null || activeDay == null || activeDay.day < 1 ||
+            string.IsNullOrWhiteSpace(activeDay.runId))
+        {
+            onComplete?.Invoke(false, "진행 중인 영업일이 없습니다.");
+            return;
+        }
+        if (!IsAccountSave)
+        {
+            activeDay.checkpoint = checkpoint;
+            Persist("영업 체크포인트");
+            onComplete?.Invoke(true, string.Empty);
+            return;
+        }
+        if (IsAccountLoading || remoteDirty || IsRemoteSyncing)
+        {
+            onComplete?.Invoke(false, "계정 저장 동기화가 끝난 뒤 체크포인트를 저장합니다.");
+            return;
+        }
+        StartCoroutine(SaveDayCheckpointRoutine(activeDay, checkpoint, onComplete));
+    }
+
     public void SettleDay(
         int day,
+        string runId,
         int revenue,
         int ingredientCost,
         int sold,
         int customers,
+        int batterUses,
+        List<GameRunFillingCountData> salesByFilling,
+        List<GameRunFillingCountData> fillingUses,
         Action<bool, string> onComplete)
     {
         if (!IsAccountSave)
         {
             Current.run.nextDay = Mathf.Max(1, day + 1);
             Current.run.money += Mathf.Max(0, revenue) - Mathf.Max(0, ingredientCost);
+            Current.run.activeDay = null;
             Current.run.selectedFillingIds.Clear();
             Current.run.queuedDayEffects.RemoveAll(effect => effect == null || effect.targetDay <= day);
             LifetimeStatsData stats = Current.account.lifetimeStats;
@@ -318,7 +397,17 @@ public sealed class SaveService : MonoBehaviour
             onComplete?.Invoke(true, string.Empty);
             return;
         }
-        StartCoroutine(SettleDayRoutine(day, revenue, ingredientCost, sold, customers, onComplete));
+        StartCoroutine(SettleDayRoutine(
+            day,
+            runId,
+            revenue,
+            ingredientCost,
+            sold,
+            customers,
+            batterUses,
+            salesByFilling,
+            fillingUses,
+            onComplete));
     }
 
     public void ResetRunProgress(Action<bool, string> onComplete)
@@ -414,12 +503,110 @@ public sealed class SaveService : MonoBehaviour
         onComplete?.Invoke(true, string.Empty);
     }
 
+    private IEnumerator StartDayRoutine(int day, Action<bool, string> onComplete)
+    {
+        GamePlatformClient client = GamePlatformClient.Instance;
+        if (client == null || !client.IsLoggedIn)
+        {
+            onComplete?.Invoke(false, "로그인 세션이 없어 영업일을 시작할 수 없습니다.");
+            yield break;
+        }
+
+        string json = null;
+        long failureStatus = 0;
+        string failureBody = string.Empty;
+        yield return client.StartGameDay(
+            day,
+            Current.revision,
+            GetStartDayIdempotencyKey(day),
+            value => json = value,
+            (status, body) =>
+            {
+                failureStatus = status;
+                failureBody = body;
+            });
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            ApplyConflictProfile(failureStatus, failureBody);
+            onComplete?.Invoke(false, ReadApiError(failureBody, "영업일을 시작하지 못했습니다."));
+            yield break;
+        }
+
+        GameRunMutationEnvelope envelope = JsonUtility.FromJson<GameRunMutationEnvelope>(json);
+        if (envelope?.profile?.run?.activeDay == null)
+        {
+            onComplete?.Invoke(false, "서버 영업일 정보가 올바르지 않습니다.");
+            yield break;
+        }
+        ApplyAuthoritativeProfile(envelope.profile);
+        pendingStartDay = -1;
+        pendingStartDayIdempotencyKey = null;
+        onComplete?.Invoke(true, string.Empty);
+    }
+
+    private IEnumerator SaveDayCheckpointRoutine(
+        ActiveDayData activeDay,
+        GameDayCheckpointData checkpoint,
+        Action<bool, string> onComplete)
+    {
+        GamePlatformClient client = GamePlatformClient.Instance;
+        if (client == null || !client.IsLoggedIn)
+        {
+            onComplete?.Invoke(false, "로그인 세션이 없어 영업 상태를 저장할 수 없습니다.");
+            yield break;
+        }
+
+        string json = null;
+        long failureStatus = 0;
+        string failureBody = string.Empty;
+        yield return client.CheckpointGameDay(
+            activeDay.runId,
+            activeDay.day,
+            checkpoint,
+            Current.revision,
+            Guid.NewGuid().ToString(),
+            value => json = value,
+            (status, body) =>
+            {
+                failureStatus = status;
+                failureBody = body;
+            });
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            ApplyConflictProfile(failureStatus, failureBody);
+            onComplete?.Invoke(false, ReadApiError(failureBody, "영업 상태를 저장하지 못했습니다."));
+            yield break;
+        }
+
+        GameRunMutationEnvelope envelope = JsonUtility.FromJson<GameRunMutationEnvelope>(json);
+        if (envelope?.profile?.run?.activeDay?.checkpoint == null)
+        {
+            onComplete?.Invoke(false, "서버 체크포인트 형식이 올바르지 않습니다.");
+            yield break;
+        }
+        ApplyAuthoritativeProfile(envelope.profile);
+        onComplete?.Invoke(true, string.Empty);
+    }
+
+    private string GetStartDayIdempotencyKey(int day)
+    {
+        if (pendingStartDay == day && !string.IsNullOrWhiteSpace(pendingStartDayIdempotencyKey))
+            return pendingStartDayIdempotencyKey;
+        pendingStartDay = day;
+        pendingStartDayIdempotencyKey = Guid.NewGuid().ToString();
+        return pendingStartDayIdempotencyKey;
+    }
+
     private IEnumerator SettleDayRoutine(
         int day,
+        string runId,
         int revenue,
         int ingredientCost,
         int sold,
         int customers,
+        int batterUses,
+        List<GameRunFillingCountData> salesByFilling,
+        List<GameRunFillingCountData> fillingUses,
         Action<bool, string> onComplete)
     {
         GamePlatformClient client = GamePlatformClient.Instance;
@@ -434,10 +621,14 @@ public sealed class SaveService : MonoBehaviour
         string failureBody = string.Empty;
         yield return client.SettleGameDay(
             day,
+            runId,
             Mathf.Max(0, revenue),
             Mathf.Max(0, ingredientCost),
             Mathf.Max(0, sold),
             Mathf.Max(0, customers),
+            Mathf.Max(0, batterUses),
+            salesByFilling ?? new List<GameRunFillingCountData>(),
+            fillingUses ?? new List<GameRunFillingCountData>(),
             Current.revision,
             GetSettlementIdempotencyKey(day),
             value => json = value,
@@ -659,11 +850,14 @@ public sealed class SaveService : MonoBehaviour
 
     private void Persist(string reason)
     {
+        if (IsAccountSave)
+        {
+            localMutationVersion++;
+            remoteDirty = true;
+        }
         PersistLocalOnly();
         DataChanged?.Invoke();
         if (!IsAccountSave) return;
-        localMutationVersion++;
-        remoteDirty = true;
         if (remoteSyncRoutine == null)
             remoteSyncRoutine = StartCoroutine(RemoteSyncLoop());
         Debug.Log($"[저장] {reason} 로컬 저장 완료");
@@ -680,7 +874,7 @@ public sealed class SaveService : MonoBehaviour
 
         Current.updatedAt = DateTime.UtcNow.ToString("O");
         SaveDataFactory.Normalize(Current);
-        localStore.Save(currentScope, Current);
+        localStore.Save(currentScope, Current, IsAccountSave && remoteDirty);
     }
 
     private void ApplyRuntimeSettings()
@@ -691,7 +885,8 @@ public sealed class SaveService : MonoBehaviour
 
     private IEnumerator RemoteSyncLoop()
     {
-        yield return new WaitForSecondsRealtime(1f);
+        // 첫 PUT을 다음 프레임에 바로 시작해 짧은 플레이/빠른 종료에서도 유실 창을 줄인다.
+        yield return null;
         while (remoteDirty && IsAccountSave)
         {
             bool success = false;
@@ -717,6 +912,9 @@ public sealed class SaveService : MonoBehaviour
             StopCoroutine(remoteSyncRoutine);
             remoteSyncRoutine = null;
         }
+        // StopCoroutine can interrupt PutRemote after it set the flag but before its
+        // cleanup line. A new account must not inherit that stale sync lock.
+        IsRemoteSyncing = false;
         StartCoroutine(FlushRemoteNowRoutine(onComplete, preferLocalRunOnConflict));
     }
 
@@ -792,10 +990,12 @@ public sealed class SaveService : MonoBehaviour
                     // 요청 중 바뀐 값은 유지하고, 다음 PUT에서 사용할 서버 revision만 갱신한다.
                     Current.revision = envelope.profile.revision;
                     Current.updatedAt = envelope.profile.updatedAt;
+                    remoteDirty = true;
                 }
                 else
                 {
                     Current = envelope.profile;
+                    remoteDirty = false;
                 }
                 SaveDataFactory.Normalize(Current);
                 PersistLocalOnly();
@@ -831,6 +1031,8 @@ public sealed class SaveService : MonoBehaviour
 
     private void OnSessionChanged(string subject)
     {
+        if (IsAccountSave && Current != null)
+            PersistLocalOnly();
         accountLoadGeneration++;
         remoteDirty = false;
         if (remoteSyncRoutine != null)
@@ -862,17 +1064,26 @@ public sealed class SaveService : MonoBehaviour
         if (client == null) yield break;
         IsAccountLoading = true;
         string accountScope = "account_" + ScopeHash(subject);
-        bool hasCached = localStore.TryLoad(accountScope, out SaveGameData cached);
-        SaveGameData accountCandidate = hasCached
-            ? cached
-            : string.IsNullOrWhiteSpace(accountSubject)
-                ? SaveDataFactory.Clone(Current)
-                : SaveDataFactory.CreateDefault();
+        bool hasCached = localStore.TryLoad(
+            accountScope,
+            out SaveGameData cached,
+            out bool cachedPending);
+        if (!hasCached)
+        {
+            // 기존 32비트 scope 캐시를 128비트 scope로 한 번만 이관한다.
+            string legacyScope = "account_" + LegacyScopeHash(subject);
+            if (localStore.TryLoad(legacyScope, out cached, out cachedPending))
+            {
+                hasCached = true;
+                localStore.Save(accountScope, cached, cachedPending);
+            }
+        }
+        SaveGameData accountCandidate = hasCached ? cached : SaveDataFactory.CreateDefault();
         accountCandidate.revision = hasCached ? accountCandidate.revision : 0;
         accountSubject = subject;
         currentScope = accountScope;
         Current = accountCandidate;
-        PersistLocalOnly();
+        remoteDirty = hasCached && cachedPending;
         ApplyRuntimeSettings();
         DataChanged?.Invoke();
 
@@ -883,8 +1094,9 @@ public sealed class SaveService : MonoBehaviour
             yield break;
         if (failed || string.IsNullOrWhiteSpace(json))
         {
-            IsAccountLoading = false;
-            RefreshGameStore();
+            // 원격 상태를 모르는 동안 신규 계정으로 간주하거나 PUT하지 않는다.
+            // 동일 subject로 재시도해 게스트/다른 계정 데이터가 섞이는 것을 막는다.
+            StartCoroutine(RetryLoadAccount(subject, generation));
             yield break;
         }
 
@@ -893,12 +1105,27 @@ public sealed class SaveService : MonoBehaviour
         {
             bool requiresSchemaUpgrade = envelope.profile.schemaVersion < SaveDataFactory.CurrentSchemaVersion;
             localStore.Backup(GuestScope, "guest_backup");
-            Current = envelope.profile;
+            Current = cachedPending
+                ? SaveDataFactory.MergeAfterRemoteConflict(envelope.profile, accountCandidate)
+                : envelope.profile;
             SaveDataFactory.Normalize(Current);
             accountSubject = subject;
             currentScope = accountScope;
+            remoteDirty = cachedPending;
             PersistLocalOnly();
             ApplyRuntimeSettings();
+            if (cachedPending)
+            {
+                bool flushed = false;
+                yield return FlushRemoteNowRoutine((success, _) => flushed = success, false);
+                if (generation != accountLoadGeneration || accountSubject != subject)
+                    yield break;
+                if (!flushed)
+                {
+                    StartCoroutine(RetryLoadAccount(subject, generation));
+                    yield break;
+                }
+            }
             IsAccountLoading = false;
             DataChanged?.Invoke();
             if (requiresSchemaUpgrade)
@@ -908,10 +1135,12 @@ public sealed class SaveService : MonoBehaviour
         }
 
         // 서버에 저장이 없는 새 계정은 익명/다른 계정의 진행을 복사하지 않는다.
-        SaveGameData guest = SaveDataFactory.CreateDefault();
+        SaveGameData newAccount = cachedPending ? accountCandidate : SaveDataFactory.CreateDefault();
+        newAccount.revision = 0;
         accountSubject = subject;
         currentScope = accountScope;
-        Current = guest;
+        Current = newAccount;
+        remoteDirty = true;
         PersistLocalOnly();
         ApplyRuntimeSettings();
         bool uploaded = false;
@@ -920,10 +1149,8 @@ public sealed class SaveService : MonoBehaviour
             yield break;
         if (!uploaded)
         {
-            accountSubject = null;
-            currentScope = GuestScope;
-            Current = LoadOrCreate(GuestScope, true);
-            ApplyRuntimeSettings();
+            StartCoroutine(RetryLoadAccount(subject, generation));
+            yield break;
         }
         IsAccountLoading = false;
         DataChanged?.Invoke();
@@ -931,7 +1158,20 @@ public sealed class SaveService : MonoBehaviour
             RefreshGameStore();
     }
 
+    private IEnumerator RetryLoadAccount(string subject, int generation)
+    {
+        yield return new WaitForSecondsRealtime(RemoteRetrySeconds);
+        if (generation != accountLoadGeneration || accountSubject != subject)
+            yield break;
+        yield return LoadAccount(subject, generation);
+    }
+
     private static string ScopeHash(string value)
+    {
+        return Hash128.Compute(value ?? string.Empty).ToString();
+    }
+
+    private static string LegacyScopeHash(string value)
     {
         unchecked
         {

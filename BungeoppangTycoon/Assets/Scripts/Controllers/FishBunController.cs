@@ -337,7 +337,7 @@ public class FishBunController : MonoBehaviour,
         TutorialSignals.Raise(TutorialEvent.FillingAdded, gameObject);
 
         //재료 비용 통계
-        Managers.Game.IngredientCost += (int) (Define.FillingPrice[(int)fillingType] * Define.FillingCostRate);
+        Managers.Game.RecordFillingUse(fillingType);
         //Debug.Log($"{(int) (Define.FillingPrice[(int)fillingType] * Define.FillingCostRate)}원의 소");
     }
 

@@ -96,10 +96,11 @@ pnpm unity:verify
 
 ### 도감·스토리 계정 동기화
 
-- 현재 단일 기준은 DynamoDB `PLAYER#<subject> / SAVE#MAIN`의 `SaveProfile v7`이다. 영업 진행, 일반 돈, 일반 상점 보유 상태와 일일 소 선택, 업적, 손님 도감·스토리, 영혼 도감, 누적 통계와 설정을 revision 충돌 검사로 저장한다. 일반 경제 필드는 전용 조건부 트랜잭션 API만 변경한다.
+- 현재 단일 기준은 DynamoDB `PLAYER#<subject> / SAVE#MAIN`의 `SaveProfile v8`이다. 영업 안전 체크포인트, 일반 돈, 일반 상점 보유 상태와 일일 소 선택, 업적, 손님 도감·스토리, 영혼 도감, 누적 통계와 설정을 revision 충돌 검사로 저장한다. 일반 경제·누적 통계·업적·활성 영업일은 전용 조건부 트랜잭션 API와 서버 규칙만 변경한다.
 - `/api/v1/progress`와 두 변경 경로는 구버전 호환용이다. 내부에서는 `SAVE#MAIN`만 갱신하며 기존 `PROGRESS#CUSTOMER`는 최초 접근 때 단조 병합한 뒤 기준 데이터로 사용하지 않는다.
 - `masterVolume`, `keyboardHintsEnabled`, `tutorialCompleted`도 계정 설정이다. 구버전 계정에 서버 설정이 없을 때만 기존 PlayerPrefs를 한 번 승격하고, 서버 값이 있으면 서버를 우선한다.
 - 손님 ID는 `jeonghyeon`이 표준이다. 기존 `jeonghyun` 값은 완료 항목의 합집합과 횟수·날짜 최댓값으로 병합한다.
+- 손님·영혼 ID는 게임에 정의된 목록만 계정 저장에 반영한다. 도감·스토리·영혼 업적은 해당 계정의 서버 산출 누적 손님/판매 통계 범위 안에서만 진행된다.
 - 로그인·로그아웃·계정 전환 중에는 이전 계정 저장을 화면에 남기거나 새 계정에 업로드하지 않는다. 네트워크 실패 시에도 해당 계정 캐시 또는 빈 기본값만 사용한다.
 - 팥 코인, 인벤토리, 구매 내역과 황금 틀 장착은 `SAVE#MAIN`에 넣지 않고 서버 권한의 별도 레코드를 유지한다.
 
@@ -246,7 +247,7 @@ Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EM
 - HIVE Production 회원가입·로그인·로그아웃과 DynamoDB 세션
 - 사용자별 팥 코인·인벤토리·황금 틀 장착 저장
 - NICEPAY 테스트 결제 후 사용자별 지급
-- SaveProfile v7 기반 영업 진행·일반 상점·일일 소 선택·업적·도감·스토리·영혼·설정의 계정 저장
+- SaveProfile v8 기반 영업 안전 체크포인트·일반 상점·일일 소 선택·서버 산출 업적·도감·스토리·영혼·설정의 계정 저장
 - 사용자별 구매 내역 API와 인게임 상품/구매 내역 탭
 - HIVE Console 상품의 인게임 카탈로그 자동 구성
 - 정확한 DEV Unity 소스를 매번 새로 빌드하는 WebGL 해시 검증과 `DEV` → AWS 자동 배포·롤백
@@ -255,6 +256,7 @@ Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EM
 
 - OpenAI live 기능의 실제 게임 사용
 - 랭킹 API와 인게임 랭킹 UI
+- 경쟁 랭킹용 서버 관측 주문·판매 이벤트 원장과 부정행위 방지 계층
 - 정현 외 손님의 특별 주문·이야기 콘텐츠
 - 레시피 해금 상점
 - 전체 Editor/WebGL 회귀 테스트와 출시 후보 QA

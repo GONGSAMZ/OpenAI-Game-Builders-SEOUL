@@ -7,6 +7,7 @@ describe("loadConfig", () => {
     expect(config.hive.mode).toBe("mock");
     expect(config.openai.mode).toBe("mock");
     expect(config.port).toBe(3000);
+    expect(config.sessionTtlSeconds).toBe(604_800);
     expect(config.revision).toBe("development");
     expect(config.store.catalogSource).toBe("static");
     expect(config.store.productImageBaseUrl).toBe("http://localhost:3000/store-products");

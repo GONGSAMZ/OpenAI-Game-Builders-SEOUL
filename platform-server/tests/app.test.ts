@@ -51,7 +51,8 @@ describe("integration API", () => {
         customerStories: [{
           customerId: "jeonghyeon",
           lastTalkDay: 1,
-          nextSpecialOrderDay: 2
+          nextSpecialOrderDay: 2,
+          specialOrderState: "retry"
         }],
         ownedGameplayItemIds: []
       },
@@ -74,7 +75,8 @@ describe("integration API", () => {
         customerStories: [{
           customerId: "jeonghyeon",
           lastTalkDay: 1,
-          nextSpecialOrderDay: 2
+          nextSpecialOrderDay: 2,
+          specialOrderState: "retry"
         }]
       })
     }));
@@ -93,6 +95,27 @@ describe("integration API", () => {
               customerId: "not-a-customer",
               lastTalkDay: 1,
               nextSpecialOrderDay: 2
+            }]
+          }
+        }
+      })
+      .expect(400);
+
+    await request(app)
+      .put("/api/v1/save/profile")
+      .set(auth)
+      .send({
+        expectedRevision: 1,
+        profile: {
+          ...profile,
+          revision: 1,
+          run: {
+            ...profile.run,
+            customerStories: [{
+              customerId: "jeonghyeon",
+              lastTalkDay: 1,
+              nextSpecialOrderDay: 2,
+              specialOrderState: "not-a-state"
             }]
           }
         }
@@ -202,6 +225,13 @@ describe("integration API", () => {
     const token = await login(app);
     const auth = { Authorization: `Bearer ${token}` };
     const initial = await request(app).get("/api/v1/game-store/me").set(auth).expect(200);
+    const started = await request(app)
+      .post("/api/v1/game-run/start-day")
+      .set(auth)
+      .set("Idempotency-Key", "20000000-0000-4000-8000-000000000000")
+      .send({ day: 1, expectedRevision: initial.body.revision })
+      .expect(200);
+    const runId = started.body.activeDay.runId;
 
     const settled = await request(app)
       .post("/api/v1/game-run/settle-day")
@@ -209,16 +239,20 @@ describe("integration API", () => {
       .set("Idempotency-Key", "20000000-0000-4000-8000-000000000001")
       .send({
         day: 1,
-        revenue: 3000,
+        runId,
+        revenue: 2000,
         ingredientCost: 800,
         sold: 4,
         customers: 2,
-        expectedRevision: initial.body.revision
+        batterUses: 4,
+        salesByFilling: [{ fillingId: "red-bean", count: 4 }],
+        fillingUses: [{ fillingId: "red-bean", count: 4 }],
+        expectedRevision: started.body.profile.revision
       })
       .expect(200);
     expect(settled.body.profile.run).toEqual(expect.objectContaining({
       nextDay: 2,
-      money: 7200
+      money: 6200
     }));
 
     const repeated = await request(app)
@@ -227,10 +261,14 @@ describe("integration API", () => {
       .set("Idempotency-Key", "20000000-0000-4000-8000-000000000002")
       .send({
         day: 1,
-        revenue: 3000,
+        runId,
+        revenue: 2000,
         ingredientCost: 800,
         sold: 4,
         customers: 2,
+        batterUses: 4,
+        salesByFilling: [{ fillingId: "red-bean", count: 4 }],
+        fillingUses: [{ fillingId: "red-bean", count: 4 }],
         expectedRevision: settled.body.profile.revision
       })
       .expect(409);

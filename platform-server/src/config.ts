@@ -16,7 +16,7 @@ const environmentSchema = z.object({
   PUBLIC_BASE_URL: z.string().url().default("http://localhost:3000"),
   GAME_ORIGIN: z.string().url().default("http://localhost:3000"),
   GAME_BUILD_DIR: z.string().optional(),
-  SESSION_TTL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3600),
+  SESSION_TTL_SECONDS: z.coerce.number().int().min(60).max(2_592_000).default(604_800),
   HIVE_MODE: z.enum(["mock", "sandbox", "production"]).default("mock"),
   HIVE_APP_ID: z.string().optional(),
   HIVE_CLIENT_ID: z.string().optional(),

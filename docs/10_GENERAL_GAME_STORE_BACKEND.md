@@ -27,17 +27,23 @@
 - 영구 해금 이력, 다음 영업일 소 선택, 영구 도구와 예약 효과는 `PLAYER#<subject> / SAVE#MAIN`의 `run` 영역에 저장한다.
 - 계정 도감·스토리·업적·설정은 같은 프로필의 `account`·`settings` 영역에 유지한다.
 - HIVE 팥 코인, 프리미엄 `golden-pan`, 장착 상태와 구매 원장은 기존 별도 상점 레코드를 기준으로 한다.
-- 전체 프로필 PUT은 `nextDay`, `money`, `unlockedFillingIds`, `selectedFillingIds`, `ownedGameplayItemIds`, `queuedDayEffects`를 변경할 수 없다. 이 값은 전용 구매·정산·초기화 API만 변경한다.
+- 전체 프로필 PUT은 `nextDay`, `money`, `unlockedFillingIds`, `selectedFillingIds`, `ownedGameplayItemIds`, `queuedDayEffects`, `activeDay`, 누적 통계와 업적을 변경할 수 없다. 이 값은 전용 구매·영업·정산·초기화 API와 서버 업적 계산만 변경한다.
 
-SaveProfile v7은 영구 해금 `unlockedFillingIds`와 해당 영업일 선택 `selectedFillingIds`를 분리한다. 첫 영업일만 팥을 기본 선택하고, 하루 정산 뒤 선택 목록을 비운다. 상점에서는 복수의 소를 선택할 수 있고 선택할 때마다 표시된 준비 비용을 그날 한 번 차감한다. 이전 계정의 해금 이력은 회수하지 않지만 자동 선택으로 간주하지 않는다. 진행 초기화는 `run`만 초기값으로 바꾸며 계정 영역과 HIVE 보유품은 유지한다.
+SaveProfile v8은 영구 해금 `unlockedFillingIds`와 해당 영업일 선택 `selectedFillingIds`를 분리하고, 서버 발급 `activeDay`와 안전 체크포인트를 추가한다. 첫 영업일만 팥을 기본 선택하고, 하루 정산 뒤 선택 목록을 비운다. 상점에서는 복수의 소를 선택할 수 있고 선택할 때마다 표시된 준비 비용을 그날 한 번 차감한다. 이전 계정의 해금 이력은 회수하지 않지만 자동 선택으로 간주하지 않는다. 진행 초기화는 `run`만 초기값으로 바꾸며 계정 영역과 HIVE 보유품은 유지한다.
 
 ## API 사용 순서
 
 1. 화면을 열 때 공개 `GET /api/v1/game-store/catalog`를 호출한다.
 2. 로그인 상태면 `GET /api/v1/game-store/me`를 추가 호출한다. 비로그인은 카탈로그만 표시하고 버튼을 `로그인 필요`로 잠근다.
 3. 소 선택과 아이템 구매는 UUID `Idempotency-Key`, `productId`, 화면에서 받은 `expectedRevision`으로 `POST /api/v1/game-store/purchases`를 호출한다. 소는 `selected`, 영구 도구는 `owned` 상태를 사용한다.
-4. 하루 종료는 절대 잔액 대신 날짜·매출·재료비·판매량·손님 수를 `POST /api/v1/game-run/settle-day`에 보낸다. 서버가 잔액과 다음 날짜를 계산한다.
-5. 새 게임은 `POST /api/v1/save/reset-run`을 사용한다. 전체 프로필 PUT으로 초기화를 흉내 내지 않는다.
+4. 영업 시작은 `POST /api/v1/game-run/start-day`로 서버 `runId`를 먼저 받는다. 재접속 때 같은 활성 영업일이 있으면 그 값을 재사용한다.
+5. 손님·주문·조리가 모두 끝난 안전 지점에서 `POST /api/v1/game-run/checkpoint`로 시간, 돈, 매출, 원가와 소별 판매·사용량을 저장한다. 새로고침 뒤에는 마지막 안전 지점부터 이어가며 진행 중이던 미완료 거래는 되돌린다.
+6. 하루 종료는 절대 잔액만 보내지 않고 `runId`, 날짜, 소별 판매·사용량, 반죽 사용량, 손님 수와 합계를 `POST /api/v1/game-run/settle-day`에 보낸다. 서버가 카탈로그 가격으로 매출·원가를 다시 계산한 뒤 잔액과 다음 날짜를 정한다.
+
+서버는 영업 시작 시각과 손님 처리 주기를 기준으로 해당 시점까지 가능한 손님 수를 제한하고, 손님당 최대 주문 수·반죽·소 사용량·판매가·원가의 조합을 다시 검산한다. 따라서 시작 직후 대량 판매처럼 게임 규칙상 불가능한 정산은 거부된다. 다만 WebGL은 플레이어 기기에서 실행되므로, 정상 플레이처럼 꾸민 자동화까지 완전히 증명하는 서버 관측형 이벤트 원장은 아니다. 향후 경쟁 랭킹을 추가할 때는 서버 발급 주문 이벤트와 단건 완료 원장 또는 별도 부정행위 방지 계층을 선행한다.
+7. 새 게임은 `POST /api/v1/save/reset-run`을 사용한다. 전체 프로필 PUT으로 초기화를 흉내 내지 않는다.
+
+`activeDay`가 존재하는 동안 일반 상점 구매는 `409 RUN_IN_PROGRESS`로 거부한다. 영업 시작 뒤 선택 소가 바뀌어 조리 상태와 서버 정산 기준이 갈라지는 것을 막기 위한 경계다.
 
 구매·정산·초기화는 DynamoDB 조건부 트랜잭션으로 저장 프로필과 멱등 영수증을 함께 기록한다. 동일 키·동일 입력 재시도는 한 번만 반영하며, 같은 키를 다른 입력이나 계정에서 재사용하면 `IDEMPOTENCY_CONFLICT`다. 일반 상점 영수증은 감사와 중복 방지 전용이며 HIVE 구매 내역 UI에는 노출하지 않는다.
 
