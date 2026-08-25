@@ -21,9 +21,9 @@ public class InputManager : MonoBehaviour
     bool isTouchMode;
     ToolController highlightedTool;
     readonly Dictionary<SpriteRenderer, SpriteRenderer> toolTargetOutlines = new();
-    readonly MaterialPropertyBlock outlinePropertyBlock = new();
+    MaterialPropertyBlock outlinePropertyBlock;
     static Material interactableOutlineMaterial;
-    static readonly int SpriteUvRectId = Shader.PropertyToID("_SpriteUVRect");
+    int spriteUvRectId;
 
     // 모든 상호작용 대상에 공통으로 쓰는 흰색 외곽선이다.
     const string InteractableOutlineMaterialPath = "Materials/InteractableOutline";
@@ -37,6 +37,10 @@ public class InputManager : MonoBehaviour
     void Awake()
     {
         Instance = this;
+        // Unity API는 MonoBehaviour 필드 초기화 때 호출하면 안 된다.
+        // Awake 이후에 ID를 만들면 모든 손님의 외곽선에 안전하게 적용된다.
+        spriteUvRectId = Shader.PropertyToID("_SpriteUVRect");
+        outlinePropertyBlock = new MaterialPropertyBlock();
         CameraController.ViewChanged += HandleViewChanged;
         SetTouchMode(Application.isMobilePlatform && Touchscreen.current != null);
     }
@@ -341,8 +345,11 @@ public class InputManager : MonoBehaviour
         // 진열된 붕어빵을 선택했을 때만 손님을 전달 대상으로 표시한다.
         if (selectedFishBun != null && selectedFishBun.IsOnDisplay)
         {
-            foreach (GameObject customer in GameObject.FindGameObjectsWithTag("customer"))
-                HighlightTargetOutline(customer);
+            foreach (CustomerController customer in FindObjectsByType<CustomerController>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                if (customer.CanReceiveFishBun)
+                    HighlightTargetOutline(customer.Customer);
+            }
         }
 
         GameObject display = GameObject.FindGameObjectWithTag("displayPlate");
@@ -430,7 +437,7 @@ public class InputManager : MonoBehaviour
 
         // 표정 시트의 이 스프라이트 영역 밖은 셰이더가 읽지 못하게 막는다.
         outline.GetPropertyBlock(outlinePropertyBlock);
-        outlinePropertyBlock.SetVector(SpriteUvRectId, new Vector4(minX, minY, maxX, maxY));
+        outlinePropertyBlock.SetVector(spriteUvRectId, new Vector4(minX, minY, maxX, maxY));
         outline.SetPropertyBlock(outlinePropertyBlock);
     }
 

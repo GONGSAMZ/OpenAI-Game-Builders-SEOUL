@@ -48,6 +48,8 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     /// <summary>대화 집중 화면에서 원래 색으로 강조할 손님 그림입니다.</summary>
     public SpriteRenderer StoryFocusRenderer => Customer != null ? Customer.GetComponent<SpriteRenderer>() : null;
+    /// <summary>선택한 붕어빵을 실제로 받을 수 있는, 주문 접수 완료 상태의 손님인지 나타냅니다.</summary>
+    public bool CanReceiveFishBun => Customer != null && Customer.activeInHierarchy && didAcceptOrder && !isLeaving && order.Count > 0;
     #endregion
 
     #region 주문 관련 변수
@@ -681,9 +683,9 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
 
     private void ShowCurrentSpecialIntroLine()
     {
-        bool isLastLine = specialIntroLineIndex >= specialIntroLines.Length - 1;
-        string prompt = isLastLine ? "눌러서 특별 주문 받기" : "눌러서 계속";
-        UI_order.SetMessage($"{specialIntroLines[specialIntroLineIndex]}\n\n{prompt}", AdvanceSpecialIntro);
+        // 진행 안내 문구는 프리팹에서 지워도 코드가 다시 붙이고 있었다.
+        // 특별 주문 대사만 표시하고, 말풍선 클릭 동작은 그대로 유지한다.
+        UI_order.SetMessage(specialIntroLines[specialIntroLineIndex], AdvanceSpecialIntro);
         UI_order.gameObject.SetActive(true);
     }
 
