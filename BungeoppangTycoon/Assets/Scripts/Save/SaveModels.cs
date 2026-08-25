@@ -19,6 +19,8 @@ public sealed class RunProgressData
     public int nextDay = 1;
     public int money = SaveDataFactory.InitialMoney;
     public List<string> unlockedFillingIds = new();
+    // 이번에 시작할 영업일에 실제로 판매할 소 목록이다. 영구 해금과 분리한다.
+    public List<string> selectedFillingIds = new();
     // 날짜 기반 이야기 상태는 새 게임마다 함께 초기화된다.
     public List<CustomerStoryRunState> customerStories = new();
     // 서버 상점 인벤토리로 완전히 이전되기 전까지 기존 저장을 읽기 위한 호환 필드다.
@@ -172,7 +174,7 @@ public static class SaveIds
 
 public static class SaveDataFactory
 {
-    public const int CurrentSchemaVersion = 6;
+    public const int CurrentSchemaVersion = 7;
     public const int InitialMoney = 5000;
     public const string LegacyVolumeKey = "settings_master_volume_v1";
     public const string LegacyKeyboardHintsKey = "settings_keyboard_hints_enabled_v1";
@@ -199,6 +201,7 @@ public static class SaveDataFactory
             nextDay = 1,
             money = InitialMoney,
             unlockedFillingIds = new List<string>(RequiredDefaultFillingIds),
+            selectedFillingIds = new List<string>(RequiredDefaultFillingIds),
             customerStories = new List<CustomerStoryRunState>(),
             ownedGameplayItemIds = new List<string>(),
             queuedDayEffects = new List<QueuedDayEffectData>()
@@ -214,6 +217,16 @@ public static class SaveDataFactory
         data.run ??= new RunProgressData();
         data.run.nextDay = Mathf.Max(1, data.run.nextDay);
         data.run.unlockedFillingIds ??= new List<string>();
+        data.run.selectedFillingIds ??= new List<string>();
+        if (sourceSchemaVersion < 7)
+        {
+            // 이전 버전의 영구 보유 목록을 그대로 복사하면 모든 소가 매일 자동 선택되는
+            // 회귀가 생긴다. 첫 영업 전 계정만 팥을 기본 선택하고 진행 중 계정은 다시 고른다.
+            data.run.selectedFillingIds.Clear();
+            if (data.run.nextDay <= 1)
+                data.run.selectedFillingIds.Add("red-bean");
+        }
+        NormalizeUniqueIds(data.run.selectedFillingIds);
         data.run.customerStories ??= new List<CustomerStoryRunState>();
         data.run.ownedGameplayItemIds ??= new List<string>();
         data.run.queuedDayEffects ??= new List<QueuedDayEffectData>();
@@ -364,6 +377,21 @@ public static class SaveDataFactory
         }
     }
 
+    private static void NormalizeUniqueIds(List<string> ids)
+    {
+        HashSet<string> seen = new();
+        for (int index = ids.Count - 1; index >= 0; index--)
+        {
+            string id = ids[index]?.Trim();
+            if (string.IsNullOrEmpty(id) || !seen.Add(id))
+            {
+                ids.RemoveAt(index);
+                continue;
+            }
+            ids[index] = id;
+        }
+    }
+
     private static void NormalizeQueuedDayEffects(List<QueuedDayEffectData> effects)
     {
         HashSet<string> seen = new();
@@ -445,6 +473,7 @@ public static class SaveDataFactory
         nextDay = source.nextDay,
         money = source.money,
         unlockedFillingIds = new List<string>(source.unlockedFillingIds ?? new List<string>()),
+        selectedFillingIds = new List<string>(source.selectedFillingIds ?? new List<string>()),
         customerStories = CopyStoryStates(source.customerStories),
         ownedGameplayItemIds = new List<string>(source.ownedGameplayItemIds ?? new List<string>()),
         queuedDayEffects = CopyQueuedDayEffects(source.queuedDayEffects)

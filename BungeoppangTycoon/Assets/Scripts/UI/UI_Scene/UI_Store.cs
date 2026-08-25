@@ -24,6 +24,7 @@ public class UI_Store : UI_Base
     private GameObject fillingCards;
     private GameObject itemCards;
     private string processingProductId;
+    private GamePlatformClient platformClient;
 
     private static readonly Dictionary<string, string> CardProducts = new()
     {
@@ -55,8 +56,8 @@ public class UI_Store : UI_Base
         beanCoinNum = Util.Find<TextMeshProUGUI>(gameObject, "BeanCoinNum", true);
         RefreshBalances();
 
-        if (GamePlatformClient.Instance != null)
-            GamePlatformClient.Instance.StoreStateChanged += RefreshBalances;
+        GamePlatformClient.InstanceChanged += BindPlatformClient;
+        BindPlatformClient(GamePlatformClient.Instance);
         SaveService.Instance.GameStoreChanged += BindStoreCards;
         SaveService.Instance.DataChanged += RefreshBalances;
 
@@ -135,6 +136,8 @@ public class UI_Store : UI_Base
 
     private void SetCardsLoading()
     {
+        if (nextDayButton != null)
+            nextDayButton.interactable = false;
         foreach ((string cardName, _) in CardProducts)
         {
             Transform card = Util.Find<Transform>(gameObject, cardName, true);
@@ -176,20 +179,25 @@ public class UI_Store : UI_Base
 
             bool processing = processingProductId == productId;
             bool purchasable = !processing && productState.status == "purchasable";
-            string label = processing ? "구매 처리 중" : StatusLabel(productState.status);
+            string label = processing
+                ? product.category == "filling" ? "선택 처리 중" : "구매 처리 중"
+                : StatusLabel(productState.status, product.category);
             SetCardButton(card.gameObject, label, purchasable);
         }
 
         Transform next = Util.Find<Transform>(gameObject, "NextItemCard", true);
         if (next != null)
             SetCardButton(next.gameObject, "준비 중", false);
+        if (nextDayButton != null)
+            nextDayButton.interactable = state.selectedFillingIds != null && state.selectedFillingIds.Length > 0;
         RefreshBalances();
     }
 
-    private static string StatusLabel(string status) => status switch
+    private static string StatusLabel(string status, string category) => status switch
     {
         "owned" => "보유 중",
-        "purchasable" => "구매 가능",
+        "selected" => "선택됨",
+        "purchasable" => category == "filling" ? "선택하기" : "구매 가능",
         "insufficient-funds" => "잔액 부족",
         "login-required" => "로그인 필요",
         _ => "잠김"
@@ -252,10 +260,21 @@ public class UI_Store : UI_Base
                 : "—";
     }
 
+    private void BindPlatformClient(GamePlatformClient client)
+    {
+        if (platformClient == client) return;
+        if (platformClient != null)
+            platformClient.StoreStateChanged -= RefreshBalances;
+        platformClient = client;
+        if (platformClient != null)
+            platformClient.StoreStateChanged += RefreshBalances;
+        RefreshBalances();
+    }
+
     private void OnDestroy()
     {
-        if (GamePlatformClient.Instance != null)
-            GamePlatformClient.Instance.StoreStateChanged -= RefreshBalances;
+        GamePlatformClient.InstanceChanged -= BindPlatformClient;
+        BindPlatformClient(null);
         if (SaveService.Instance != null)
         {
             SaveService.Instance.GameStoreChanged -= BindStoreCards;

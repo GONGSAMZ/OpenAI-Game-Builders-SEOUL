@@ -1,9 +1,9 @@
 export type GameStoreCategory = "filling" | "item";
-export type GameStoreOwnership = "run-permanent" | "next-day-consumable";
+export type GameStoreOwnership = "run-permanent" | "daily-selection" | "next-day-consumable";
 export type GameStoreAvailability = "available" | "coming-soon";
 
 export interface GameStoreEffect {
-  code: "unlock-filling" | "paired-mold" | "paired-batter-pour" | "cook-time-multiplier";
+  code: "select-filling" | "paired-mold" | "paired-batter-pour" | "cook-time-multiplier";
   fillingId?: string;
   multiplier?: number;
   durationSeconds?: number;
@@ -21,7 +21,7 @@ export interface GameStoreProduct {
   effect: GameStoreEffect;
 }
 
-export const gameStoreCatalogVersion = "2026-08-25.1";
+export const gameStoreCatalogVersion = "2026-08-25.2";
 
 export const gameStoreProducts: readonly GameStoreProduct[] = [
   {
@@ -31,9 +31,9 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     description: "포근하고 진한 기본 단맛",
     price: 1200,
     currency: "game-money",
-    ownership: "run-permanent",
+    ownership: "daily-selection",
     availability: "available",
-    effect: { code: "unlock-filling", fillingId: "red-bean" }
+    effect: { code: "select-filling", fillingId: "red-bean" }
   },
   {
     productId: "filling-custard",
@@ -42,9 +42,9 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     description: "부드럽고 달콤한 크림",
     price: 1400,
     currency: "game-money",
-    ownership: "run-permanent",
+    ownership: "daily-selection",
     availability: "available",
-    effect: { code: "unlock-filling", fillingId: "custard" }
+    effect: { code: "select-filling", fillingId: "custard" }
   },
   {
     productId: "filling-nutella",
@@ -53,9 +53,9 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     description: "진한 초콜릿의 달콤함",
     price: 1600,
     currency: "game-money",
-    ownership: "run-permanent",
+    ownership: "daily-selection",
     availability: "available",
-    effect: { code: "unlock-filling", fillingId: "nutella" }
+    effect: { code: "select-filling", fillingId: "nutella" }
   },
   {
     productId: "filling-cream-cheese",
@@ -64,9 +64,9 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     description: "추후 해금되는 붕어빵 속",
     price: 0,
     currency: "game-money",
-    ownership: "run-permanent",
+    ownership: "daily-selection",
     availability: "coming-soon",
-    effect: { code: "unlock-filling", fillingId: "cream-cheese" }
+    effect: { code: "select-filling", fillingId: "cream-cheese" }
   },
   {
     productId: "filling-pizza",
@@ -75,9 +75,9 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     description: "추후 해금되는 붕어빵 속",
     price: 0,
     currency: "game-money",
-    ownership: "run-permanent",
+    ownership: "daily-selection",
     availability: "coming-soon",
-    effect: { code: "unlock-filling", fillingId: "pizza" }
+    effect: { code: "select-filling", fillingId: "pizza" }
   },
   {
     productId: "filling-mint",
@@ -86,9 +86,9 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     description: "추후 해금되는 붕어빵 속",
     price: 0,
     currency: "game-money",
-    ownership: "run-permanent",
+    ownership: "daily-selection",
     availability: "coming-soon",
-    effect: { code: "unlock-filling", fillingId: "mint" }
+    effect: { code: "select-filling", fillingId: "mint" }
   },
   {
     productId: "filling-sweet-potato",
@@ -97,9 +97,9 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     description: "추후 해금되는 붕어빵 속",
     price: 0,
     currency: "game-money",
-    ownership: "run-permanent",
+    ownership: "daily-selection",
     availability: "coming-soon",
-    effect: { code: "unlock-filling", fillingId: "sweet-potato" }
+    effect: { code: "select-filling", fillingId: "sweet-potato" }
   },
   {
     productId: "filling-green-tea",
@@ -108,9 +108,9 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     description: "향긋하고 쌉싸름한 맛",
     price: 1800,
     currency: "game-money",
-    ownership: "run-permanent",
+    ownership: "daily-selection",
     availability: "available",
-    effect: { code: "unlock-filling", fillingId: "green-tea" }
+    effect: { code: "select-filling", fillingId: "green-tea" }
   },
   {
     productId: "item-double-golden-mold",

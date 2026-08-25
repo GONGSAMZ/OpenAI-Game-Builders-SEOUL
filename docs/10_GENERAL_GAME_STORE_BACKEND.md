@@ -10,10 +10,10 @@
 
 | Unity 카드 | 서버 상품 ID | 효과 |
 | --- | --- | --- |
-| `RedBeanCard` | `filling-red-bean` | 팥 해금, 신규 계정 기본 보유 |
-| `CustardCard` | `filling-custard` | 슈크림 해금 |
-| `ChocolateCard` | `filling-nutella` | 초코 해금 |
-| `GreenTeaCard` | `filling-green-tea` | 녹차 해금 |
+| `RedBeanCard` | `filling-red-bean` | 다음 영업일 팥 판매 선택 |
+| `CustardCard` | `filling-custard` | 다음 영업일 슈크림 판매 선택 |
+| `ChocolateCard` | `filling-nutella` | 다음 영업일 초코 판매 선택 |
+| `GreenTeaCard` | `filling-green-tea` | 다음 영업일 녹차 판매 선택 |
 | `GoldenPanCard` | `item-double-golden-mold` | 같은 단계의 인접 두 틀 동시 조리·뒤집기 |
 | `DualPourCard` | `item-dual-pour` | 인접 유효 틀까지 반죽 동시 붓기 |
 | `CookingFeverCard` | `item-cooking-fever` | 다음 날 첫 30초 굽기 시간 20% 단축 |
@@ -24,18 +24,18 @@
 ## 재화와 저장 경계
 
 - 일반 상점은 `run.money`만 사용한다. 팥 코인은 표시할 수 있지만 차감하지 않는다.
-- 일반 재료·영구 도구·예약 효과는 `PLAYER#<subject> / SAVE#MAIN`의 `run` 영역에 저장한다.
+- 영구 해금 이력, 다음 영업일 소 선택, 영구 도구와 예약 효과는 `PLAYER#<subject> / SAVE#MAIN`의 `run` 영역에 저장한다.
 - 계정 도감·스토리·업적·설정은 같은 프로필의 `account`·`settings` 영역에 유지한다.
 - HIVE 팥 코인, 프리미엄 `golden-pan`, 장착 상태와 구매 원장은 기존 별도 상점 레코드를 기준으로 한다.
-- 전체 프로필 PUT은 `nextDay`, `money`, `unlockedFillingIds`, `ownedGameplayItemIds`, `queuedDayEffects`를 변경할 수 없다. 이 값은 전용 구매·정산·초기화 API만 변경한다.
+- 전체 프로필 PUT은 `nextDay`, `money`, `unlockedFillingIds`, `selectedFillingIds`, `ownedGameplayItemIds`, `queuedDayEffects`를 변경할 수 없다. 이 값은 전용 구매·정산·초기화 API만 변경한다.
 
-SaveProfile v6의 신규 계정은 팥만 기본 보유한다. 기존 v5 이하 계정이 이미 보유한 슈크림·초코·크림치즈는 정규화 과정에서 회수하지 않는다. 진행 초기화는 `run`만 초기값으로 바꾸며 계정 영역과 HIVE 보유품은 유지한다.
+SaveProfile v7은 영구 해금 `unlockedFillingIds`와 해당 영업일 선택 `selectedFillingIds`를 분리한다. 첫 영업일만 팥을 기본 선택하고, 하루 정산 뒤 선택 목록을 비운다. 상점에서는 복수의 소를 선택할 수 있고 선택할 때마다 표시된 준비 비용을 그날 한 번 차감한다. 이전 계정의 해금 이력은 회수하지 않지만 자동 선택으로 간주하지 않는다. 진행 초기화는 `run`만 초기값으로 바꾸며 계정 영역과 HIVE 보유품은 유지한다.
 
 ## API 사용 순서
 
 1. 화면을 열 때 공개 `GET /api/v1/game-store/catalog`를 호출한다.
 2. 로그인 상태면 `GET /api/v1/game-store/me`를 추가 호출한다. 비로그인은 카탈로그만 표시하고 버튼을 `로그인 필요`로 잠근다.
-3. 구매는 UUID `Idempotency-Key`, `productId`, 화면에서 받은 `expectedRevision`으로 `POST /api/v1/game-store/purchases`를 호출한다.
+3. 소 선택과 아이템 구매는 UUID `Idempotency-Key`, `productId`, 화면에서 받은 `expectedRevision`으로 `POST /api/v1/game-store/purchases`를 호출한다. 소는 `selected`, 영구 도구는 `owned` 상태를 사용한다.
 4. 하루 종료는 절대 잔액 대신 날짜·매출·재료비·판매량·손님 수를 `POST /api/v1/game-run/settle-day`에 보낸다. 서버가 잔액과 다음 날짜를 계산한다.
 5. 새 게임은 `POST /api/v1/save/reset-run`을 사용한다. 전체 프로필 PUT으로 초기화를 흉내 내지 않는다.
 
@@ -43,7 +43,7 @@ SaveProfile v6의 신규 계정은 팥만 기본 보유한다. 기존 v5 이하 
 
 ## 게임 효과 규칙
 
-- 재료 선택과 주문 생성은 `unlockedFillingIds` 집합을 기준으로 한다.
+- 카드 노출·해금 이력은 `unlockedFillingIds`, 실제 도구 활성화와 주문 생성은 `selectedFillingIds` 집합을 기준으로 한다.
 - 황금 2구 틀은 인접 두 붕어빵의 단계와 진행 가능 상태가 같을 때만 둘을 함께 진행한다. 조건이 맞지 않으면 클릭한 틀만 처리한다.
 - 동시 붓기는 실제로 빈 인접 틀에 적용된 횟수만큼 기존 재료비 계산을 각각 실행한다.
 - 조리 피버는 예약된 `targetDay`의 게임 시간 0초 이상 30초 미만에서만 0.8 배율을 적용한다.

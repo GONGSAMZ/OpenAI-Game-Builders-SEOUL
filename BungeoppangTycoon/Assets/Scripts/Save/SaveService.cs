@@ -20,6 +20,7 @@ public sealed class SaveService : MonoBehaviour
     private int localMutationVersion;
     private int pendingSettlementDay = -1;
     private string pendingSettlementIdempotencyKey;
+    private GamePlatformClient platformClient;
 
     public static SaveService Instance { get; private set; }
     public static SaveGameData Data => EnsureInstance().Current;
@@ -60,23 +61,28 @@ public sealed class SaveService : MonoBehaviour
         localStore = new PlayerPrefsLocalSaveStore();
         Current = LoadOrCreate(GuestScope, true);
         ApplyRuntimeSettings();
-    }
-
-    private void Start()
-    {
-        GamePlatformClient client = GamePlatformClient.Instance;
-        if (client == null) return;
-        client.SessionChanged += OnSessionChanged;
-        if (!string.IsNullOrWhiteSpace(client.SessionSubject))
-            OnSessionChanged(client.SessionSubject);
+        GamePlatformClient.InstanceChanged += BindPlatformClient;
+        BindPlatformClient(GamePlatformClient.Instance);
     }
 
     private void OnDestroy()
     {
         if (Instance != this) return;
-        if (GamePlatformClient.Instance != null)
-            GamePlatformClient.Instance.SessionChanged -= OnSessionChanged;
+        GamePlatformClient.InstanceChanged -= BindPlatformClient;
+        BindPlatformClient(null);
         Instance = null;
+    }
+
+    private void BindPlatformClient(GamePlatformClient client)
+    {
+        if (platformClient == client) return;
+        if (platformClient != null)
+            platformClient.SessionChanged -= OnSessionChanged;
+        platformClient = client;
+        if (platformClient == null) return;
+        platformClient.SessionChanged += OnSessionChanged;
+        if (!string.IsNullOrWhiteSpace(platformClient.SessionSubject))
+            OnSessionChanged(platformClient.SessionSubject);
     }
 
     private void OnApplicationPause(bool paused)
@@ -99,6 +105,9 @@ public sealed class SaveService : MonoBehaviour
 
     public bool IsFillingUnlocked(FillingType filling) =>
         Current.run.unlockedFillingIds.Contains(SaveIds.Filling(filling));
+
+    public bool IsFillingSelected(FillingType filling) =>
+        Current.run.selectedFillingIds.Contains(SaveIds.Filling(filling));
 
     public CustomerStoryRunState GetCustomerStoryRunState(CustomerType customerType) =>
         SaveDataFactory.FindOrCreateCustomerStoryState(Current, customerType);
@@ -219,6 +228,7 @@ public sealed class SaveService : MonoBehaviour
         {
             Current.run.nextDay = Mathf.Max(1, day + 1);
             Current.run.money += Mathf.Max(0, revenue) - Mathf.Max(0, ingredientCost);
+            Current.run.selectedFillingIds.Clear();
             Current.run.queuedDayEffects.RemoveAll(effect => effect == null || effect.targetDay <= day);
             LifetimeStatsData stats = Current.account.lifetimeStats;
             stats.totalSales += Mathf.Max(0, sold);
@@ -447,6 +457,7 @@ public sealed class SaveService : MonoBehaviour
         Current.revision = state.revision;
         Current.run.money = state.money;
         Current.run.unlockedFillingIds = new List<string>(state.unlockedFillingIds ?? Array.Empty<string>());
+        Current.run.selectedFillingIds = new List<string>(state.selectedFillingIds ?? Array.Empty<string>());
         Current.run.ownedGameplayItemIds = new List<string>(state.ownedGameplayItemIds ?? Array.Empty<string>());
         Current.run.queuedDayEffects = new List<QueuedDayEffectData>(
             state.queuedDayEffects ?? Array.Empty<QueuedDayEffectData>());
@@ -463,8 +474,8 @@ public sealed class SaveService : MonoBehaviour
         List<GameStoreProductStateData> states = new();
         foreach (GameStoreProductData product in GameStoreCatalog?.products ?? Array.Empty<GameStoreProductData>())
         {
-            bool owned = product.effect?.code == "unlock-filling"
-                ? Current.run.unlockedFillingIds.Contains(product.effect.fillingId)
+            bool owned = product.effect?.code == "select-filling"
+                ? Current.run.selectedFillingIds.Contains(product.effect.fillingId)
                 : product.ownership == "run-permanent"
                     ? Current.run.ownedGameplayItemIds.Contains(product.productId)
                     : Current.run.queuedDayEffects.Exists(value =>
@@ -473,7 +484,11 @@ public sealed class SaveService : MonoBehaviour
             states.Add(new GameStoreProductStateData
             {
                 productId = product.productId,
-                status = product.availability != "available" ? "locked" : owned ? "owned" : "login-required"
+                status = product.availability != "available"
+                    ? "locked"
+                    : owned
+                        ? product.effect?.code == "select-filling" ? "selected" : "owned"
+                        : "login-required"
             });
         }
         return new GameStoreStateData
@@ -481,6 +496,7 @@ public sealed class SaveService : MonoBehaviour
             revision = Current.revision,
             money = Current.run.money,
             unlockedFillingIds = Current.run.unlockedFillingIds.ToArray(),
+            selectedFillingIds = Current.run.selectedFillingIds.ToArray(),
             ownedGameplayItemIds = Current.run.ownedGameplayItemIds.ToArray(),
             queuedDayEffects = Current.run.queuedDayEffects.ToArray(),
             products = states.ToArray()
@@ -758,6 +774,8 @@ public sealed class SaveService : MonoBehaviour
             GameStoreChanged?.Invoke();
             return;
         }
+        GameStoreState = null;
+        GameStoreChanged?.Invoke();
         StartCoroutine(LoadAccount(subject, accountLoadGeneration));
     }
 
@@ -789,6 +807,7 @@ public sealed class SaveService : MonoBehaviour
         if (failed || string.IsNullOrWhiteSpace(json))
         {
             IsAccountLoading = false;
+            RefreshGameStore();
             yield break;
         }
 
@@ -807,6 +826,7 @@ public sealed class SaveService : MonoBehaviour
             DataChanged?.Invoke();
             if (requiresSchemaUpgrade)
                 Persist("저장 형식 업그레이드");
+            RefreshGameStore();
             yield break;
         }
 
@@ -830,6 +850,8 @@ public sealed class SaveService : MonoBehaviour
         }
         IsAccountLoading = false;
         DataChanged?.Invoke();
+        if (IsAccountSave)
+            RefreshGameStore();
     }
 
     private static string ScopeHash(string value)

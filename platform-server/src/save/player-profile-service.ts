@@ -10,7 +10,7 @@ import {
   type PlayerSaveStore
 } from "./save-store.js";
 
-export const currentSchemaVersion = 6;
+export const currentSchemaVersion = 7;
 const progressMigrationId = "progress-v1";
 const requiredDefaultFillings = ["red-bean"];
 
@@ -112,12 +112,19 @@ function normalizedCustomers(value: unknown): JsonRecord[] {
 
 export function normalizePlayerSaveProfile(profile: PlayerSaveProfile): PlayerSaveProfile {
   const normalized = structuredClone(profile);
+  const sourceSchemaVersion = Number(normalized.schemaVersion) || 0;
   const run = record(normalized.run);
   run.nextDay = Math.max(1, Number(run.nextDay) || 1);
   run.money = Number.isFinite(Number(run.money)) ? Number(run.money) : 5000;
   run.unlockedFillingIds = [
     ...new Set([...requiredDefaultFillings, ...stringArray(run.unlockedFillingIds)])
   ];
+  const hadSelectedFillings = Object.prototype.hasOwnProperty.call(run, "selectedFillingIds");
+  run.selectedFillingIds = hadSelectedFillings
+    ? stringArray(run.selectedFillingIds)
+    : sourceSchemaVersion < 7 && Number(run.nextDay) <= 1
+      ? [...requiredDefaultFillings]
+      : [];
   run.ownedGameplayItemIds = stringArray(run.ownedGameplayItemIds);
   run.queuedDayEffects = normalizedQueuedDayEffects(run.queuedDayEffects);
 
@@ -152,6 +159,7 @@ export function createDefaultPlayerSaveProfile(): PlayerSaveProfile {
       nextDay: 1,
       money: 5000,
       unlockedFillingIds: requiredDefaultFillings,
+      selectedFillingIds: requiredDefaultFillings,
       ownedGameplayItemIds: [],
       queuedDayEffects: []
     },
@@ -282,6 +290,7 @@ export class PlayerProfileService {
       "nextDay",
       "money",
       "unlockedFillingIds",
+      "selectedFillingIds",
       "ownedGameplayItemIds",
       "queuedDayEffects"
     ]) {
