@@ -1,4 +1,5 @@
 #if UNITY_INCLUDE_TESTS
+using System;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEditor;
@@ -331,6 +332,151 @@ public sealed class SavePipelineTests
         Assert.That(merged.account.discoveredSouls.Exists(value => value.soulId == "soul:local"), Is.True);
         Assert.That(merged.account.customers.Find(value => value.customerId == "jeonghyeon").storyCompleted, Is.True);
         Assert.That(merged.account.lifetimeStats.totalSales, Is.EqualTo(25));
+    }
+
+    [Test]
+    public void LocalGameStore_CatalogMatchesServerFillingIdsAndPrices()
+    {
+        GameStoreCatalogData catalog = LocalGameStore.CreateCatalog();
+
+        Assert.That(catalog.catalogVersion, Is.EqualTo(LocalGameStore.CatalogVersion));
+        Assert.That(catalog.Find("filling-red-bean").price, Is.EqualTo(1200));
+        Assert.That(catalog.Find("filling-custard").price, Is.EqualTo(1400));
+        Assert.That(catalog.Find("filling-nutella").price, Is.EqualTo(1600));
+        Assert.That(catalog.Find("filling-green-tea").price, Is.EqualTo(1800));
+    }
+
+    [Test]
+    public void LocalGameStore_PurchaseDeductsMoneyUnlocksAndSelectsFilling()
+    {
+        SaveGameData data = SaveDataFactory.CreateDefault();
+        data.run.money = 5000;
+
+        bool success = LocalGameStore.TryPurchaseFilling(
+            data, LocalGameStore.CreateCatalog(), "filling-custard", out string message);
+
+        Assert.That(success, Is.True, message);
+        Assert.That(data.run.money, Is.EqualTo(3600));
+        Assert.That(data.run.unlockedFillingIds, Does.Contain("custard"));
+        Assert.That(data.run.selectedFillingIds, Does.Contain("custard"));
+    }
+
+    [Test]
+    public void LocalGameStore_RejectsInsufficientFundsDuplicateAndItemPurchase()
+    {
+        GameStoreCatalogData catalog = LocalGameStore.CreateCatalog();
+        SaveGameData poor = SaveDataFactory.CreateDefault();
+        poor.run.money = 100;
+        Assert.That(LocalGameStore.TryPurchaseFilling(
+            poor, catalog, "filling-nutella", out _), Is.False);
+        Assert.That(poor.run.money, Is.EqualTo(100));
+
+        SaveGameData duplicate = SaveDataFactory.CreateDefault();
+        int originalMoney = duplicate.run.money;
+        Assert.That(LocalGameStore.TryPurchaseFilling(
+            duplicate, catalog, "filling-red-bean", out _), Is.False);
+        Assert.That(duplicate.run.money, Is.EqualTo(originalMoney));
+
+        Assert.That(LocalGameStore.TryPurchaseFilling(
+            duplicate, catalog, "item-dual-pour", out string itemMessage), Is.False);
+        Assert.That(itemMessage, Does.Contain("로그인"));
+    }
+
+    [Test]
+    public void LocalGameStore_PurchasedSelectionSurvivesLocalSaveReload()
+    {
+        const string scope = "editmode_guest_store_test";
+        ClearScope(scope);
+        try
+        {
+            GameStoreCatalogData catalog = LocalGameStore.CreateCatalog();
+            SaveGameData data = SaveDataFactory.CreateDefault();
+            data.run.money = 5000;
+            Assert.That(LocalGameStore.TryPurchaseFilling(
+                data, catalog, "filling-green-tea", out _), Is.True);
+
+            PlayerPrefsLocalSaveStore store = new();
+            store.Save(scope, data);
+
+            Assert.That(store.TryLoad(scope, out SaveGameData loaded), Is.True);
+            GameStoreStateData state = LocalGameStore.CreateState(loaded, catalog);
+            Assert.That(state.selectedFillingIds, Does.Contain("green-tea"));
+            Assert.That(state.Find("filling-green-tea").status, Is.EqualTo("selected"));
+        }
+        finally
+        {
+            ClearScope(scope);
+        }
+    }
+
+    [Test]
+    public void CustomerStory_DaySelectionUsesCurrentlySelectedFilling()
+    {
+        SaveGameData data = SaveDataFactory.CreateDefault();
+        data.run.selectedFillingIds = new() { "nutella" };
+        MethodInfo selector = typeof(CustomerStoryProgress).GetMethod(
+            "FindActiveStory", BindingFlags.NonPublic | BindingFlags.Static);
+
+        CustomerStoryData story = (CustomerStoryData)selector.Invoke(null, new object[] { data });
+
+        Assert.That(story, Is.Not.Null);
+        Assert.That(story.CustomerType, Is.EqualTo(CustomerType.Geonwoo));
+    }
+
+    [Test]
+    public void CustomerStory_SpecialOrderMatchesFillingAndIgnoresBakeState()
+    {
+        CustomerStoryData story = CustomerStoryCatalog.Get(CustomerType.JeongHyun);
+        MethodInfo matcher = typeof(CustomerStoryProgress).GetMethod(
+            "IsSpecialOrderMatch", BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.That(matcher.Invoke(null, new object[] { story, FillingType.custard, QualityStatus.soft }), Is.True);
+        Assert.That(matcher.Invoke(null, new object[] { story, FillingType.custard, QualityStatus.crisp }), Is.True);
+        Assert.That(matcher.Invoke(null, new object[] { story, FillingType.nutella, QualityStatus.soft }), Is.False);
+    }
+
+    [Test]
+    public void CustomerOrder_QualityReductionIsAppliedOncePerFishBun()
+    {
+        MethodInfo calculator = typeof(CustomerController).GetMethod(
+            "CalculateAngerReduction", BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.That(calculator.Invoke(null, new object[] { 1, QualityStatus.perfect }), Is.EqualTo(100));
+        Assert.That(calculator.Invoke(null, new object[] { 1, QualityStatus.soft }), Is.EqualTo(80));
+        Assert.That(calculator.Invoke(null, new object[] { 4, QualityStatus.crisp }), Is.EqualTo(20));
+    }
+
+    [Test]
+    public void CustomerStoryCutscene_MissingPlayerInvokesFinishedExactlyOnce()
+    {
+        MethodInfo fallback = typeof(CustomerStoryCutscenePlayer).GetMethod(
+            "OpenOrFinish",
+            BindingFlags.NonPublic | BindingFlags.Static,
+            null,
+            new[] { typeof(CustomerStoryCutscenePlayer), typeof(CustomerType), typeof(Action) },
+            null);
+        int calls = 0;
+
+        fallback.Invoke(null, new object[] { null, CustomerType.JeongHyun, (Action)(() => calls++) });
+
+        Assert.That(calls, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void SaveService_ServiceReturnsInitializedInstance()
+    {
+        SaveService original = SaveService.Instance;
+        SaveService service = SaveService.Service;
+        try
+        {
+            Assert.That(service, Is.Not.Null);
+            Assert.That(service.Current, Is.Not.Null);
+        }
+        finally
+        {
+            if (original == null && service != null)
+                UnityEngine.Object.DestroyImmediate(service.gameObject);
+        }
     }
 
     [Test]
