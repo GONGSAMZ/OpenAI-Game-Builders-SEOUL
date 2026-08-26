@@ -158,6 +158,7 @@ public class FishBunController : MonoBehaviour,
         //위치 조정
         transform.position = spawnPos;
         transform.localScale = parentMold.transform.localScale * 1.4f;
+        NormalizeScaleToKeepSpriteAspect();
         baseScale = transform.localScale;
         fishBunRenderer = GetComponent<SpriteRenderer>();
         baseColor = fishBunRenderer.color;
@@ -179,6 +180,27 @@ public class FishBunController : MonoBehaviour,
         this.spawnPos = spawnPos;
         this.parentMold = parentMold;
 
+    }
+
+    // 조리 틀과 진열대의 가로·세로 배율이 달라도 붕어빵 그림 자체는 찌그러지지 않게 한다.
+    // 기존 세로 표시 크기를 기준으로 가로 배율을 보정하므로, 붕어빵이 진열대에서 갑자기 작아지지 않는다.
+    void NormalizeScaleToKeepSpriteAspect()
+    {
+        Transform currentParent = transform.parent;
+        if (currentParent == null)
+            return;
+
+        Vector3 parentScale = currentParent.lossyScale;
+        float parentWidth = Mathf.Abs(parentScale.x);
+        float parentHeight = Mathf.Abs(parentScale.y);
+        if (parentWidth <= Mathf.Epsilon || parentHeight <= Mathf.Epsilon)
+            return;
+
+        float worldHeightScale = Mathf.Abs(transform.localScale.y) * parentHeight;
+        transform.localScale = new Vector3(
+            worldHeightScale / parentWidth,
+            transform.localScale.y,
+            transform.localScale.z);
     }
 
     void OnDestroy()
@@ -233,6 +255,8 @@ public class FishBunController : MonoBehaviour,
 			// 진열한 완성품은 몰드의 자식으로 남기지 않는다.
 			// 그래야 몰드의 실제 점유 상태와 isFilled 값이 어긋나지 않는다.
 			transform.SetParent(target.transform, true);
+			// 부모가 바뀌면 localScale의 기준도 바뀌므로 선택 효과의 기준 크기를 다시 저장한다.
+			baseScale = transform.localScale;
 			return true;
 		}
 
