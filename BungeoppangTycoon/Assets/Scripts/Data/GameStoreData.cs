@@ -92,7 +92,7 @@ public sealed class ApiErrorData
 /// </summary>
 public static class LocalGameStore
 {
-    public const string CatalogVersion = "2026-08-26.1";
+    public const string CatalogVersion = "2026-08-26.3";
 
 public static GameStoreCatalogData CreateCatalog() => new()
     {
@@ -100,14 +100,15 @@ public static GameStoreCatalogData CreateCatalog() => new()
         currency = "game-money",
         products = new[]
         {
-            Product("filling-red-bean", "filling", "크림치즈", "고소하고 부드러운 크림치즈 붕어빵", 6000,
-                "daily-selection", "select-filling", "cream-cheese"),
-            Product("filling-custard", "filling", "피자", "치즈와 토핑을 담은 이색 붕어빵", 9000,
+            // 팥·슈크림·초코·크림치즈는 기본 제공이다. 상점 4칸에는 나머지 재료만 둔다.
+            Product("filling-pizza", "filling", "피자", "치즈와 토핑을 담은 이색 붕어빵", 6000,
                 "daily-selection", "select-filling", "pizza"),
-            Product("filling-nutella", "filling", "민트", "시원하고 독특한 민트 붕어빵", 12000,
+            Product("filling-mint", "filling", "민트", "시원하고 독특한 민트 붕어빵", 9000,
                 "daily-selection", "select-filling", "mint"),
-            Product("filling-green-tea", "filling", "고구마", "달콤하고 포근한 고구마 붕어빵", 15000,
+            Product("filling-sweet-potato", "filling", "고구마", "달콤하고 포근한 고구마 붕어빵", 12000,
                 "daily-selection", "select-filling", "sweet-potato"),
+            Product("filling-green-tea", "filling", "녹차", "향긋하고 쌉싸름한 맛", 15000,
+                "daily-selection", "select-filling", "green-tea"),
             Product("item-double-golden-mold", "item", "황금 2구 틀", "두 마리를 한 번에 구울 수 있는 틀", 4800,
                 "run-permanent", "paired-mold"),
             Product("item-dual-pour", "item", "동시 붓기", "두 칸에 반죽을 한 번에 붓기", 3200,

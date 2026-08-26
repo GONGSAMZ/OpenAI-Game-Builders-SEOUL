@@ -28,9 +28,9 @@ public class UI_Store : UI_Base
 
     private static readonly Dictionary<string, string> CardProducts = new()
     {
-        { "RedBeanCard", "filling-red-bean" },
-        { "CustardCard", "filling-custard" },
-        { "ChocolateCard", "filling-nutella" },
+        { "RedBeanCard", "filling-pizza" },
+        { "CustardCard", "filling-mint" },
+        { "ChocolateCard", "filling-sweet-potato" },
         { "GreenTeaCard", "filling-green-tea" },
         { "GoldenPanCard", "item-double-golden-mold" },
         { "DualPourCard", "item-dual-pour" },
@@ -188,8 +188,9 @@ public class UI_Store : UI_Base
         Transform next = Util.Find<Transform>(gameObject, "NextItemCard", true);
         if (next != null)
             SetCardButton(next.gameObject, "준비 중", false);
+        // 기본 4종은 영업 시작 시 자동으로 제공된다. 추가 재료를 고르지 않아도 다음 날로 갈 수 있다.
         if (nextDayButton != null)
-            nextDayButton.interactable = state.selectedFillingIds != null && state.selectedFillingIds.Length > 0;
+            nextDayButton.interactable = true;
         RefreshBalances();
     }
 

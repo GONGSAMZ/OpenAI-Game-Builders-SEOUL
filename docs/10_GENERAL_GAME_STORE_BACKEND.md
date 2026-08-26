@@ -10,9 +10,9 @@
 
 | Unity 카드 | 서버 상품 ID | 효과 |
 | --- | --- | --- |
-| `RedBeanCard` | `filling-red-bean` | 다음 영업일 팥 판매 선택 |
-| `CustardCard` | `filling-custard` | 다음 영업일 슈크림 판매 선택 |
-| `ChocolateCard` | `filling-nutella` | 다음 영업일 초코 판매 선택 |
+| `RedBeanCard` | `filling-pizza` | 다음 영업일 피자 판매 선택 |
+| `CustardCard` | `filling-mint` | 다음 영업일 민트 판매 선택 |
+| `ChocolateCard` | `filling-sweet-potato` | 다음 영업일 고구마 판매 선택 |
 | `GreenTeaCard` | `filling-green-tea` | 다음 영업일 녹차 판매 선택 |
 | `GoldenPanCard` | `item-double-golden-mold` | 같은 단계의 인접 두 틀 동시 조리·뒤집기 |
 | `DualPourCard` | `item-dual-pour` | 인접 유효 틀까지 반죽 동시 붓기 |
@@ -49,6 +49,7 @@ SaveProfile v8은 영구 해금 `unlockedFillingIds`와 해당 영업일 선택 
 
 ## 게임 효과 규칙
 
+- 팥·슈크림·초코·크림치즈는 기본 제공이다. 상점은 피자·민트·고구마·녹차만 판매한다.
 - 카드 노출·해금 이력은 `unlockedFillingIds`, 실제 도구 활성화와 주문 생성은 `selectedFillingIds` 집합을 기준으로 한다.
 - 황금 2구 틀은 인접 두 붕어빵의 단계와 진행 가능 상태가 같을 때만 둘을 함께 진행한다. 조건이 맞지 않으면 클릭한 틀만 처리한다.
 - 동시 붓기는 실제로 빈 인접 틀에 적용된 횟수만큼 기존 재료비 계산을 각각 실행한다.

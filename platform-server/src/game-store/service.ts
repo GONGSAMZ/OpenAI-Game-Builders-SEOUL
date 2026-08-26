@@ -387,9 +387,12 @@ export class GameStoreService {
             receivedDay: input.day
           });
         }
-        const selectedFillingIds = stringArray(run.selectedFillingIds);
+        let selectedFillingIds = stringArray(run.selectedFillingIds);
+        // 기본 4종은 항상 판매 가능하다. 상점에서 추가 소를 고르지 않았더라도
+        // 다음 영업일이 막히지 않도록 시작 시점에만 기본 선택값을 복구한다.
         if (selectedFillingIds.length === 0) {
-          throw new GameEconomyError(409, "NO_FILLING_SELECTED", "판매할 붕어빵 소를 먼저 선택해 주세요.");
+          selectedFillingIds = ["red-bean", "custard", "nutella", "cream-cheese"];
+          run.selectedFillingIds = selectedFillingIds;
         }
         const startedAt = new Date(this.now()).toISOString();
         run.activeDay = {

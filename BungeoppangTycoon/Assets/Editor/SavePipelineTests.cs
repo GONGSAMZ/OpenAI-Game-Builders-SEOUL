@@ -347,6 +347,26 @@ public sealed class SavePipelineTests
     }
 
     [Test]
+    public void RestoreSelectedFillings_UsesOnlyDefaultFillings_NotAllUnlockedFillings()
+    {
+        RunProgressData run = new()
+        {
+            unlockedFillingIds = new() { "red-bean", "green-tea", "sweet-potato" },
+            selectedFillingIds = new()
+        };
+        MethodInfo restorer = typeof(SaveService).GetMethod(
+            "RestoreSelectedFillingIdsIfEmpty", BindingFlags.NonPublic | BindingFlags.Static);
+
+        bool restored = (bool)restorer.Invoke(null, new object[] { run });
+
+        Assert.That(restored, Is.True);
+        Assert.That(run.selectedFillingIds, Is.EquivalentTo(new[]
+        {
+            "red-bean", "custard", "nutella", "cream-cheese"
+        }));
+    }
+
+    [Test]
     public void BakingMultiplier_PremiumAndFeverStackMultiplicativelyAndSnapshotInputs()
     {
         SaveGameData data = SaveDataFactory.CreateDefault();
@@ -445,10 +465,12 @@ public sealed class SavePipelineTests
         GameStoreCatalogData catalog = LocalGameStore.CreateCatalog();
 
         Assert.That(catalog.catalogVersion, Is.EqualTo(LocalGameStore.CatalogVersion));
-        Assert.That(catalog.Find("filling-red-bean").price, Is.EqualTo(6000));
-        Assert.That(catalog.Find("filling-custard").price, Is.EqualTo(9000));
-        Assert.That(catalog.Find("filling-nutella").price, Is.EqualTo(12000));
+        Assert.That(catalog.Find("filling-pizza").price, Is.EqualTo(6000));
+        Assert.That(catalog.Find("filling-mint").price, Is.EqualTo(9000));
+        Assert.That(catalog.Find("filling-sweet-potato").price, Is.EqualTo(12000));
         Assert.That(catalog.Find("filling-green-tea").price, Is.EqualTo(15000));
+        Assert.That(catalog.Find("filling-green-tea").displayName, Is.EqualTo("녹차"));
+        Assert.That(catalog.Find("filling-green-tea").effect.fillingId, Is.EqualTo("green-tea"));
     }
 
     [Test]
@@ -458,12 +480,12 @@ public sealed class SavePipelineTests
         data.run.money = 20000;
 
         bool success = LocalGameStore.TryPurchaseFilling(
-            data, LocalGameStore.CreateCatalog(), "filling-custard", out string message);
+            data, LocalGameStore.CreateCatalog(), "filling-mint", out string message);
 
         Assert.That(success, Is.True, message);
         Assert.That(data.run.money, Is.EqualTo(11000));
-        Assert.That(data.run.unlockedFillingIds, Does.Contain("pizza"));
-        Assert.That(data.run.selectedFillingIds, Does.Contain("pizza"));
+        Assert.That(data.run.unlockedFillingIds, Does.Contain("mint"));
+        Assert.That(data.run.selectedFillingIds, Does.Contain("mint"));
     }
 
     [Test]
@@ -473,15 +495,15 @@ public sealed class SavePipelineTests
         SaveGameData poor = SaveDataFactory.CreateDefault();
         poor.run.money = 100;
         Assert.That(LocalGameStore.TryPurchaseFilling(
-            poor, catalog, "filling-nutella", out _), Is.False);
+            poor, catalog, "filling-mint", out _), Is.False);
         Assert.That(poor.run.money, Is.EqualTo(100));
 
         SaveGameData duplicate = SaveDataFactory.CreateDefault();
         duplicate.run.money = 20000;
-        duplicate.run.selectedFillingIds.Add("cream-cheese");
+        duplicate.run.selectedFillingIds.Add("pizza");
         int originalMoney = duplicate.run.money;
         Assert.That(LocalGameStore.TryPurchaseFilling(
-            duplicate, catalog, "filling-red-bean", out _), Is.False);
+            duplicate, catalog, "filling-pizza", out _), Is.False);
         Assert.That(duplicate.run.money, Is.EqualTo(originalMoney));
 
         Assert.That(LocalGameStore.TryPurchaseFilling(
@@ -507,7 +529,7 @@ public sealed class SavePipelineTests
 
             Assert.That(store.TryLoad(scope, out SaveGameData loaded), Is.True);
             GameStoreStateData state = LocalGameStore.CreateState(loaded, catalog);
-            Assert.That(state.selectedFillingIds, Does.Contain("sweet-potato"));
+            Assert.That(state.selectedFillingIds, Does.Contain("green-tea"));
             Assert.That(state.Find("filling-green-tea").status, Is.EqualTo("selected"));
         }
         finally

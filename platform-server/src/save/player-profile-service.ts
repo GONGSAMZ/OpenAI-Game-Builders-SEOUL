@@ -13,7 +13,7 @@ import {
 
 export const currentSchemaVersion = 8;
 const progressMigrationId = "progress-v1";
-const requiredDefaultFillings = ["red-bean"];
+const requiredDefaultFillings = ["red-bean", "custard", "nutella", "cream-cheese"];
 const validCustomerIds = new Set<string>(playerProgressCustomerIds);
 const validSoulIdPattern = /^soul:(red-bean|custard|nutella|cream-cheese|pizza|mint|sweet-potato|green-tea):(soft|perfect|crisp)$/;
 const serverAchievementDefinitions = [

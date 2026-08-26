@@ -21,7 +21,7 @@ export interface GameStoreProduct {
   effect: GameStoreEffect;
 }
 
-export const gameStoreCatalogVersion = "2026-08-25.2";
+export const gameStoreCatalogVersion = "2026-08-26.3";
 
 export const gameStoreProducts: readonly GameStoreProduct[] = [
   {
@@ -72,33 +72,33 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     productId: "filling-pizza",
     category: "filling",
     displayName: "피자",
-    description: "추후 해금되는 붕어빵 속",
-    price: 0,
+    description: "치즈와 토핑을 담은 이색 붕어빵",
+    price: 6000,
     currency: "game-money",
     ownership: "daily-selection",
-    availability: "coming-soon",
+    availability: "available",
     effect: { code: "select-filling", fillingId: "pizza" }
   },
   {
     productId: "filling-mint",
     category: "filling",
     displayName: "민트",
-    description: "추후 해금되는 붕어빵 속",
-    price: 0,
+    description: "시원하고 독특한 민트 붕어빵",
+    price: 9000,
     currency: "game-money",
     ownership: "daily-selection",
-    availability: "coming-soon",
+    availability: "available",
     effect: { code: "select-filling", fillingId: "mint" }
   },
   {
     productId: "filling-sweet-potato",
     category: "filling",
     displayName: "고구마",
-    description: "추후 해금되는 붕어빵 속",
-    price: 0,
+    description: "달콤하고 포근한 고구마 붕어빵",
+    price: 12000,
     currency: "game-money",
     ownership: "daily-selection",
-    availability: "coming-soon",
+    availability: "available",
     effect: { code: "select-filling", fillingId: "sweet-potato" }
   },
   {
@@ -106,7 +106,7 @@ export const gameStoreProducts: readonly GameStoreProduct[] = [
     category: "filling",
     displayName: "녹차",
     description: "향긋하고 쌉싸름한 맛",
-    price: 1800,
+    price: 15000,
     currency: "game-money",
     ownership: "daily-selection",
     availability: "available",
