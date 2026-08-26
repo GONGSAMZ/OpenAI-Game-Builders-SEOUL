@@ -230,6 +230,8 @@ button {
 }
 
 .game-stage {
+  display: grid;
+  place-items: center;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -239,8 +241,9 @@ button {
 
 .game-stage iframe {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: min(100%, calc(100vh - 64px) * 16 / 9);
+  height: min(100%, calc(100vw * 9 / 16));
+  aspect-ratio: 16 / 9;
   border: 0;
   background: #000;
 }
