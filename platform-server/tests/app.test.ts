@@ -147,10 +147,10 @@ describe("integration API", () => {
       currency: "game-money",
       products: expect.arrayContaining([
         expect.objectContaining({ productId: "filling-custard", price: 1400 }),
-        expect.objectContaining({ productId: "filling-green-tea", price: 1800, availability: "available" }),
+        expect.objectContaining({ productId: "filling-green-tea", price: 15000, availability: "available" }),
         expect.objectContaining({ productId: "filling-cream-cheese", availability: "coming-soon" }),
         expect.objectContaining({ productId: "item-double-golden-mold", price: 4800 }),
-        expect.objectContaining({ productId: "filling-pizza", availability: "coming-soon" })
+        expect.objectContaining({ productId: "filling-pizza", price: 6000, availability: "available" })
       ])
     }));
     await request(app).get("/api/v1/game-store/me").expect(401);
@@ -161,7 +161,7 @@ describe("integration API", () => {
     expect(initial.body).toEqual(expect.objectContaining({
       revision: 1,
       money: 5000,
-      unlockedFillingIds: ["red-bean"]
+      unlockedFillingIds: ["red-bean", "custard", "nutella", "cream-cheese"]
     }));
 
     const purchaseKey = "10000000-0000-4000-8000-000000000001";
@@ -169,14 +169,15 @@ describe("integration API", () => {
       .post("/api/v1/game-store/purchases")
       .set(auth)
       .set("Idempotency-Key", purchaseKey)
-      .send({ productId: "filling-custard", expectedRevision: initial.body.revision })
+      .send({ productId: "item-dual-pour", expectedRevision: initial.body.revision })
       .expect(200);
     expect(purchased.body).toEqual(expect.objectContaining({
       duplicate: false,
       store: expect.objectContaining({
         revision: 2,
-        money: 3600,
-        unlockedFillingIds: ["red-bean", "custard"]
+        money: 1800,
+        unlockedFillingIds: ["red-bean", "custard", "nutella", "cream-cheese"],
+        ownedGameplayItemIds: ["item-dual-pour"]
       })
     }));
 
@@ -184,10 +185,10 @@ describe("integration API", () => {
       .post("/api/v1/game-store/purchases")
       .set(auth)
       .set("Idempotency-Key", purchaseKey)
-      .send({ productId: "filling-custard", expectedRevision: initial.body.revision })
+      .send({ productId: "item-dual-pour", expectedRevision: initial.body.revision })
       .expect(200);
     expect(duplicate.body.duplicate).toBe(true);
-    expect(duplicate.body.store.money).toBe(3600);
+    expect(duplicate.body.store.money).toBe(1800);
 
     const protectedPut = await request(app)
       .put("/api/v1/save/profile")
@@ -206,9 +207,9 @@ describe("integration API", () => {
       })
       .expect(200);
     expect(protectedPut.body.profile.run).toEqual(expect.objectContaining({
-      money: 3600,
-      unlockedFillingIds: ["red-bean", "custard"],
-      ownedGameplayItemIds: []
+      money: 1800,
+      unlockedFillingIds: ["red-bean", "custard", "nutella", "cream-cheese"],
+      ownedGameplayItemIds: ["item-dual-pour"]
     }));
 
     const stale = await request(app)
@@ -283,7 +284,7 @@ describe("integration API", () => {
     expect(reset.body.profile.run).toEqual(expect.objectContaining({
       nextDay: 1,
       money: 5000,
-      unlockedFillingIds: ["red-bean"]
+      unlockedFillingIds: ["red-bean", "custard", "nutella", "cream-cheese"]
     }));
   });
 

@@ -21,6 +21,7 @@ const serverAchievementIds = [
   "first-story",
   "soul-collector-8"
 ];
+const defaultFillings = ["red-bean", "custard", "nutella", "cream-cheese"];
 
 export interface AccountScopeSmokeCheck {
   name: string;
@@ -246,10 +247,10 @@ export async function runAccountScopeSmoke(): Promise<AccountScopeSmokeReport> {
       expectHttp(stateB, 200);
       expectValue(stateA.body.money, 5000, "A 신규 계정 일반 돈 초기값이 다릅니다.");
       expectValue(stateB.body.money, 5000, "B 신규 계정 일반 돈 초기값이 다릅니다.");
-      expectValue(stateA.body.unlockedFillingIds, ["red-bean"], "A 신규 재료가 팥 전용이 아닙니다.");
-      expectValue(stateB.body.unlockedFillingIds, ["red-bean"], "B 신규 재료가 팥 전용이 아닙니다.");
-      expectValue(stateA.body.selectedFillingIds, ["red-bean"], "A 첫날 팥 선택이 없습니다.");
-      expectValue(stateB.body.selectedFillingIds, ["red-bean"], "B 첫날 팥 선택이 없습니다.");
+      expectValue(stateA.body.unlockedFillingIds, defaultFillings, "A 신규 계정 기본 재료가 다릅니다.");
+      expectValue(stateB.body.unlockedFillingIds, defaultFillings, "B 신규 계정 기본 재료가 다릅니다.");
+      expectValue(stateA.body.selectedFillingIds, defaultFillings, "A 첫날 기본 재료 선택이 없습니다.");
+      expectValue(stateB.body.selectedFillingIds, defaultFillings, "B 첫날 기본 재료 선택이 없습니다.");
       revisionA = Number(stateA.body.revision);
       return "A/B subject 분리, 신규 프로필 각각 생성";
     });
@@ -294,8 +295,8 @@ export async function runAccountScopeSmoke(): Promise<AccountScopeSmokeReport> {
       revisionA = Number(updated.body.profile.revision);
       const run = profileRun(updated.body.profile);
       expectValue(run.money, 5000, "전체 저장 요청이 서버 권한 일반 돈을 덮어썼습니다.");
-      expectValue(run.unlockedFillingIds, ["red-bean"], "전체 저장 요청이 재료 해금을 덮어썼습니다.");
-      expectValue(run.selectedFillingIds, ["red-bean"], "전체 저장 요청이 일일 소 선택을 덮어썼습니다.");
+      expectValue(run.unlockedFillingIds, defaultFillings, "전체 저장 요청이 재료 해금을 덮어썼습니다.");
+      expectValue(run.selectedFillingIds, defaultFillings, "전체 저장 요청이 일일 소 선택을 덮어썼습니다.");
       expectValue(run.ownedGameplayItemIds, [], "전체 저장 요청이 도구 보유를 덮어썼습니다.");
       expectValue(
         achievementIds(updated.body.profile),
@@ -321,28 +322,30 @@ export async function runAccountScopeSmoke(): Promise<AccountScopeSmokeReport> {
         .post("/api/v1/game-store/purchases")
         .set(authA)
         .set("Idempotency-Key", purchaseKey)
-        .send({ productId: "filling-custard", expectedRevision: revisionA });
+        .send({ productId: "item-dual-pour", expectedRevision: revisionA });
       expectHttp(purchased, 200);
-      expectValue(purchased.body.store.money, 3600, "A 구매 후 일반 돈이 다릅니다.");
-      expectValue(purchased.body.store.unlockedFillingIds, ["red-bean", "custard"], "A 슈크림 해금이 없습니다.");
-      expectValue(purchased.body.store.selectedFillingIds, ["red-bean", "custard"], "A 슈크림 선택이 없습니다.");
+      expectValue(purchased.body.store.money, 1800, "A 구매 후 일반 돈이 다릅니다.");
+      expectValue(purchased.body.store.unlockedFillingIds, defaultFillings, "A 기본 재료가 변경됐습니다.");
+      expectValue(purchased.body.store.selectedFillingIds, defaultFillings, "A 기본 재료 선택이 변경됐습니다.");
+      expectValue(purchased.body.store.ownedGameplayItemIds, ["item-dual-pour"], "A 동시 붓기 보유가 없습니다.");
       revisionA = Number(purchased.body.profile.revision);
 
       const duplicate = await request(app)
         .post("/api/v1/game-store/purchases")
         .set(authA)
         .set("Idempotency-Key", purchaseKey)
-        .send({ productId: "filling-custard", expectedRevision: revisionA - 1 });
+        .send({ productId: "item-dual-pour", expectedRevision: revisionA - 1 });
       expectHttp(duplicate, 200);
       expectValue(duplicate.body.duplicate, true, "같은 구매 키가 중복 처리되지 않았습니다.");
-      expectValue(duplicate.body.store.money, 3600, "중복 구매가 일반 돈을 다시 차감했습니다.");
+      expectValue(duplicate.body.store.money, 1800, "중복 구매가 일반 돈을 다시 차감했습니다.");
 
       const stateB = await request(app).get("/api/v1/game-store/me").set(authB);
       expectHttp(stateB, 200);
       expectValue(stateB.body.money, 5000, "A 구매가 B 일반 돈을 변경했습니다.");
-      expectValue(stateB.body.unlockedFillingIds, ["red-bean"], "A 구매가 B 재료를 해금했습니다.");
-      expectValue(stateB.body.selectedFillingIds, ["red-bean"], "A 선택이 B 일일 소에 섞였습니다.");
-      return "A 슈크림 일일 선택 1회 반영, 동일 키 재시도 무차감, B 불변";
+      expectValue(stateB.body.unlockedFillingIds, defaultFillings, "A 구매가 B 재료를 변경했습니다.");
+      expectValue(stateB.body.selectedFillingIds, defaultFillings, "A 선택이 B 일일 소에 섞였습니다.");
+      expectValue(stateB.body.ownedGameplayItemIds, [], "A 도구 구매가 B 보유품에 섞였습니다.");
+      return "A 동시 붓기 구매 1회 반영, 동일 키 재시도 무차감, B 불변";
     });
 
     await step("하루 정산과 누적 통계의 계정 격리", async () => {
@@ -374,7 +377,7 @@ export async function runAccountScopeSmoke(): Promise<AccountScopeSmokeReport> {
       expectHttp(settled, 200);
       revisionA = Number(settled.body.profile.revision);
       const runA = profileRun(settled.body.profile);
-      expectValue(runA.money, 4800, "A 정산 잔액이 다릅니다.");
+      expectValue(runA.money, 3000, "A 정산 잔액이 다릅니다.");
       expectValue(runA.nextDay, 2, "A 정산 후 날짜가 다릅니다.");
       expectValue(runA.selectedFillingIds, [], "A 정산 후 일일 소 선택이 초기화되지 않았습니다.");
       const lifetime = jsonRecord(jsonRecord(jsonRecord(settled.body.profile).account).lifetimeStats);
@@ -386,7 +389,7 @@ export async function runAccountScopeSmoke(): Promise<AccountScopeSmokeReport> {
       const runB = profileRun(profileB.body.profile);
       expectValue(runB.money, 5000, "A 정산이 B 일반 돈을 변경했습니다.");
       expectValue(runB.nextDay, 1, "A 정산이 B 날짜를 변경했습니다.");
-      expectValue(runB.selectedFillingIds, ["red-bean"], "A 정산이 B 일일 소 선택을 변경했습니다.");
+      expectValue(runB.selectedFillingIds, defaultFillings, "A 정산이 B 일일 소 선택을 변경했습니다.");
       const lifetimeB = jsonRecord(jsonRecord(jsonRecord(profileB.body.profile).account).lifetimeStats);
       expectValue(Number(lifetimeB.totalSales ?? 0), 0, "A 누적 통계가 B 계정에 섞였습니다.");
       expectTrue(!achievementUnlocked(profileB.body.profile, "first-sale"), "A 업적 해제가 B 계정에 섞였습니다.");
@@ -445,8 +448,8 @@ export async function runAccountScopeSmoke(): Promise<AccountScopeSmokeReport> {
       const run = profileRun(reset.body.profile);
       expectValue(run.money, 5000, "초기화 후 일반 돈이 초기값이 아닙니다.");
       expectValue(run.nextDay, 1, "초기화 후 날짜가 1일차가 아닙니다.");
-      expectValue(run.unlockedFillingIds, ["red-bean"], "초기화 후 재료가 팥 전용이 아닙니다.");
-      expectValue(run.selectedFillingIds, ["red-bean"], "초기화 후 첫날 팥 선택이 없습니다.");
+      expectValue(run.unlockedFillingIds, defaultFillings, "초기화 후 기본 재료가 다릅니다.");
+      expectValue(run.selectedFillingIds, defaultFillings, "초기화 후 첫날 기본 재료 선택이 없습니다.");
       expectTrue(achievementUnlocked(reset.body.profile, "first-sale"), "초기화가 계정 업적을 제거했습니다.");
       expectValue(profileSettings(reset.body.profile), {
         masterVolume: 0.37,

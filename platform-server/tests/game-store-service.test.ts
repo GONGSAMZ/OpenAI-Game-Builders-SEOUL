@@ -23,6 +23,8 @@ const ids = {
   checkpoint: "00000000-0000-4000-8000-000000000011"
 };
 
+const defaultFillings = ["red-bean", "custard", "nutella", "cream-cheese"];
+
 async function seed(saves: InMemoryPlayerSaveStore, subject: string, money = 5000) {
   const profile = createDefaultPlayerSaveProfile();
   profile.run = { ...profile.run, money };
@@ -37,7 +39,7 @@ describe("GameStoreService", () => {
     expect(catalog.products).toEqual(expect.arrayContaining([
       expect.objectContaining({ productId: "filling-red-bean", price: 1200 }),
       expect.objectContaining({ productId: "filling-custard", price: 1400 }),
-      expect.objectContaining({ productId: "filling-green-tea", price: 1800, availability: "available" }),
+      expect.objectContaining({ productId: "filling-green-tea", price: 15000, availability: "available" }),
       expect.objectContaining({ productId: "filling-cream-cheese", availability: "coming-soon" }),
       expect.objectContaining({ productId: "item-double-golden-mold", price: 4800 }),
       expect.objectContaining({
@@ -45,16 +47,16 @@ describe("GameStoreService", () => {
         price: 2800,
         effect: expect.objectContaining({ multiplier: 0.8, durationSeconds: 30 })
       }),
-      expect.objectContaining({ productId: "filling-pizza", availability: "coming-soon" })
+      expect.objectContaining({ productId: "filling-pizza", price: 6000, availability: "available" })
     ]));
   });
 
-  it("신규 첫날은 팥만 선택하고 기존 영구 해금과 일일 선택을 분리한다", async () => {
+  it("신규 첫날은 기본 4종을 선택하고 기존 영구 해금과 일일 선택을 분리한다", async () => {
     const saves = new InMemoryPlayerSaveStore();
     const service = new GameStoreService(saves);
     const created = await service.getMe("new-player");
-    expect(created.unlockedFillingIds).toEqual(["red-bean"]);
-    expect(created.selectedFillingIds).toEqual(["red-bean"]);
+    expect(created.unlockedFillingIds).toEqual(defaultFillings);
+    expect(created.selectedFillingIds).toEqual(defaultFillings);
 
     const legacy = createDefaultPlayerSaveProfile();
     legacy.schemaVersion = 5;
@@ -67,7 +69,7 @@ describe("GameStoreService", () => {
     expect(migrated.run.unlockedFillingIds).toEqual([
       "red-bean", "custard", "nutella", "cream-cheese"
     ]);
-    expect(migrated.run.selectedFillingIds).toEqual(["red-bean"]);
+    expect(migrated.run.selectedFillingIds).toEqual(defaultFillings);
 
     legacy.run.nextDay = 2;
     delete legacy.run.selectedFillingIds;
@@ -77,40 +79,40 @@ describe("GameStoreService", () => {
   it("계정별 구매를 격리하고 멱등 재시도·잔액·잠금·revision을 검증한다", async () => {
     const saves = new InMemoryPlayerSaveStore();
     const service = new GameStoreService(saves);
-    const first = await seed(saves, "player-a", 5000);
-    await seed(saves, "player-b", 5000);
+    const first = await seed(saves, "player-a", 10000);
+    await seed(saves, "player-b", 10000);
 
     const purchased = await service.purchase("player-a", {
-      productId: "filling-custard",
+      productId: "filling-pizza",
       expectedRevision: first.revision,
       idempotencyKey: ids.purchaseA
     });
     expect(purchased.duplicate).toBe(false);
-    expect(purchased.store.money).toBe(3600);
-    expect(purchased.store.unlockedFillingIds).toContain("custard");
-    expect(purchased.store.selectedFillingIds).toEqual(["red-bean", "custard"]);
+    expect(purchased.store.money).toBe(4000);
+    expect(purchased.store.unlockedFillingIds).toEqual([...defaultFillings, "pizza"]);
+    expect(purchased.store.selectedFillingIds).toEqual([...defaultFillings, "pizza"]);
     expect(purchased.store.products).toContainEqual({
-      productId: "filling-custard",
+      productId: "filling-pizza",
       status: "selected"
     });
 
     const duplicate = await service.purchase("player-a", {
-      productId: "filling-custard",
+      productId: "filling-pizza",
       expectedRevision: first.revision,
       idempotencyKey: ids.purchaseA
     });
     expect(duplicate.duplicate).toBe(true);
-    expect(duplicate.store.money).toBe(3600);
-    expect((await service.getMe("player-b")).unlockedFillingIds).not.toContain("custard");
+    expect(duplicate.store.money).toBe(4000);
+    expect((await service.getMe("player-b")).unlockedFillingIds).not.toContain("pizza");
 
     await expect(service.purchase("player-a", {
-      productId: "filling-custard",
+      productId: "filling-pizza",
       expectedRevision: purchased.profile.revision,
       idempotencyKey: ids.purchaseC
     })).rejects.toMatchObject({ code: "FILLING_ALREADY_SELECTED" });
 
     await expect(service.purchase("player-b", {
-      productId: "filling-custard",
+      productId: "filling-pizza",
       expectedRevision: 1,
       idempotencyKey: ids.purchaseA
     })).rejects.toMatchObject({ name: "SaveIdempotencyConflictError" });
@@ -122,10 +124,10 @@ describe("GameStoreService", () => {
     })).rejects.toMatchObject({ code: "INSUFFICIENT_FUNDS" });
 
     await expect(service.purchase("player-a", {
-      productId: "filling-pizza",
+      productId: "filling-green-tea",
       expectedRevision: purchased.profile.revision,
       idempotencyKey: ids.purchaseB
-    })).rejects.toMatchObject({ code: "PRODUCT_LOCKED" });
+    })).rejects.toMatchObject({ code: "INSUFFICIENT_FUNDS" });
 
     await expect(service.purchase("player-a", {
       productId: "item-dual-pour",
@@ -219,13 +221,13 @@ describe("GameStoreService", () => {
   it("소 선택은 정산 뒤 초기화되고 다음 영업일에 다시 선택할 수 있다", async () => {
     const saves = new InMemoryPlayerSaveStore();
     const service = new GameStoreService(saves);
-    const seeded = await seed(saves, "player-a", 10_000);
+    const seeded = await seed(saves, "player-a", 16_000);
     const firstSelection = await service.purchase("player-a", {
-      productId: "filling-custard",
+      productId: "filling-pizza",
       expectedRevision: seeded.revision,
       idempotencyKey: ids.purchaseA
     });
-    expect(firstSelection.store.selectedFillingIds).toEqual(["red-bean", "custard"]);
+    expect(firstSelection.store.selectedFillingIds).toEqual([...defaultFillings, "pizza"]);
 
     const started = await service.startDay("player-a", {
       day: 1,
@@ -249,14 +251,14 @@ describe("GameStoreService", () => {
     expect(settled.profile.run.selectedFillingIds).toEqual([]);
 
     const nextSelection = await service.purchase("player-a", {
-      productId: "filling-custard",
+      productId: "filling-pizza",
       expectedRevision: settled.profile.revision,
       idempotencyKey: ids.selectNextDay
     });
-    expect(nextSelection.store.money).toBe(7_200);
-    expect(nextSelection.store.selectedFillingIds).toEqual(["custard"]);
+    expect(nextSelection.store.money).toBe(4_000);
+    expect(nextSelection.store.selectedFillingIds).toEqual(["pizza"]);
     expect(nextSelection.store.products).toContainEqual({
-      productId: "filling-custard",
+      productId: "filling-pizza",
       status: "selected"
     });
   });
@@ -437,8 +439,8 @@ describe("GameStoreService", () => {
     expect(reset.profile.run).toEqual(expect.objectContaining({
       nextDay: 1,
       money: 5000,
-      unlockedFillingIds: ["red-bean"],
-      selectedFillingIds: ["red-bean"],
+      unlockedFillingIds: defaultFillings,
+      selectedFillingIds: defaultFillings,
       ownedGameplayItemIds: [],
       queuedDayEffects: []
     }));

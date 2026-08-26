@@ -97,7 +97,7 @@ describe("PlayerProfileService", () => {
     expect(saved.run).toEqual(expect.objectContaining({
       nextDay: 1,
       money: 5000,
-      unlockedFillingIds: ["red-bean"],
+      unlockedFillingIds: ["red-bean", "custard", "nutella", "cream-cheese"],
       ownedGameplayItemIds: [],
       queuedDayEffects: []
     }));

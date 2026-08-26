@@ -10,13 +10,13 @@ describe("account scope smoke tool", () => {
     expect(report.checks.every((check) => check.status === "pass")).toBe(true);
     expect(report.accounts?.accountA).toEqual(expect.objectContaining({
       gameMoney: 5000,
-      unlockedFillingIds: ["red-bean"],
+      unlockedFillingIds: ["red-bean", "custard", "nutella", "cream-cheese"],
       moldSkin: "golden-pan",
       purchaseCount: 1
     }));
     expect(report.accounts?.accountB).toEqual(expect.objectContaining({
       gameMoney: 5000,
-      unlockedFillingIds: ["red-bean"],
+      unlockedFillingIds: ["red-bean", "custard", "nutella", "cream-cheese"],
       premiumInventory: [],
       moldSkin: null,
       purchaseCount: 0
