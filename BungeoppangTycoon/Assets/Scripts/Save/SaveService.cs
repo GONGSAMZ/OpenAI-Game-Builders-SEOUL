@@ -710,10 +710,29 @@ public sealed class SaveService : MonoBehaviour
             onComplete?.Invoke(false, "초기화 결과 형식이 올바르지 않습니다.");
             yield break;
         }
-        ApplyAuthoritativeProfile(envelope.profile);
+        ApplyResetProfile(envelope.profile);
         GameStoreState = envelope.store;
         GameStoreChanged?.Invoke();
         onComplete?.Invoke(true, string.Empty);
+    }
+
+    /// <summary>
+    /// 진행 초기화 결과는 서버가 확정한 새 저장 전체를 그대로 적용한다.
+    /// 초기화는 기존 진행을 보존하는 동기화가 아니므로, 일반 동기화의 병합 규칙을 사용하지 않는다.
+    /// </summary>
+    private void ApplyResetProfile(SaveGameData profile)
+    {
+        Current = SaveDataFactory.Clone(profile);
+        SaveDataFactory.Normalize(Current);
+        remoteDirty = false;
+        pendingSettlementDay = -1;
+        pendingSettlementIdempotencyKey = null;
+        pendingStartDay = -1;
+        pendingStartDayIdempotencyKey = null;
+        PersistLocalOnly();
+        ApplyRuntimeSettings();
+        Managers.Game.Money = Current.run.money;
+        DataChanged?.Invoke();
     }
 
     private void ApplyAuthoritativeProfile(SaveGameData profile)

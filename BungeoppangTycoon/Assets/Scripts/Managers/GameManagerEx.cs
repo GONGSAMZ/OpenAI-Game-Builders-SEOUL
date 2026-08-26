@@ -156,9 +156,20 @@ public class GameManagerEx
         parentGo = null;
         order.Clear();
         numsOfCurCustomers = 0;
+        CurData.day = 0;
+        CurData.money = 0;
+        delta = 0f;
+        dayState = DayState.Waiting;
+        didAlertClosingTime = false;
+        hasFinalizedDaily = false;
+        isSettlingDaily = false;
         IsTutorialClockPaused = false;
         isRunning = false;
         isStartingDaily = false;
+        isCheckpointing = false;
+        nextDayStartRetryAt = 0f;
+        nextCheckpointAt = 0f;
+        nextSettlementRetryAt = 0f;
     }
 
     //게임 생성 시 초기화 메서드
