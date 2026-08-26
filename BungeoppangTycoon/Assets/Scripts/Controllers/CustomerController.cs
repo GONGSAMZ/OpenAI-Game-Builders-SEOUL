@@ -355,7 +355,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         //1. 손님 종류 랜덤 지정
         bool guaranteedStoryCustomer = CustomerStoryProgress.TryGetGuaranteedCustomer(Managers.Game.totalCustomers, out customerType);
         if (!guaranteedStoryCustomer)
-            customerType = (CustomerType)UnityEngine.Random.Range(0, Util.GetEnumSize(typeof(CustomerType)));
+            customerType = GetAvailableRandomCustomerType();
         CustomerData = Managers.Resource.LoadCustomerSO(customerType);
         CustomerCollectionProgress.MarkMet(customerType);
         string customerName = CustomerCollectionCatalog.Get(customerType)?.DisplayName ?? customerType.ToString();
@@ -382,6 +382,33 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         EnsureStoryBubble();
         RefreshStoryBubble();
         ++Managers.Game.numsOfCurCustomers;
+    }
+
+    /// <summary>
+    /// 동시에 대기 중인 손님과 같은 인물은 일반 손님 후보에서 제외한다.
+    /// 모든 종류가 이미 화면에 있는 극단적인 경우에는 기존 무작위 방식으로 되돌린다.
+    /// </summary>
+    private CustomerType GetAvailableRandomCustomerType()
+    {
+        HashSet<CustomerType> visibleTypes = new();
+
+        foreach (CustomerController controller in FindObjectsByType<CustomerController>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+        {
+            if (controller == this || controller.Customer == null || !controller.Customer.activeInHierarchy)
+                continue;
+
+            visibleTypes.Add(controller.customerType);
+        }
+
+        List<CustomerType> candidates = System.Enum.GetValues(typeof(CustomerType))
+            .Cast<CustomerType>()
+            .Where(type => !visibleTypes.Contains(type))
+            .ToList();
+
+        if (candidates.Count == 0)
+            return (CustomerType)UnityEngine.Random.Range(0, Util.GetEnumSize(typeof(CustomerType)));
+
+        return candidates[UnityEngine.Random.Range(0, candidates.Count)];
     }
 
     public void Order()
