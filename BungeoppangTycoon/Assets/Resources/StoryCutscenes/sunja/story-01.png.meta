@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: dccaf4ddcf61ede4281e377282ecf789
+guid: 5f6e37c40786a7944b9d801384b6a773
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: -2328789361118724623
-    second: "ARTWORK \xB7 Replace with generated image_0"
+      213: 1706801666011587699
+    second: "ARTWORK \xB7 Replace with generated image-1_0"
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -113,7 +113,7 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: "ARTWORK \xB7 Replace with generated image_0"
+      name: "ARTWORK \xB7 Replace with generated image-1_0"
       rect:
         serializedVersion: 2
         x: 0
@@ -128,8 +128,8 @@ TextureImporter:
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 1fd3fcd1a6a7eafd0800000000000000
-      internalID: -2328789361118724623
+      spriteID: 3746aac7217cfa710800000000000000
+      internalID: 1706801666011587699
       vertices: []
       indices: 
       edges: []
@@ -148,7 +148,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      "ARTWORK \xB7 Replace with generated image_0": -2328789361118724623
+      "ARTWORK \xB7 Replace with generated image-1_0": 1706801666011587699
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
