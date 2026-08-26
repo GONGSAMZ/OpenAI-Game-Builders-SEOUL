@@ -6305,26 +6305,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 2458224271654799631}
     m_Modifications:
-    - target: {fileID: 153876839108919707, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
-      propertyPath: m_UVRect.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2834155808354132521, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
-      propertyPath: m_text
-      value: "\uCE58\uC988\uC640 \uD1A0\uD551\uC744 \uB2F4\uC740 \uC774\uC0C9 \uBD95\uC5B4\uBE75"
-      objectReference: {fileID: 0}
-    - target: {fileID: 3031324716286479040, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 50
-      objectReference: {fileID: 0}
-    - target: {fileID: 3031324716286479040, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
-      propertyPath: m_AnchoredPosition.y
-      value: -395
-      objectReference: {fileID: 0}
-    - target: {fileID: 3103813532876568580, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
-      propertyPath: m_SizeDelta.y
-      value: 50
-      objectReference: {fileID: 0}
     - target: {fileID: 4952778890529820168, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_Pivot.x
       value: 0
@@ -6404,30 +6384,6 @@ PrefabInstance:
     - target: {fileID: 4952778890529820168, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
-      propertyPath: m_text
-      value: "\uD53C\uC790"
-      objectReference: {fileID: 0}
-    - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
-      propertyPath: m_overflowMode
-      value: 3
-      objectReference: {fileID: 0}
-    - target: {fileID: 5346616287833200548, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
-      propertyPath: m_sharedMaterial
-      value: 
-      objectReference: {fileID: 7710600340552205848, guid: f1fbfe906ef9ebc4abbcf90c5cd342a6, type: 2}
-    - target: {fileID: 6439078166517537075, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
-      propertyPath: m_overflowMode
-      value: 3
-      objectReference: {fileID: 0}
-    - target: {fileID: 6733702711686966988, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
-      propertyPath: m_text
-      value: "6,000\uC6D0"
-      objectReference: {fileID: 0}
-    - target: {fileID: 6733702711686966988, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
-      propertyPath: m_overflowMode
-      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 6868654882271905730, guid: d52f6f4bdc2b7a24dbbb99fe4b76a185, type: 3}
       propertyPath: m_Name
