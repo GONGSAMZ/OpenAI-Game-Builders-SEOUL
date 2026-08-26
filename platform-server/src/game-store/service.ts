@@ -387,13 +387,16 @@ export class GameStoreService {
             receivedDay: input.day
           });
         }
-        let selectedFillingIds = stringArray(run.selectedFillingIds);
-        // 기본 4종은 항상 판매 가능하다. 상점에서 추가 소를 고르지 않았더라도
-        // 다음 영업일이 막히지 않도록 시작 시점에만 기본 선택값을 복구한다.
-        if (selectedFillingIds.length === 0) {
-          selectedFillingIds = ["red-bean", "custard", "nutella", "cream-cheese"];
-          run.selectedFillingIds = selectedFillingIds;
-        }
+        const selectedFillingIds = [
+          ...new Set([
+            "red-bean",
+            "custard",
+            "nutella",
+            "cream-cheese",
+            ...stringArray(run.selectedFillingIds)
+          ])
+        ];
+        run.selectedFillingIds = selectedFillingIds;
         const startedAt = new Date(this.now()).toISOString();
         run.activeDay = {
           runId: randomUUID(),
@@ -444,7 +447,8 @@ export class GameStoreService {
         const totals = validateAndPriceSettlement(profile, input, this.now());
         run.money = Number(run.money) + totals.revenue - totals.ingredientCost;
         run.nextDay = input.day + 1;
-        run.selectedFillingIds = [];
+        // 정산 뒤에도 기본 4종은 남기고, 이번 영업에 고른 추가 소만 비운다.
+        run.selectedFillingIds = ["red-bean", "custard", "nutella", "cream-cheese"];
         delete run.activeDay;
         run.queuedDayEffects = effectArray(run.queuedDayEffects).filter(
           (effect) => Number(effect.targetDay) > input.day

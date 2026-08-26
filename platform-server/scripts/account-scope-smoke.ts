@@ -379,7 +379,7 @@ export async function runAccountScopeSmoke(): Promise<AccountScopeSmokeReport> {
       const runA = profileRun(settled.body.profile);
       expectValue(runA.money, 3000, "A 정산 잔액이 다릅니다.");
       expectValue(runA.nextDay, 2, "A 정산 후 날짜가 다릅니다.");
-      expectValue(runA.selectedFillingIds, [], "A 정산 후 일일 소 선택이 초기화되지 않았습니다.");
+      expectValue(runA.selectedFillingIds, ["red-bean", "custard", "nutella", "cream-cheese"], "A 정산 뒤 기본 4종이 유지되지 않았습니다.");
       const lifetime = jsonRecord(jsonRecord(jsonRecord(settled.body.profile).account).lifetimeStats);
       expectValue(lifetime.totalSales, 4, "A 누적 판매량이 반영되지 않았습니다.");
       expectTrue(achievementUnlocked(settled.body.profile, "first-sale"), "서버가 첫 판매 업적을 계산하지 않았습니다.");

@@ -279,13 +279,9 @@ public static class SaveDataFactory
         foreach (string id in RequiredDefaultFillingIds)
             if (!data.run.unlockedFillingIds.Contains(id)) data.run.unlockedFillingIds.Add(id);
 
-        // Day 1은 상점을 거치지 않아도 기본 소 네 가지를 바로 판매할 수 있어야 한다.
-        // 과거 저장에 팥 하나만 선택된 경우도 여기서 함께 복구한다.
-        if (data.run.nextDay <= 1)
-        {
-            foreach (string id in RequiredDefaultFillingIds)
-                if (!data.run.selectedFillingIds.Contains(id)) data.run.selectedFillingIds.Add(id);
-        }
+        // 기본 소 네 가지는 모든 영업일에 항상 판매한다. 추가 소만 상점에서 더한다.
+        foreach (string id in RequiredDefaultFillingIds)
+            if (!data.run.selectedFillingIds.Contains(id)) data.run.selectedFillingIds.Add(id);
         NormalizeQueuedDayEffects(data.run.queuedDayEffects);
         NormalizeStoryStates(data.run.customerStories);
 

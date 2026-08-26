@@ -73,7 +73,7 @@ describe("GameStoreService", () => {
 
     legacy.run.nextDay = 2;
     delete legacy.run.selectedFillingIds;
-    expect(normalizePlayerSaveProfile(legacy).run.selectedFillingIds).toEqual([]);
+    expect(normalizePlayerSaveProfile(legacy).run.selectedFillingIds).toEqual(defaultFillings);
   });
 
   it("계정별 구매를 격리하고 멱등 재시도·잔액·잠금·revision을 검증한다", async () => {
@@ -177,7 +177,7 @@ describe("GameStoreService", () => {
     expect(settled.profile.run).toEqual(expect.objectContaining({
       nextDay: 2,
       money: 9_300,
-      selectedFillingIds: [],
+      selectedFillingIds: defaultFillings,
       queuedDayEffects: []
     }));
     expect(settled.profile.account.lifetimeStats).toEqual(expect.objectContaining({
@@ -218,7 +218,7 @@ describe("GameStoreService", () => {
     })).rejects.toMatchObject({ code: "DAY_ALREADY_SETTLED" });
   });
 
-  it("소 선택은 정산 뒤 초기화되고 다음 영업일에 다시 선택할 수 있다", async () => {
+  it("추가 소 선택은 정산 뒤 초기화되고 기본 4종은 유지한다", async () => {
     const saves = new InMemoryPlayerSaveStore();
     const service = new GameStoreService(saves);
     const seeded = await seed(saves, "player-a", 16_000);
@@ -248,7 +248,7 @@ describe("GameStoreService", () => {
       expectedRevision: started.profile.revision,
       idempotencyKey: ids.settleA
     });
-    expect(settled.profile.run.selectedFillingIds).toEqual([]);
+    expect(settled.profile.run.selectedFillingIds).toEqual(defaultFillings);
 
     const nextSelection = await service.purchase("player-a", {
       productId: "filling-pizza",
@@ -256,7 +256,7 @@ describe("GameStoreService", () => {
       idempotencyKey: ids.selectNextDay
     });
     expect(nextSelection.store.money).toBe(4_000);
-    expect(nextSelection.store.selectedFillingIds).toEqual(["pizza"]);
+    expect(nextSelection.store.selectedFillingIds).toEqual([...defaultFillings, "pizza"]);
     expect(nextSelection.store.products).toContainEqual({
       productId: "filling-pizza",
       status: "selected"

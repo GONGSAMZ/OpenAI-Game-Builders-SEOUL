@@ -206,19 +206,16 @@ function normalizedCustomers(value: unknown): JsonRecord[] {
 
 export function normalizePlayerSaveProfile(profile: PlayerSaveProfile): PlayerSaveProfile {
   const normalized = structuredClone(profile);
-  const sourceSchemaVersion = Number(normalized.schemaVersion) || 0;
   const run = record(normalized.run);
   run.nextDay = Math.max(1, Number(run.nextDay) || 1);
   run.money = Number.isFinite(Number(run.money)) ? Number(run.money) : 5000;
   run.unlockedFillingIds = [
     ...new Set([...requiredDefaultFillings, ...stringArray(run.unlockedFillingIds)])
   ];
-  const hadSelectedFillings = Object.prototype.hasOwnProperty.call(run, "selectedFillingIds");
-  run.selectedFillingIds = hadSelectedFillings
-    ? stringArray(run.selectedFillingIds)
-    : sourceSchemaVersion < 7 && Number(run.nextDay) <= 1
-      ? [...requiredDefaultFillings]
-      : [];
+  // 기본 4종은 매 영업일의 고정 메뉴다. 선택 목록에는 추가 재료만 더해진다.
+  run.selectedFillingIds = [
+    ...new Set([...requiredDefaultFillings, ...stringArray(run.selectedFillingIds)])
+  ];
   run.ownedGameplayItemIds = stringArray(run.ownedGameplayItemIds);
   run.queuedDayEffects = normalizedQueuedDayEffects(run.queuedDayEffects);
 
