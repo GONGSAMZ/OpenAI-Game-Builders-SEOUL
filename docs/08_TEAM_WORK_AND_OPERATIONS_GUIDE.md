@@ -237,6 +237,7 @@ Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EM
 - 시작부터 정산·다음 날·파산 엔딩까지 전체 플레이
 - 계정별 저장·재접속, 결제 상품 3종과 황금 틀 장착 검증
 - Chrome·Edge의 목표 해상도에서 WebGL 입력과 성능 확인
+- 다른 창을 선택하거나 탭을 뒤로 보낸 뒤 영업 시계·조리·손님 대기가 계속 진행되는지 확인
 - 브라우저 콘솔, ECS 로그와 CloudWatch 5xx 확인
 - 최종 SHA, 테스트 결과, 알려진 문제와 롤백 대상을 이슈에 기록
 
@@ -264,3 +265,11 @@ Unity Personal 라이선스용 GitHub Actions secrets `UNITY_LICENSE`, `UNITY_EM
 - AWS·HIVE 팀원 관리자 초대의 수락·권한 확인 기록
 
 기능 상태가 바뀌면 이 절과 관련 GitHub 이슈를 같은 커밋에서 갱신한다.
+
+## 13. WebGL 백그라운드 실행 기준
+
+- 창 포커스를 잃어도 Unity 업데이트는 계속 실행한다. `PlayerSettings.runInBackground`와 런타임의 `Application.runInBackground`를 모두 유지한다.
+- 백그라운드 탭은 브라우저가 업데이트 빈도를 약 1Hz로 낮출 수 있다. 게임은 이 간격에서도 영업 시계와 Unity 코루틴이 실제 시간에 가깝게 진행되도록 `Time.maximumDeltaTime`을 조정한다.
+- 운영체제나 브라우저가 탭을 완전히 정지시키면 화면 렌더링과 오디오는 진행할 수 없다. 복귀 첫 프레임에 실제 경과 시간을 계산해 영업 시계와 조리·대기 판정을 따라잡는다.
+- 튜토리얼 안내, 하루 종료 상점처럼 게임이 명시적으로 멈춘 상태에는 백그라운드 경과 시간을 누적하지 않는다.
+- 숨겨진 탭에서 60fps 렌더링을 보장한다고 안내하지 않는다. 검증 기준은 포커스 복귀 후 영업 상태가 멈춘 시점에 그대로 남지 않는 것이다.

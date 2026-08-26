@@ -52,6 +52,7 @@ public class GameManagerEx
 
 
     public float delta; //시간
+    double lastRealtime = double.NaN;
     float gameSpeed = 1f; //게임 속도
     public float GameSpeed
     {
@@ -146,6 +147,44 @@ public class GameManagerEx
 
     public event Action InitAction;
 
+    public static float CalculateRealtimeElapsed(
+        double previousRealtime,
+        double currentRealtime,
+        float fallbackElapsed)
+    {
+        bool invalidSample = double.IsNaN(previousRealtime) || double.IsInfinity(previousRealtime) ||
+                             double.IsNaN(currentRealtime) || double.IsInfinity(currentRealtime) ||
+                             currentRealtime < previousRealtime;
+        return invalidSample
+            ? Mathf.Max(0f, fallbackElapsed)
+            : Mathf.Max(0f, (float)(currentRealtime - previousRealtime));
+    }
+
+    public static float AdvanceBusinessClock(
+        float currentDelta,
+        float realtimeElapsed,
+        float speed,
+        float businessDuration)
+    {
+        float safeDuration = Mathf.Max(0f, businessDuration);
+        float safeDelta = Mathf.Clamp(currentDelta, 0f, safeDuration);
+        float increment = Mathf.Max(0f, realtimeElapsed) * Mathf.Max(0f, speed);
+        return Mathf.Min(safeDuration, safeDelta + increment);
+    }
+
+    float CaptureRealtimeElapsed()
+    {
+        double currentRealtime = Time.realtimeSinceStartupAsDouble;
+        float elapsed = CalculateRealtimeElapsed(lastRealtime, currentRealtime, Time.unscaledDeltaTime);
+        lastRealtime = currentRealtime;
+        return elapsed;
+    }
+
+    void ResetRealtimeSample()
+    {
+        lastRealtime = Time.realtimeSinceStartupAsDouble;
+    }
+
     /// <summary>
     /// 같은 GameScene을 새 게임으로 다시 불러오기 전에 이전 씬 오브젝트의 구독을 정리한다.
     /// 새 씬의 Awake에서 현재 오브젝트들이 다시 등록된다.
@@ -159,6 +198,7 @@ public class GameManagerEx
         CurData.day = 0;
         CurData.money = 0;
         delta = 0f;
+        ResetRealtimeSample();
         dayState = DayState.Waiting;
         didAlertClosingTime = false;
         hasFinalizedDaily = false;
@@ -205,6 +245,7 @@ public class GameManagerEx
         hasFinalizedDaily = false;
         isStartingDaily = false;
         nextDayStartRetryAt = 0f;
+        ResetRealtimeSample();
 
         numsOfCurCustomers = 0;
 
@@ -221,6 +262,10 @@ public class GameManagerEx
     //하루 운영 메서드
     public void OnUpdate()
     {
+        // 실행이 중단된 상태에서도 표본은 갱신해 상점·튜토리얼 대기 시간이
+        // 다음 영업 프레임에 한꺼번에 더해지지 않게 한다.
+        float realtimeElapsed = CaptureRealtimeElapsed();
+
         if (isRunning == false && dayState != DayState.Closing && dayState != DayState.Opening)
             return;
 
@@ -234,7 +279,10 @@ public class GameManagerEx
 
                 //시간 측정: 튜토리얼 안내 중에는 클릭 입력은 유지하고 시계만 멈춘다.
                 if (IsTutorialClockPaused == false)
-                    delta += Time.deltaTime * GameSpeed;
+                {
+                    float businessDuration = (endHour - startHour) * 60f;
+                    delta = AdvanceBusinessClock(delta, realtimeElapsed, GameSpeed, businessDuration);
+                }
 
                 if(isClosingTime == true)
                 {
@@ -330,7 +378,8 @@ public class GameManagerEx
         Debug.Log("1. 하루 시작");
 
         //1. 데이터 초기화
-        delta = 0; 
+        delta = 0;
+        ResetRealtimeSample();
         ++CurData.day;
         // 상점 선택 단계가 건너뛰어진 저장 데이터라도 재료가 전부 꺼진 채 영업을 시작하지 않게 한다.
         // 도메인 재로딩 직후에는 싱글턴 참조가 잠시 비어 있을 수 있다.

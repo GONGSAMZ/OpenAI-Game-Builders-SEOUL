@@ -9,6 +9,45 @@ using UnityEngine.TestTools;
 public sealed class SavePipelineTests
 {
     [Test]
+    public void BackgroundExecution_IsEnabledInPlayerSettingsAndRuntime()
+    {
+        Assert.That(PlayerSettings.runInBackground, Is.True);
+
+        bool previousRunInBackground = Application.runInBackground;
+        float previousMaximumDeltaTime = Time.maximumDeltaTime;
+        try
+        {
+            Application.runInBackground = false;
+            Time.maximumDeltaTime = 0.3333333f;
+
+            Managers.ConfigureBackgroundExecution();
+
+            Assert.That(Application.runInBackground, Is.True);
+            Assert.That(Time.maximumDeltaTime, Is.GreaterThanOrEqualTo(Managers.BackgroundMaximumDeltaTime));
+        }
+        finally
+        {
+            Application.runInBackground = previousRunInBackground;
+            Time.maximumDeltaTime = previousMaximumDeltaTime;
+        }
+    }
+
+    [Test]
+    public void BackgroundClock_UsesWallTimeAndClampsAtClosing()
+    {
+        Assert.That(GameManagerEx.CalculateRealtimeElapsed(10d, 15d, 0.02f), Is.EqualTo(5f));
+        Assert.That(GameManagerEx.AdvanceBusinessClock(30f, 5f, 1.8f, 180f), Is.EqualTo(39f));
+        Assert.That(GameManagerEx.AdvanceBusinessClock(179f, 5f, 1.8f, 180f), Is.EqualTo(180f));
+    }
+
+    [Test]
+    public void BackgroundClock_InvalidSampleUsesNonNegativeFrameFallback()
+    {
+        Assert.That(GameManagerEx.CalculateRealtimeElapsed(double.NaN, 15d, 0.02f), Is.EqualTo(0.02f));
+        Assert.That(GameManagerEx.CalculateRealtimeElapsed(15d, 10d, -1f), Is.Zero);
+    }
+
+    [Test]
     public void GameInit_AfterSettlementWaitsForStore()
     {
         SaveGameData data = SaveDataFactory.CreateDefault();
@@ -330,7 +369,7 @@ public sealed class SavePipelineTests
     }
 
     [Test]
-    public void Normalize_V6Fillings_DoesNotTreatPermanentUnlocksAsDailySelections()
+    public void Normalize_V6Fillings_SelectsDefaultsButNotAdditionalPermanentUnlocks()
     {
         SaveGameData legacy = SaveDataFactory.CreateDefault();
         legacy.schemaVersion = 6;
@@ -343,7 +382,11 @@ public sealed class SavePipelineTests
         Assert.That(legacy.schemaVersion, Is.EqualTo(8));
         Assert.That(legacy.run.unlockedFillingIds, Has.Count.EqualTo(5));
         Assert.That(legacy.run.unlockedFillingIds, Does.Contain("cream-cheese"));
-        Assert.That(legacy.run.selectedFillingIds, Is.Empty);
+        Assert.That(legacy.run.selectedFillingIds, Is.EquivalentTo(new[]
+        {
+            "red-bean", "custard", "nutella", "cream-cheese"
+        }));
+        Assert.That(legacy.run.selectedFillingIds, Does.Not.Contain("green-tea"));
     }
 
     [Test]
