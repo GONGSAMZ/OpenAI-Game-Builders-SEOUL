@@ -642,7 +642,7 @@ public class CustomerController : MonoBehaviour, IPointerClickHandler
         //손님 비활성화
         customer.gameObject.SetActive(false);
         if (!isSpecialOrder)
-            --Managers.Game.numsOfCurCustomers;
+            Managers.Game.numsOfCurCustomers = Mathf.Max(0, Managers.Game.numsOfCurCustomers - 1);
         Debug.Log($" {gameObject.name} Exit 끝");
 
 

@@ -73,9 +73,23 @@ public class GameManagerEx
     public bool isAllExited
     {
         get {
+            // 퇴장 코루틴과 씬 전환이 겹치면 숫자만 남아 마감이 멈출 수 있다.
+            // 실제 화면에 활성 손님이 있는지를 최종 기준으로 사용한다.
+            foreach (CustomerController controller in UnityEngine.Object.FindObjectsByType<CustomerController>(
+                         FindObjectsInactive.Exclude,
+                         FindObjectsSortMode.None))
+            {
+                if (controller.Customer != null && controller.Customer.activeInHierarchy)
+                    return false;
+            }
 
-            //Debug.Log($"{numsOfCurCustomers}명 존재");
-            return numsOfCurCustomers == 0; }
+            if (numsOfCurCustomers != 0)
+            {
+                Debug.LogWarning($"[마감] 화면에는 손님이 없지만 손님 수가 {numsOfCurCustomers}명으로 남아 있어 0으로 보정합니다.");
+                numsOfCurCustomers = 0;
+            }
+            return true;
+        }
     }
     public bool isClosingTime
     {
