@@ -44,13 +44,14 @@ public abstract class UI_Base : MonoBehaviour
         string[] names = Enum.GetNames(enumT);
 
         //임시 배열 생성
-        int arrSize = name.Length; 
+        int arrSize = names.Length;
         UnityEngine.Object[] objs = new UnityEngine.Object[arrSize];
 
         //배열 채우기
         for (int i = 0; i < names.Length; ++i)
         {
-            objs[i] = Util.Find<T>(gameObject, names[i]);
+            // 팝업 전환 중 비활성화된 자식도 UI 구성 요소로는 유효하다.
+            objs[i] = Util.Find<T>(gameObject, names[i], true);
         }
 
         //전역에 있는 딕셔너리에 값(타입-컴포넌트 배열) 채우기

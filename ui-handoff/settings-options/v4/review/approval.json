@@ -1,0 +1,8 @@
+{
+  "status": "approved",
+  "designVersion": "v4",
+  "approvedAt": "2026-08-21T00:00:00+09:00",
+  "approvedBy": "user-in-current-codex-task",
+  "evidence": "사용자가 Figma node 247:2 링크를 제공하고 build-unity-ui-prefab으로 동일 구현을 요청함.",
+  "remainingExceptions": ["Figma 프레임은 기존 Unity 종이 패널 위에 배치되는 콘텐츠 전용 시안이다."]
+}

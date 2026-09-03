@@ -1,0 +1,19 @@
+{
+  "coordinateSpace": {"width": 1920, "height": 1080, "origin": "top-left"},
+  "components": [
+    {"id":"settings-main-root","name":"UI_SettingsMain","parentId":null,"order":0,"implementation":"native","rect":[0,0,1920,1080],"anchors":"stretch","pivot":[0.5,0.5],"states":["default"],"dynamicContent":false},
+    {"id":"paper-panel","name":"PaperPanel","parentId":"settings-main-root","order":0,"implementation":"image","rect":[330,120,1260,840],"anchors":"center","pivot":[0.5,0.5],"states":["default"],"dynamicContent":false},
+    {"id":"header","name":"Header","parentId":"paper-panel","order":1,"implementation":"native","rect":[60,64,992,112],"anchors":"top-center","pivot":[0.5,1],"states":["default"],"dynamicContent":false},
+    {"id":"settings-icon","name":"SettingsIcon","parentId":"header","order":0,"implementation":"image","rect":[0,28,56,56],"anchors":"top-left","pivot":[0,1],"states":["default"],"dynamicContent":false,"asset":"assets/settings-icon-watercolor.png"},
+    {"id":"header-title","name":"HeaderTitle","parentId":"header","order":1,"implementation":"native","rect":[84,14,700,44],"anchors":"top-left","pivot":[0,1],"states":["default"],"dynamicContent":false},
+    {"id":"header-subtitle","name":"HeaderSubtitle","parentId":"header","order":2,"implementation":"native","rect":[86,68,700,24],"anchors":"top-left","pivot":[0,1],"states":["default"],"dynamicContent":false},
+    {"id":"close-button","name":"CloseButton","parentId":"header","order":3,"implementation":"hybrid","rect":[936,28,56,56],"anchors":"top-right","pivot":[1,1],"states":["default","hover","pressed","focused"],"dynamicContent":false,"asset":"assets/close-button-watercolor.png"},
+    {"id":"menu-grid","name":"MenuGrid","parentId":"paper-panel","order":2,"implementation":"native","rect":[60,250,1140,292],"anchors":"top-center","pivot":[0.5,1],"states":["default"],"dynamicContent":false},
+    {"id":"menu-settings","name":"MenuSettings","parentId":"menu-grid","order":0,"implementation":"hybrid","rect":[0,0,540,132],"anchors":"top-left","pivot":[0,1],"states":["default","hover","focused"],"dynamicContent":false,"asset":"assets/settings-icon-watercolor.png"},
+    {"id":"menu-collection","name":"MenuCollection","parentId":"menu-grid","order":1,"implementation":"hybrid","rect":[600,0,540,132],"anchors":"top-right","pivot":[1,1],"states":["default","hover","focused"],"dynamicContent":false,"asset":"assets/icon-collection-book.png"},
+    {"id":"menu-achievements","name":"MenuAchievements","parentId":"menu-grid","order":2,"implementation":"hybrid","rect":[0,160,540,132],"anchors":"bottom-left","pivot":[0,0],"states":["default","hover","focused"],"dynamicContent":false,"asset":"assets/icon-achievement-trophy.png"},
+    {"id":"menu-reset","name":"MenuReset","parentId":"menu-grid","order":3,"implementation":"hybrid","rect":[600,160,540,132],"anchors":"bottom-right","pivot":[1,0],"states":["default","hover","focused"],"dynamicContent":false,"asset":"assets/icon-warning-triangle.png"},
+    {"id":"continue-button","name":"ContinueButton","parentId":"paper-panel","order":3,"implementation":"hybrid","rect":[480,580,300,82],"anchors":"bottom-center","pivot":[0.5,0],"states":["default","hover","pressed","focused"],"dynamicContent":false,"asset":"assets/button-controls-watercolor.png"},
+    {"id":"shortcut-hint","name":"ShortcutHint","parentId":"paper-panel","order":4,"implementation":"native","rect":[420,684,420,24],"anchors":"bottom-center","pivot":[0.5,0],"states":["default"],"dynamicContent":false}
+  ]
+}

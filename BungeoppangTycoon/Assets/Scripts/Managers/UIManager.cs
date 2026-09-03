@@ -7,53 +7,57 @@ public class UIManager
 {
     GameObject scene;
     Stack<GameObject> popup = new Stack<GameObject>();
-    int popup_order = 10; //ÆË¾÷ ¼ø¼­ Á¶Àı ¿ë
+    // ì¥ë©´ UI í”„ë¦¬íŒ¹ì€ ìì²´ì ìœ¼ë¡œ 200 ì´ìƒì˜ ì •ë ¬ ìˆœì„œë¥¼ ì‚¬ìš©í•©ë‹ˆë‹¤.
+    // íŒì—…ì„ ê·¸ë³´ë‹¤ ë‚®ì€ ìˆœì„œì— ë‘ë©´ ìƒì„±ì€ ë˜ì—ˆì–´ë„ ì¥ë©´ UI ë’¤ì— ê°€ë ¤ì§‘ë‹ˆë‹¤.
+    const int PopupSortingOrderBase = 1000;
+    int popup_order = PopupSortingOrderBase; //íŒì—… ìˆœì„œ ì¡°ì ˆ ìš©
 
-    //UI¿ÀºêÁ§Æ®µéÀÇ ºÎ¸ğ°¡ µÇ´Â °ÔÀÓ ¿ÀºêÁ§Æ®UIRoot
+    //UIì˜¤ë¸Œì íŠ¸ë“¤ì˜ ë¶€ëª¨ê°€ ë˜ëŠ” ê²Œì„ ì˜¤ë¸Œì íŠ¸UIRoot
     GameObject UIRoot
     {
         get
         {
-            //Å½»ö ÇØ¼­ ÇÒ´ç
+            //íƒìƒ‰ í•´ì„œ í• ë‹¹
             GameObject root = GameObject.Find("@UI");
 
-            //¾øÀ¸¸é »ı¼ºÇÏ°í ÇÒ´ç
+            //ì—†ìœ¼ë©´ ìƒì„±í•˜ê³  í• ë‹¹
             if (root == null)
                 root = new GameObject { name = "@UI" };
 
-            //¹İÈ¯
+            //ë°˜í™˜
             return root;
         }
     }
 
 
-    //UIÇÁ¸®ÆÕÀ» »ı¼ºÇÏ´Â ¸Ş¼­µå
+    //UIí”„ë¦¬íŒ¹ì„ ìƒì„±í•˜ëŠ” ë©”ì„œë“œ
     public T ShowUI<T>(bool isScene = true, string name = null,  Transform parent = null)
         where T : UI_Base
     {
-        //ÀÌ¸§ÀÌ nullÀÌ¸é Å¸ÀÔ ÀÌ¸§ Ã¤ÅÃ
+        //ì´ë¦„ì´ nullì´ë©´ íƒ€ì… ì´ë¦„ ì±„íƒ
         if(string.IsNullOrEmpty(name))
             name = typeof(T).Name;
 
-        //»ı¼º
+        //ìƒì„±
         GameObject prefab = Managers.Resource.Instantiate($"Prefabs/UI/{name}");
-        //ÇÏÀÌ¾î¶óÅ° À§Ä¡ Á¶Á¤
+        //í•˜ì´ì–´ë¼í‚¤ ìœ„ì¹˜ ì¡°ì •
         if (parent == null)
             prefab.transform.SetParent(UIRoot.transform);
         else
             prefab.transform.SetParent(parent);
 
-        //Scene or Popup ÀúÀå
+        //Scene or Popup ì €ì¥
         if (isScene == true)
         {
             scene = prefab;
         }
         else
         {
-            //½ºÅÃ
+            //ìŠ¤íƒ
             popup.Push(prefab);
-            prefab.GetComponent<Canvas>().sortingOrder
-                = ++popup_order;
+            Canvas popupCanvas = prefab.GetComponent<Canvas>();
+            popupCanvas.overrideSorting = true;
+            popupCanvas.sortingOrder = ++popup_order;
 
         }
 
@@ -64,15 +68,25 @@ public class UIManager
     {
         if(isScene == true)
         {
+            if (scene == null)
+                return;
+
             Object.Destroy(scene);
+            scene = null;
         }
         else
         {
+            if (popup.Count == 0)
+            {
+                Debug.LogWarning("[UI] ë‹«ì„ íŒì—…ì´ ì—†ìŠµë‹ˆë‹¤.");
+                popup_order = PopupSortingOrderBase;
+                return;
+            }
 
-            Object.Destroy(popup.Peek());
-            --popup_order;
-            popup.Pop();
-
+            GameObject target = popup.Pop();
+            if (target != null)
+                Object.Destroy(target);
+            popup_order = Mathf.Max(PopupSortingOrderBase, popup_order - 1);
         }
     }
 }

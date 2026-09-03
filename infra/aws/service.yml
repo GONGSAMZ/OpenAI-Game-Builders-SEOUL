@@ -1,0 +1,506 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: OpenAI Game Builders - ECS Fargate, ALB and CloudFront service
+
+Parameters:
+  ImageUri:
+    Type: String
+  TaskExecutionRoleArn:
+    Type: String
+  TaskRoleArn:
+    Type: String
+  DynamoDbTable:
+    Type: String
+  RuntimeSecretArn:
+    Type: String
+    Default: ""
+  UseRuntimeSecrets:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+  HiveMode:
+    Type: String
+    AllowedValues: [mock, sandbox, production]
+    Default: mock
+  StoreMode:
+    Type: String
+    AllowedValues: [mock, nicepay-test, hive-web-shop]
+    Default: mock
+  StoreCatalogSource:
+    Type: String
+    AllowedValues: [static, hive]
+    Default: static
+  StoreDevTools:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "false"
+  HiveBillingAppId:
+    Type: String
+    Default: ""
+  HiveWebShopUrl:
+    Type: String
+    Default: ""
+  OpenAiMode:
+    Type: String
+    AllowedValues: [mock, live]
+    Default: mock
+  OperationsAlertTopicArn:
+    Type: String
+    Default: ""
+
+Conditions:
+  HasHiveRuntimeSecrets: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Not [!Equals [!Ref HiveMode, mock]]
+  HasOpenAiRuntimeSecrets: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Equals [!Ref OpenAiMode, live]
+  HasHiveBillingSecret: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Or
+      - !Equals [!Ref StoreMode, hive-web-shop]
+      - !Equals [!Ref StoreCatalogSource, hive]
+  HasNicePayRuntimeSecrets: !And
+    - !Equals [!Ref UseRuntimeSecrets, "true"]
+    - !Equals [!Ref StoreMode, nicepay-test]
+  HasOperationsAlertTopic: !Not [!Equals [!Ref OperationsAlertTopicArn, ""]]
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.44.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags: [{ Key: Name, Value: openai-game-builders-seoul }]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref Vpc
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.44.1.0/24
+      MapPublicIpOnLaunch: true
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.44.2.0/24
+      MapPublicIpOnLaunch: true
+  RouteAssociationA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+  RouteAssociationB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetB
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Public HTTP for CloudFront origin
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS traffic from the ALB
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      SecurityGroups: [!Ref LoadBalancerSecurityGroup]
+      Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 3000
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !Ref Vpc
+      HealthCheckPath: /api/v1/health
+      Matcher:
+        HttpCode: "200"
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  StoreProductImageBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  StoreProductImageOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${AWS::StackName}-store-product-images
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  StoreProductImageCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub ${AWS::StackName}-store-product-images
+        Comment: Short cache for HIVE product image updates
+        DefaultTTL: 300
+        MaxTTL: 3600
+        MinTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  GameAssetCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub ${AWS::StackName}-game-assets
+        Comment: Immutable Unity WebGL assets with a non-cacheable release index
+        DefaultTTL: 3600
+        MaxTTL: 31536000
+        MinTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  GameAssetResponseHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub ${AWS::StackName}-game-assets
+        Comment: Browser isolation and security headers for Unity WebGL
+        SecurityHeadersConfig:
+          ContentSecurityPolicy:
+            ContentSecurityPolicy: "default-src 'self'; base-uri 'self'; font-src 'self' https: data:; form-action 'self'; frame-ancestors 'self'; img-src 'self' data: blob:; object-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob:; script-src-attr 'none'; style-src 'self' https: 'unsafe-inline'; upgrade-insecure-requests; worker-src 'self' blob:; connect-src 'self'; frame-src 'self'"
+            Override: true
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: SAMEORIGIN
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: no-referrer
+            Override: true
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Override: true
+            Preload: false
+          XSSProtection:
+            ModeBlock: true
+            Override: true
+            Protection: true
+        CustomHeadersConfig:
+          Items:
+            - Header: Cross-Origin-Opener-Policy
+              Override: true
+              Value: same-origin-allow-popups
+            - Header: Cross-Origin-Resource-Policy
+              Override: true
+              Value: same-origin
+            - Header: Origin-Agent-Cluster
+              Override: true
+              Value: "?1"
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        HttpVersion: http2and3
+        PriceClass: PriceClass_200
+        Origins:
+          - Id: game-alb
+            DomainName: !GetAtt LoadBalancer.DNSName
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+          - Id: store-product-images
+            DomainName: !GetAtt StoreProductImageBucket.RegionalDomainName
+            OriginAccessControlId: !Ref StoreProductImageOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        CacheBehaviors:
+          - PathPattern: game/*
+            TargetOriginId: store-product-images
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: !Ref GameAssetCachePolicy
+            ResponseHeadersPolicyId: !Ref GameAssetResponseHeadersPolicy
+            Compress: false
+          - PathPattern: store-products/*
+            TargetOriginId: store-product-images
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD, OPTIONS]
+            CachePolicyId: !Ref StoreProductImageCachePolicy
+            Compress: true
+        DefaultCacheBehavior:
+          TargetOriginId: game-alb
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          Compress: false
+
+  StoreProductImageBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref StoreProductImageBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${StoreProductImageBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: openai-game-builders-seoul
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/openai-game-builders-seoul
+      RetentionInDays: 14
+  HttpServerErrorMetric:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref LogGroup
+      FilterName: openai-game-builders-seoul-http-5xx
+      FilterPattern: '{ $.type = "http_request" && $.status >= 500 }'
+      MetricTransformations:
+        - MetricNamespace: OpenAIGameBuildersSeoul
+          MetricName: Http5xx
+          MetricValue: "1"
+          DefaultValue: 0
+  HttpServerErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: openai-game-builders-seoul-http-5xx
+      AlarmDescription: Platform server returned an HTTP 5xx response.
+      Namespace: OpenAIGameBuildersSeoul
+      MetricName: Http5xx
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If
+        - HasOperationsAlertTopic
+        - [!Ref OperationsAlertTopicArn]
+        - !Ref AWS::NoValue
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: openai-game-builders-seoul
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !Ref TaskExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      ContainerDefinitions:
+        - Name: web
+          Image: !Ref ImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3000
+              Protocol: tcp
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: PORT
+              Value: "3000"
+            - Name: PUBLIC_BASE_URL
+              Value: !Sub https://${Distribution.DomainName}
+            - Name: GAME_ORIGIN
+              Value: !Sub https://${Distribution.DomainName}
+            - Name: HIVE_MODE
+              Value: !Ref HiveMode
+            - Name: HIVE_REDIRECT_URI
+              Value: !Sub https://${Distribution.DomainName}/hive/cb
+            - Name: HIVE_WEB_SHOP_URL
+              Value: !Ref HiveWebShopUrl
+            - Name: HIVE_BILLING_APP_ID
+              Value: !Ref HiveBillingAppId
+            - Name: STORE_MODE
+              Value: !Ref StoreMode
+            - Name: STORE_CATALOG_SOURCE
+              Value: !Ref StoreCatalogSource
+            - Name: STORE_DEV_TOOLS
+              Value: !Ref StoreDevTools
+            - Name: DATA_STORE
+              Value: dynamodb
+            - Name: DYNAMODB_TABLE
+              Value: !Ref DynamoDbTable
+            - Name: SESSION_TTL_SECONDS
+              Value: "604800"
+            - Name: OPENAI_MODE
+              Value: !Ref OpenAiMode
+          Secrets:
+            - !If
+              - HasHiveRuntimeSecrets
+              - Name: HIVE_APP_ID
+                ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_APP_ID::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasHiveRuntimeSecrets
+              - Name: HIVE_CLIENT_ID
+                ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_CLIENT_ID::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasHiveRuntimeSecrets
+              - Name: HIVE_CLIENT_SECRET
+                ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_CLIENT_SECRET::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasOpenAiRuntimeSecrets
+              - Name: OPENAI_API_KEY
+                ValueFrom: !Sub "${RuntimeSecretArn}:OPENAI_API_KEY::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasHiveBillingSecret
+              - Name: HIVE_BILLING_AUTH_KEY
+                ValueFrom: !Sub "${RuntimeSecretArn}:HIVE_BILLING_AUTH_KEY::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasNicePayRuntimeSecrets
+              - Name: NICEPAY_CLIENT_ID
+                ValueFrom: !Sub "${RuntimeSecretArn}:NICEPAY_CLIENT_ID::"
+              - !Ref AWS::NoValue
+            - !If
+              - HasNicePayRuntimeSecrets
+              - Name: NICEPAY_SECRET_KEY
+                ValueFrom: !Sub "${RuntimeSecretArn}:NICEPAY_SECRET_KEY::"
+              - !Ref AWS::NoValue
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: web
+          HealthCheck:
+            Command: [CMD-SHELL, "wget -q -O - http://localhost:3000/api/v1/health || exit 1"]
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 30
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: Listener
+    Properties:
+      ServiceName: web
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      HealthCheckGracePeriodSeconds: 90
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups: [!Ref ServiceSecurityGroup]
+          Subnets: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+      LoadBalancers:
+        - ContainerName: web
+          ContainerPort: 3000
+          TargetGroupArn: !Ref TargetGroup
+
+Outputs:
+  PublicUrl:
+    Value: !Sub https://${Distribution.DomainName}
+  HiveRedirectUri:
+    Value: !Sub https://${Distribution.DomainName}/hive/cb
+  ClusterName:
+    Value: !Ref Cluster
+  ServiceName:
+    Value: !GetAtt Service.Name
+  StoreProductImageBucketName:
+    Value: !Ref StoreProductImageBucket
+  GameAssetBucketName:
+    Value: !Ref StoreProductImageBucket
+  DistributionId:
+    Value: !Ref Distribution

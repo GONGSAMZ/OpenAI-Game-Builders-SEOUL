@@ -1,0 +1,104 @@
+# OpenAI Game Builders 웹 연동 베이스캠프
+
+Unity 붕어빵 게임을 같은 도메인에 제공하면서 HIVE Web Login, 웹 상점, OpenAI API 경계를 검증하는 독립 실행형 서버입니다. 기본값은 외부 계정과 API 키가 필요 없는 `mock` 모드입니다.
+
+## 현재 준비된 것
+
+- TypeScript/Express 서버와 `/api/v1/health`
+- HIVE 통합 Web Login URL 생성, 콜백 디코딩, `/token` 서버 검증
+- Hive 계정 없이 시험하는 mock 로그인
+- 외부 토큰을 브라우저에 노출하지 않는 서버 게임 세션과 DynamoDB 세션 영속화
+- 세션 subject 기준의 사용자별 도감·스토리 진행 저장과 단조 병합 API
+- 서버 권한의 일반 게임 돈 상점, 조건부 구매·하루 정산·진행 초기화 API
+- OpenAI Responses API 서버 프록시와 mock 응답
+- 사용자별 테스트 포인트 mock 결제·충전, 중복 차감 방지, 메모리/DynamoDB 아이템 저장소
+- NICEPAY 샌드박스 테스트 결제의 주문·서명·승인 검증과 사용자별 상품 지급
+- 일반 게임 돈과 분리된 팥 코인 및 사용자별 황금 틀 장착 상태
+- HIVE 웹 상점 연결, 인게임 정보 조회, 결제 알림·미소비 주문·영수증 검증·지급 완료 API
+- `/game/` Unity WebGL 제공 및 루트 화면 iframe 임베드
+- 상단 헤더와 게임만 표시하는 최소 웹 셸
+- 브라우저용 `game-bridge.js`와 Unity 통합 API
+- Unity 프로젝트에 적용된 WebGL `.jslib`/C# 어댑터
+- Docker 및 GitHub Actions 기본 설정
+- Unity 6.3 WebGL 소스/산출물 SHA-256 매니페스트 검증
+- 배포 revision API, smoke test, ECS 자동 롤백과 수동 immutable 이미지 롤백
+- 두 Mock 계정으로 저장·경제·프리미엄 데이터 누수를 검사하는 계정 단위 스모크 테스트
+
+## 로컬 실행
+
+Node.js 22 이상과 pnpm이 필요합니다.
+
+```bash
+pnpm install
+cp .env.example .env
+pnpm dev
+```
+
+Windows PowerShell에서는 다음처럼 환경 파일을 복사할 수 있습니다.
+
+```powershell
+Copy-Item .env.example .env
+pnpm dev
+```
+
+계정별 저장이 섞이지 않는지 배포 전에 자동 확인하려면 다음 명령을 실행합니다. AWS·HIVE·NICEPAY 실데이터는 사용하지 않으며, 자세한 검사 범위는 [계정 단위 데이터 테스트 툴](../docs/11_ACCOUNT_SCOPE_TEST_TOOL.md)에 정리되어 있습니다.
+
+```powershell
+pnpm test:account-scope
+```
+
+`.env`의 `GAME_BUILD_DIR`을 기존 Unity WebGL 빌드 경로로 두고 브라우저에서 `http://localhost:3000`을 엽니다. 루트 화면에는 상단 헤더와 남은 영역을 채우는 Unity 게임만 표시되며 외부 개발 패널은 노출하지 않습니다. `STORE_DEV_TOOLS=true`인 개발 환경에서는 테스트 포인트 충전·개발용 지급 API를 사용할 수 있고, `pnpm test:account-scope`로 사용자별 잔액·인벤토리 격리와 멱등 처리를 검사합니다. 실행 중인 게임은 서버 상태를 주기적으로 동기화합니다.
+
+`STORE_MODE=nicepay-test`에서는 NICEPAY 테스트용 `NICEPAY_CLIENT_ID`와
+`NICEPAY_SECRET_KEY`가 필요하며, 카드 결제창의 테스트 거래는 실제 청구 없이 승인 후 팥 코인 또는 황금 틀을 지급합니다.
+계정별 구매 내역 cursor는 서버 HMAC으로 서명합니다. 별도 키를 쓰려면 `PURCHASE_CURSOR_SECRET`을 설정하고, 생략하면 현재 결제 모드의 `NICEPAY_SECRET_KEY` 또는 `HIVE_BILLING_AUTH_KEY`를 사용합니다.
+
+`STORE_CATALOG_SOURCE=hive`를 사용하면 로그인 PlayerID로 HIVE Web PG 상품 목록을 서버에서 조회해 인게임 카드를 자동 구성합니다. 새 PID는 `...coin.<item-id>.<quantity>`, `...equipment.<item-id>.1`, `...item.<item-id>.<quantity>` 규칙을 사용합니다. 이미지는 `/store-products/<전체-market-pid>.png`에서 불러오며 실패 시 기본 이미지로 대체합니다. 운영 절차는 저장소의 [`hive-store-catalog` 스킬](../skills/hive-store-catalog/SKILL.md)을 따릅니다.
+
+## 실제 서비스 전환
+
+### Hive Sandbox
+
+`.env`에서 `HIVE_MODE=sandbox`로 바꾸고 HIVE Console에서 받은 네 가지 값을 채웁니다. 현재 HIVE 통합 Web Login은 OAuth Client Secret을 사용하는 `/token` 검증 방식입니다. 자세한 내용은 [HIVE Console 체크리스트](docs/hive-console-checklist.md)를 참고합니다.
+
+### HIVE 웹 상점
+
+HIVE 전체 PG·영수증·결제 알림 검증은 현재 개발 범위에서 영구 보류합니다. 아래 설정은
+향후 재개할 때만 사용합니다.
+
+HIVE Unity SDK가 WebGL을 빌드 대상으로 제공하지 않으므로 WebGL 게임은 브라우저 브리지에서 HIVE Web Login과 관리형 웹 상점을 사용하고, 서버는 HIVE Billing Server API를 사용합니다. `STORE_MODE=hive-web-shop`, `HIVE_WEB_SHOP_URL`, `HIVE_BILLING_APP_ID`, `HIVE_BILLING_AUTH_KEY`를 설정합니다. 게임 상점의 `팥 코인 충전` 버튼은 HIVE 웹 상점을 열며 서버는 결제 알림을 받은 뒤 PlayerID의 미소비 주문과 영수증을 검증하고, DynamoDB에 한 번만 지급한 뒤 HIVE에 지급 완료를 전송합니다.
+
+개발 환경에서는 `STORE_DEV_TOOLS=true`를 사용합니다. 외부 테스트 지급 UI는 제공하지 않으며, 정식 배포 전에는 반드시 `STORE_DEV_TOOLS=false`로 바꿔 개발용 API를 비활성화합니다. 상품·PG·콜백 URL과 Billing 인증 키 설정은 [HIVE Console 체크리스트](docs/hive-console-checklist.md)를 따릅니다.
+
+### OpenAI API
+
+`.env`에서 `OPENAI_MODE=live`로 바꾸고 `OPENAI_API_KEY`를 서버 환경변수로 설정합니다. API 키는 브라우저, Unity 프로젝트, Git 저장소에 넣지 않습니다. 구현은 OpenAI의 서버용 JavaScript SDK와 Responses API를 사용합니다.
+
+OpenAI 공식 문서:
+
+- https://developers.openai.com/api/docs/quickstart
+- https://developers.openai.com/api/reference/overview#authentication
+
+## 실제 게임 연결
+
+- 엔진과 무관한 HTTP 계약: [API 계약](docs/api-contract.md)
+- Unity WebGL: [Unity 연결 방법](docs/unity-webgl-integration.md)
+- 브라우저 JavaScript: `public/game-bridge.js`의 `GameBridgeClient` 사용
+
+권장 배치:
+
+```text
+브라우저/Unity WebGL
+  └─ game-bridge.js
+       └─ 이 서버
+            ├─ Hive Web Login
+            └─ OpenAI Responses API
+```
+
+## 현재 제한 사항
+
+- 로컬 기본값에서는 세션·상점·도감/스토리 데이터를 메모리에 저장하고, AWS `DATA_STORE=dynamodb` 환경에서는 모두 DynamoDB에 유지합니다.
+- AI 엔드포인트는 연동 검증용 NPC 반응 예시입니다. 기획 확정 후 게임 기능에 맞춘 입출력 계약으로 버전 관리합니다.
+- 실제 HIVE 유료 결제는 Console Web Login AppID, Billing 인증 키, 웹 상점/PG/상품 설정이 준비된 뒤 Sandbox에서 최종 검증해야 합니다.
+- 결제 취소 알림은 현재 지급하지 않고 정상 응답만 하며, 이미 사용된 재화의 환불 회수 정책은 정식 출시 전 별도 설계가 필요합니다.
+- 계정별 SaveProfile v7과 일일 소 선택을 포함한 일반 상점 경제는 구현되어 있으며, 점수·랭킹 API/UI는 후속 범위입니다.

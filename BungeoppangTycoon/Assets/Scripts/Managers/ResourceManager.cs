@@ -9,41 +9,72 @@ public class ResourceManager
         return Resources.Load<T>(name);
     }
 
-    //ÇÁ¸®ÆÕ »ı¼º&¹İÈ¯ ¸Ş¼­µå
+    //í”„ë¦¬íŒ¹ ìƒì„±&ë°˜í™˜ ë©”ì„œë“œ
     public GameObject Instantiate(string path)
     {
         GameObject prefab = Load<GameObject>($"{path}");
 
         if (prefab == null)
         {
-            Debug.Log($"{path}ÀÌ null");
+            Debug.Log($"{path}ì´ null");
             prefab = Load<GameObject>($"nullPrefab");
         }
 
-        //¿ø·¡ ¾²´ø Instantiate´Â ObjectÅ¬·¡½º »êÇÏ ¸Ş¼­µå¶ó¼­ µ¿¸í¸Ş¼­µå·Î ÀÎÇÑ Àç±Í ¹æÁö
+        //ì›ë˜ ì“°ë˜ InstantiateëŠ” Objectí´ë˜ìŠ¤ ì‚°í•˜ ë©”ì„œë“œë¼ì„œ ë™ëª…ë©”ì„œë“œë¡œ ì¸í•œ ì¬ê·€ ë°©ì§€
         return Object.Instantiate(prefab); 
     }
 
-    //Sprite ¹İÈ¯ ¸Ş¼­µå
+    //Sprite ë°˜í™˜ ë©”ì„œë“œ
     public Sprite LoadSprite(string path, int? index = null)
     {
-        //´ÜÀÏ ½ºÇÁ¶óÀÌÆ®¸¸ ¿øÇÏ´Â °æ¿ì
+        //ë‹¨ì¼ ìŠ¤í”„ë¼ì´íŠ¸ë§Œ ì›í•˜ëŠ” ê²½ìš°
         if(index == null)
         {
             Sprite sprite = Load<Sprite>($"Sprites/{path}");
             return sprite;
         }
-        //sliceÇÑ ½ºÇÁ¶óÀÌÆ® ½ÃÆ®¿¡¼­ ²¨³»¿À´Â °æ¿ì
+        //sliceí•œ ìŠ¤í”„ë¼ì´íŠ¸ ì‹œíŠ¸ì—ì„œ êº¼ë‚´ì˜¤ëŠ” ê²½ìš°
         else
         {
             Sprite[] sprites = Resources.LoadAll<Sprite>($"Sprites/{path}");
 
             if (sprites == null || sprites.Length == 0)
-                Debug.Log($"½ºÇÁ¶óÀÌÆ®½ÃÆ® X");
+            {
+                Debug.LogError($"ìŠ¤í”„ë¼ì´íŠ¸ ì‹œíŠ¸ë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤: Sprites/{path}");
+                return null;
+            }
 
-            return sprites[(int)index];
+            int spriteIndex = (int)index;
+            if (spriteIndex < 0 || spriteIndex >= sprites.Length)
+            {
+                Debug.LogError($"ìŠ¤í”„ë¼ì´íŠ¸ ì¸ë±ìŠ¤ê°€ ë²”ìœ„ë¥¼ ë²—ì–´ë‚¬ìŠµë‹ˆë‹¤: Sprites/{path}, index={spriteIndex}, count={sprites.Length}");
+                return null;
+            }
+
+            return sprites[spriteIndex];
         }
         
+    }
+
+    /// <summary>
+    /// Multiple Sprite ì‹œíŠ¸ì—ì„œ ë°°ì—´ ì¸ë±ìŠ¤ ëŒ€ì‹  Inspector ìŠ¬ë¼ì´ìŠ¤ ì´ë¦„ì˜ ëë¶€ë¶„ìœ¼ë¡œ ìŠ¤í”„ë¼ì´íŠ¸ë¥¼ ì°¾ìŠµë‹ˆë‹¤.
+    /// Resources.LoadAllì˜ ë°˜í™˜ ìˆœì„œëŠ” í‘œì • ì˜ë¯¸ë¥¼ ë³´ì¥í•˜ì§€ ì•Šìœ¼ë¯€ë¡œ, ì†ë‹˜ í‘œì •ì—ëŠ” ì´ ë©”ì„œë“œë¥¼ ì‚¬ìš©í•©ë‹ˆë‹¤.
+    /// </summary>
+    public Sprite LoadSpriteBySuffix(string path, string suffix)
+    {
+        Sprite[] sprites = Resources.LoadAll<Sprite>($"Sprites/{path}");
+        if (sprites == null || sprites.Length == 0)
+        {
+            Debug.LogError($"ìŠ¤í”„ë¼ì´íŠ¸ ì‹œíŠ¸ë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤: Sprites/{path}");
+            return null;
+        }
+
+        foreach (Sprite sprite in sprites)
+            if (sprite != null && sprite.name.EndsWith(suffix, System.StringComparison.Ordinal))
+                return sprite;
+
+        Debug.LogError($"ìŠ¤í”„ë¼ì´íŠ¸ ì‹œíŠ¸ì—ì„œ '{suffix}' í‘œì •ì„ ì°¾ì§€ ëª»í–ˆìŠµë‹ˆë‹¤: Sprites/{path}");
+        return null;
     }
 
 

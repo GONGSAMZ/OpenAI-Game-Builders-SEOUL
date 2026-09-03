@@ -1,0 +1,1 @@
+{"buttons":{"close-button":{"click":"CloseSettingsOptions","keyboard":"Escape"},"keyboard-toggle":{"value":"showKeyboardHints"},"reset-button":{"click":"OpenResetConfirmation"}},"focusOrder":["volume-slider","keyboard-toggle","reset-button","close-button"]}

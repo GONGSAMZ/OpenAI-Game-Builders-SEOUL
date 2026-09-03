@@ -1,0 +1,15 @@
+{
+  "passed": false,
+  "reference": "C:\\Users\\이혜연\\Documents\\ChatGPT\\OpenAI GAME BUILDERS SEOUL\\UnitySettingsV4Validation\\visual-qa\\normalized\\reference.png",
+  "actual": "C:\\Users\\이혜연\\Documents\\ChatGPT\\OpenAI GAME BUILDERS SEOUL\\UnitySettingsV4Validation\\visual-qa\\normalized\\unity-render-unpremultiplied.png",
+  "size": [
+    1260,
+    900
+  ],
+  "channelThreshold": 28,
+  "allowedChangedRatio": 0.08,
+  "comparedPixels": 1134000,
+  "changedPixels": 181534,
+  "changedRatio": 0.16008289241622575,
+  "ignoreMask": null
+}

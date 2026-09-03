@@ -1,0 +1,147 @@
+name: Roll back DEV on AWS
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Previously deployed immutable ECR tag (40-char SHA-run attempt)"
+        required: true
+        type: string
+      game_source_hash:
+        description: "Optional 64-char Unity source hash; blank keeps the current game"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-dev-to-aws
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    if: github.ref == 'refs/heads/DEV'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      GAME_SOURCE_HASH: ${{ inputs.game_source_hash }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+      AWS_ECR_REPOSITORY: ${{ vars.AWS_ECR_REPOSITORY }}
+      AWS_TASK_EXECUTION_ROLE_ARN: ${{ vars.AWS_TASK_EXECUTION_ROLE_ARN }}
+      AWS_TASK_ROLE_ARN: ${{ vars.AWS_TASK_ROLE_ARN }}
+      AWS_DYNAMODB_TABLE: ${{ vars.AWS_DYNAMODB_TABLE }}
+      AWS_RUNTIME_SECRET_ARN: ${{ vars.AWS_RUNTIME_SECRET_ARN }}
+      AWS_SERVICE_STACK: openai-game-builders-seoul-service
+      AWS_BOOTSTRAP_STACK: openai-game-builders-seoul-bootstrap
+      HIVE_MODE: production
+      STORE_MODE: ${{ vars.STORE_MODE || 'mock' }}
+      STORE_CATALOG_SOURCE: ${{ vars.STORE_CATALOG_SOURCE || 'hive' }}
+      STORE_DEV_TOOLS: ${{ vars.STORE_DEV_TOOLS || 'true' }}
+      HIVE_BILLING_APP_ID: ${{ vars.HIVE_BILLING_APP_ID }}
+      HIVE_WEB_SHOP_URL: ${{ vars.HIVE_WEB_SHOP_URL }}
+      OPENAI_MODE: ${{ vars.OPENAI_MODE || 'mock' }}
+      USE_RUNTIME_SECRETS: "true"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate rollback target
+        shell: bash
+        run: |
+          [[ "$IMAGE_TAG" =~ ^[0-9a-f]{40}-[1-9][0-9]*$ ]]
+          if [[ -n "$GAME_SOURCE_HASH" ]]; then
+            [[ "$GAME_SOURCE_HASH" =~ ^[0-9a-f]{64}$ ]]
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy selected immutable image
+        shell: bash
+        run: |
+          account_id=$(aws sts get-caller-identity --query Account --output text)
+          image_uri="$account_id.dkr.ecr.$AWS_REGION.amazonaws.com/$AWS_ECR_REPOSITORY:$IMAGE_TAG"
+          operations_topic=$(aws cloudformation describe-stacks \
+            --stack-name "$AWS_BOOTSTRAP_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='OperationsAlertTopicArn'].OutputValue" \
+            --output text)
+
+          aws cloudformation deploy \
+            --stack-name "$AWS_SERVICE_STACK" \
+            --template-file infra/aws/service.yml \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              "ImageUri=$image_uri" \
+              "TaskExecutionRoleArn=$AWS_TASK_EXECUTION_ROLE_ARN" \
+              "TaskRoleArn=$AWS_TASK_ROLE_ARN" \
+              "DynamoDbTable=$AWS_DYNAMODB_TABLE" \
+              "RuntimeSecretArn=$AWS_RUNTIME_SECRET_ARN" \
+              "UseRuntimeSecrets=$USE_RUNTIME_SECRETS" \
+              "HiveMode=$HIVE_MODE" \
+              "StoreMode=$STORE_MODE" \
+              "StoreCatalogSource=$STORE_CATALOG_SOURCE" \
+              "StoreDevTools=$STORE_DEV_TOOLS" \
+              "HiveBillingAppId=$HIVE_BILLING_APP_ID" \
+              "HiveWebShopUrl=$HIVE_WEB_SHOP_URL" \
+              "OpenAiMode=$OPENAI_MODE" \
+              "OperationsAlertTopicArn=$operations_topic"
+
+          public_url=$(aws cloudformation describe-stacks \
+            --stack-name "$AWS_SERVICE_STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='PublicUrl'].OutputValue" \
+            --output text)
+          expected_revision="${IMAGE_TAG%%-*}"
+          health_json=$(curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors \
+            "$public_url/api/v1/health")
+          test "$(jq -r '.revision' <<< "$health_json")" = "$expected_revision"
+
+          if [[ -n "$GAME_SOURCE_HASH" ]]; then
+            game_bucket=$(aws cloudformation describe-stacks \
+              --stack-name "$AWS_SERVICE_STACK" \
+              --query "Stacks[0].Outputs[?OutputKey=='GameAssetBucketName'].OutputValue | [0]" \
+              --output text)
+            test -n "$game_bucket"
+            release_prefix="game-releases/$GAME_SOURCE_HASH"
+            release_manifest=$(mktemp)
+            aws s3 cp \
+              "s3://$game_bucket/$release_prefix/build-manifest.json" \
+              "$release_manifest" \
+              --only-show-errors
+            test "$(jq -r '.sourceTreeSha256' "$release_manifest")" = "$GAME_SOURCE_HASH"
+            rm -f "$release_manifest"
+
+            aws s3 cp \
+              "s3://$game_bucket/$release_prefix/" \
+              "s3://$game_bucket/game/" \
+              --recursive \
+              --exclude index.html \
+              --exclude README.md \
+              --copy-props metadata-directive \
+              --only-show-errors
+            aws s3 cp \
+              "s3://$game_bucket/$release_prefix/index.html" \
+              "s3://$game_bucket/game/index.html" \
+              --copy-props metadata-directive \
+              --only-show-errors
+            aws s3api copy-object \
+              --bucket "$game_bucket" \
+              --copy-source "$game_bucket/$release_prefix/index.html" \
+              --key "game/" \
+              --metadata-directive COPY \
+              >/dev/null
+
+            game_manifest=$(curl --fail --show-error --retry 12 --retry-delay 10 --retry-all-errors \
+              "$public_url/game/build-manifest.json")
+            test "$(jq -r '.sourceTreeSha256' <<< "$game_manifest")" = "$GAME_SOURCE_HASH"
+          fi
+
+          echo "### 롤백 완료" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: $image_uri" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Revision: $expected_revision" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Unity source: ${GAME_SOURCE_HASH:-unchanged}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: $public_url" >> "$GITHUB_STEP_SUMMARY"

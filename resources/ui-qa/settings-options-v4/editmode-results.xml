@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<test-run id="2" testcasecount="6" result="Passed" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0" engine-version="3.5.0.0" clr-version="4.0.30319.42000" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.0384521">
+  <test-suite type="TestSuite" id="1000" name="ToastyFishBun" fullname="ToastyFishBun" runstate="Runnable" testcasecount="6" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.038452" total="6" passed="6" failed="0" inconclusive="0" skipped="0" asserts="0">
+    <properties>
+      <property name="platform" value="EditMode" />
+    </properties>
+    <test-suite type="Assembly" id="1005" name="Assembly-CSharp-Editor.dll" fullname="C:/Users/이혜연/Documents/ChatGPT/OpenAI GAME BUILDERS SEOUL/UnitySettingsV4Validation/BungeoppangTycoon/Library/ScriptAssemblies/Assembly-CSharp-Editor.dll" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.020619" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="448" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestFixture" id="1001" name="SavePipelineTests" fullname="SavePipelineTests" classname="SavePipelineTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.020006" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-case id="1003" name="AchievementEvaluation_UnlocksReachedTargetsOnly" fullname="SavePipelineTests.AchievementEvaluation_UnlocksReachedTargetsOnly" methodname="AchievementEvaluation_UnlocksReachedTargetsOnly" classname="SavePipelineTests" runstate="Runnable" seed="210921105" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.007123" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1004" name="LocalStore_WhenActiveCopyIsCorrupted_LoadsPreviousCopy" fullname="SavePipelineTests.LocalStore_WhenActiveCopyIsCorrupted_LoadsPreviousCopy" methodname="LocalStore_WhenActiveCopyIsCorrupted_LoadsPreviousCopy" classname="SavePipelineTests" runstate="Runnable" seed="1817333329" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.004768" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+        <test-case id="1002" name="ResetRun_PreservesAccountProgress" fullname="SavePipelineTests.ResetRun_PreservesAccountProgress" methodname="ResetRun_PreservesAccountProgress" classname="SavePipelineTests" runstate="Runnable" seed="1247154570" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.000632" asserts="0">
+          <properties>
+            <property name="retryIteration" value="0" />
+            <property name="repeatIteration" value="0" />
+          </properties>
+        </test-case>
+      </test-suite>
+    </test-suite>
+    <test-suite type="Assembly" id="1010" name="BungeoppangTycoon.UI.EditModeTests.dll" fullname="C:/Users/이혜연/Documents/ChatGPT/OpenAI GAME BUILDERS SEOUL/UnitySettingsV4Validation/BungeoppangTycoon/Library/ScriptAssemblies/BungeoppangTycoon.UI.EditModeTests.dll" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.014036" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+      <properties>
+        <property name="_PID" value="448" />
+        <property name="_APPDOMAIN" value="Unity Child Domain" />
+        <property name="platform" value="EditMode" />
+        <property name="EditorOnly" value="True" />
+      </properties>
+      <test-suite type="TestSuite" id="1011" name="BungeoppangTycoon" fullname="BungeoppangTycoon" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.013683" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+        <properties />
+        <test-suite type="TestSuite" id="1012" name="Tests" fullname="BungeoppangTycoon.Tests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.013598" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+          <properties />
+          <test-suite type="TestSuite" id="1013" name="EditMode" fullname="BungeoppangTycoon.Tests.EditMode" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.013507" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+            <properties />
+            <test-suite type="TestFixture" id="1006" name="SettingsOptionsPrefabTests" fullname="BungeoppangTycoon.Tests.EditMode.SettingsOptionsPrefabTests" classname="BungeoppangTycoon.Tests.EditMode.SettingsOptionsPrefabTests" runstate="Runnable" testcasecount="3" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.013410" total="3" passed="3" failed="0" inconclusive="0" skipped="0" asserts="0">
+              <properties />
+              <test-case id="1007" name="Prefab_HasRequiredFigmaV4Structure" fullname="BungeoppangTycoon.Tests.EditMode.SettingsOptionsPrefabTests.Prefab_HasRequiredFigmaV4Structure" methodname="Prefab_HasRequiredFigmaV4Structure" classname="BungeoppangTycoon.Tests.EditMode.SettingsOptionsPrefabTests" runstate="Runnable" seed="1772255138" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.011924" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1009" name="Prefab_TextRemainsDynamicTmpInsteadOfBakedIntoImages" fullname="BungeoppangTycoon.Tests.EditMode.SettingsOptionsPrefabTests.Prefab_TextRemainsDynamicTmpInsteadOfBakedIntoImages" methodname="Prefab_TextRemainsDynamicTmpInsteadOfBakedIntoImages" classname="BungeoppangTycoon.Tests.EditMode.SettingsOptionsPrefabTests" runstate="Runnable" seed="1440708584" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.000223" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+              </test-case>
+              <test-case id="1008" name="Prefab_UsesInteractiveControlsAndExplicitNavigation" fullname="BungeoppangTycoon.Tests.EditMode.SettingsOptionsPrefabTests.Prefab_UsesInteractiveControlsAndExplicitNavigation" methodname="Prefab_UsesInteractiveControlsAndExplicitNavigation" classname="BungeoppangTycoon.Tests.EditMode.SettingsOptionsPrefabTests" runstate="Runnable" seed="1382199839" result="Passed" start-time="2026-08-20 20:34:03Z" end-time="2026-08-20 20:34:03Z" duration="0.000767" asserts="0">
+                <properties>
+                  <property name="retryIteration" value="0" />
+                  <property name="repeatIteration" value="0" />
+                </properties>
+                <output><![CDATA[Saving results to: C:/Users/이혜연/AppData/LocalLow/FishBunFactory/ToastyFishBun\TestResults.xml
+]]></output>
+              </test-case>
+            </test-suite>
+          </test-suite>
+        </test-suite>
+      </test-suite>
+    </test-suite>
+  </test-suite>
+</test-run>

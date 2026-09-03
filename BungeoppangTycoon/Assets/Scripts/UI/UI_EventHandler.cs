@@ -4,15 +4,15 @@ using UnityEngine.EventSystems;
 
 public class UI_EventHandler : MonoBehaviour, IPointerClickHandler
 {
-    //Å¬¸¯ ÇÚµé·¯
+    //í´ë¦­ í•¸ë“¤ëŸ¬
     public Action OnClickHandler = null;
 
-    /*¸Å°³ º¯¼ö eventData
-     * IPointerClickHandlerÀÇ ½Ã±×´ÏÃ³·Î ÀÖ¾î¼­ 
-     * »ç¿ëÇÏÁö ¾Ê´õ¶óµµ ¹İµå½Ã ÀÖÀ½
+    /*ë§¤ê°œ ë³€ìˆ˜ eventData
+     * IPointerClickHandlerì˜ ì‹œê·¸ë‹ˆì²˜ë¡œ ìˆì–´ì„œ
+     * ì‚¬ìš©í•˜ì§€ ì•Šë”ë¼ë„ ë°˜ë“œì‹œ ìˆìŒ
      */
     public void OnPointerClick(PointerEventData eventData)
     {
-         OnClickHandler?.Invoke(); //Å¬¸¯ ¾×¼Ç ½ÇÇà
+         OnClickHandler?.Invoke(); //í´ë¦­ ì•¡ì…˜ ì‹¤í–‰
     }
 }

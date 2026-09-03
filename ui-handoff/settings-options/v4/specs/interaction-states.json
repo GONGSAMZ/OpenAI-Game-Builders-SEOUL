@@ -1,0 +1,13 @@
+{
+  "modal": {"blocksGameplayInput":true,"defaultFocus":"close-button","cancelAction":"close-popup"},
+  "controls": [
+    {"id":"close-button","inputs":["pointer-click","Escape"],"result":"Managers.UI.CloseUI(false)","disabledWhen":null,"navigation":{"previous":"footer-close-button","next":"volume-slider"}},
+    {"id":"volume-slider","states":["default","focused","disabled"],"inputs":["pointer-drag","left","right"],"result":"AudioListener.volume 및 PlayerPrefs settings_master_volume_v1 갱신","disabledWhen":null,"navigation":{"previous":"close-button","next":"volume-minus"}},
+    {"id":"volume-minus","states":["default","hover","pressed","focused"],"inputs":["pointer-click","submit"],"result":"음량 10% 감소","disabledWhen":"volume == 0","navigation":{"previous":"volume-slider","next":"volume-plus"}},
+    {"id":"volume-plus","states":["default","hover","pressed","focused"],"inputs":["pointer-click","submit"],"result":"음량 10% 증가","disabledWhen":"volume == 1","navigation":{"previous":"volume-minus","next":"keyboard-toggle"}},
+    {"id":"keyboard-toggle","states":["on","off","hover","pressed","focused"],"inputs":["pointer-click","submit"],"result":"KeyboardHintSettings 상태 반전 및 즉시 저장","disabledWhen":null,"navigation":{"previous":"volume-plus","next":"controls-help-button"}},
+    {"id":"controls-help-button","states":["default","hover","pressed","focused"],"inputs":["pointer-click","submit"],"result":"UI_SettingsHelp 팝업 열기","disabledWhen":null,"navigation":{"previous":"keyboard-toggle","next":"reset-button"}},
+    {"id":"reset-button","states":["default","hover","pressed","disabled","focused"],"inputs":["pointer-click","submit"],"result":"SaveUiFactory.ShowResetConfirmation 호출","disabledWhen":"reset request in progress","navigation":{"previous":"controls-help-button","next":"footer-close-button"}},
+    {"id":"footer-close-button","states":["default","hover","pressed","focused"],"inputs":["pointer-click","submit"],"result":"Managers.UI.CloseUI(false)","disabledWhen":null,"navigation":{"previous":"reset-button","next":"close-button"}}
+  ]
+}

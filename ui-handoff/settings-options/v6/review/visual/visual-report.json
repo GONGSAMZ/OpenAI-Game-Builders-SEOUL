@@ -1,0 +1,15 @@
+{
+  "passed": false,
+  "reference": "C:\\Users\\이혜연\\Documents\\ChatGPT\\OpenAI GAME BUILDERS SEOUL\\ui-handoff\\settings-options\\v6\\reference\\default-1920x1080.png",
+  "actual": "C:\\DevHub\\02_GameDev\\GONGSAMZ\\resources\\ui-qa\\settings-v6-options-1920x1080.png",
+  "size": [
+    1920,
+    1080
+  ],
+  "channelThreshold": 32,
+  "allowedChangedRatio": 0.16,
+  "comparedPixels": 2073600,
+  "changedPixels": 510646,
+  "changedRatio": 0.24626060956790125,
+  "ignoreMask": null
+}

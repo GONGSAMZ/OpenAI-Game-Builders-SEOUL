@@ -38,6 +38,7 @@ GONGSAMZ/
 │  └─ core/
 ├─ docs/                      # 기획과 개발 안내 문서
 ├─ tools/                     # 맵 생성, 이미지 변환 같은 보조 도구
+├─ platform-server/           # Hive 로그인과 OpenAI API를 처리하는 독립 서버
 └─ README.md                  # 프로젝트 소개와 실행 방법
 ```
 
@@ -58,6 +59,10 @@ GONGSAMZ/
 
 5. **게임 규칙을 바꾸면 `tests/core`에도 검사용 파일을 추가합니다.**
    - 예: 공격력 계산을 수정했다면 결과가 올바른지 확인하는 테스트를 만듭니다.
+
+6. **외부 플랫폼 연동은 `platform-server`에 둡니다.**
+   - Hive Client Secret과 OpenAI API Key는 서버 환경변수에서만 사용합니다.
+   - Unity WebGL은 HTTP 계약과 브라우저 브리지를 통해 서버에 연결합니다.
 
 ## 처음 만들 파일 추천
 

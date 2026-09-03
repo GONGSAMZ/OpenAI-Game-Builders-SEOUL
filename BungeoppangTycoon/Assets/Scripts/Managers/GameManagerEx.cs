@@ -3,52 +3,47 @@ using System.Collections.Generic;
 using UnityEngine;
 using static Util;
 
+/// <summary>
+/// 게임 씬이 열려 있는 동안만 사용하는 영업 상태입니다.
+/// 저장이 필요한 도감·손님 이야기·해금 재료·설정은 SaveService.Data에 보관합니다.
+/// 이 객체의 값은 하루가 끝날 때 GameManagerEx가 SaveService로 정산하여 저장합니다.
+/// </summary>
 public class GameData
 {
+    /// <summary>현재 영업 중인 날짜입니다. 저장 데이터의 nextDay와는 의미가 다릅니다.</summary>
     public int day;
 
+    /// <summary>재료비를 빼기 전후로 영업 중 변하는 현재 보유 금액입니다.</summary>
     public int money;
-    //public int spritPiece;
-
-    //�رݵ� ��� ����
-    public int numOfFilling;
 }
 
 public class GameManagerEx
 {
-    GameData gameData = new GameData();
-    GameData CurData
-    {
-        get { return gameData; }
-        set { gameData = value; }
-    }
+    // SaveGameData를 영업 중에 바로 수정하지 않도록, 씬 안에서는 이 임시 상태만 갱신한다.
+    readonly GameData gameData = new GameData();
+    GameData CurData => gameData;
 
-    #region GameData
+    #region 영업 중 임시 상태
     public int Day
     {
-        get { 
-            return CurData.day + Managers.Instance.day; }
+        get { return CurData.day; }
         set { CurData.day = value; }
     }
 
     public int Money
     {
-        get { return CurData.money + Managers.Instance.money; }
-        set {
-            Debug.Log($"�� �ٲ� {value}");
-            CurData.money = value; }
+        get { return CurData.money; }
+        set { CurData.money = value; }
     }
 
-    public int NumOfFilling
-    {
-        get { return CurData.numOfFilling; }
-        set { CurData.numOfFilling = value; }
-    }
+    // 이번 영업일에 팔기로 선택한 소만 주문과 조리에 사용한다.
+    public bool IsFillingUnlocked(FillingType filling) =>
+        SaveService.Data.run.selectedFillingIds.Contains(SaveIds.Filling(filling));
     #endregion
 
-    #region �ð� ���� ����
-    readonly int startHour = 18;
-    readonly int endHour = 23;
+    #region 시간 관련 변수
+    readonly int startHour = 19;
+    readonly int endHour = 22;
     public int hour
     { get { return (int)delta / 60 + startHour; } }
 
@@ -56,26 +51,45 @@ public class GameManagerEx
     { get { return (int)delta % 60; } }
 
 
-    public float delta; //�ð�
-    float gameSpeed = 1f; //���� �ӵ�
+    public float delta; //시간
+    double lastRealtime = double.NaN;
+    float gameSpeed = 1f; //게임 속도
     public float GameSpeed
     {
         get { return gameSpeed * Managers.Instance._gameSpeed; }
     }
 
-    //� ���� ����
+    //운영 관련 변수
     DayState dayState = DayState.Opening;
 
-    bool didAlertClosingTime = false; // ���� ����� �˷������
-    public bool isRunning = true; //���� � ������(���� ���� ����)
+    bool didAlertClosingTime = false; // 가게 운영종료 알려줬는지
+    public bool isRunning = true; //가게 운영 중인지(정지 여부 포함)
+
+    // 튜토리얼 안내를 읽는 동안에는 영업 시계와 손님 대기 게이지만 멈춘다.
+    // 조리 입력은 isRunning을 유지하므로 계속 받을 수 있다.
+    public bool IsTutorialClockPaused { get; set; }
 
     public int numsOfCurCustomers = 0;
     public bool isAllExited
     {
         get {
+            // 퇴장 코루틴과 씬 전환이 겹치면 숫자만 남아 마감이 멈출 수 있다.
+            // 실제 화면에 활성 손님이 있는지를 최종 기준으로 사용한다.
+            foreach (CustomerController controller in UnityEngine.Object.FindObjectsByType<CustomerController>(
+                         FindObjectsInactive.Exclude,
+                         FindObjectsSortMode.None))
+            {
+                if (controller.Customer != null && controller.Customer.activeInHierarchy)
+                    return false;
+            }
 
-            //Debug.Log($"{numsOfCurCustomers}�� ����");
-            return numsOfCurCustomers == 0; }
+            if (numsOfCurCustomers != 0)
+            {
+                Debug.LogWarning($"[마감] 화면에는 손님이 없지만 손님 수가 {numsOfCurCustomers}명으로 남아 있어 0으로 보정합니다.");
+                numsOfCurCustomers = 0;
+            }
+            return true;
+        }
     }
     public bool isClosingTime
     {
@@ -83,7 +97,7 @@ public class GameManagerEx
     }
     #endregion
 
-    #region ���� ��� ���� ����
+    #region 게임 요소 관련 변수
     GameObject parentGo;
     public GameObject ParentGo
     {
@@ -100,12 +114,12 @@ public class GameManagerEx
 
     #endregion
 
-    #region ��� ���� ����
-    public int totalFishBunsSold;      // �Ǹ��� �ؾ ��
-    public int totalCustomers;         // �湮�� �մ� ��
+    #region 통계 관련 변수
+    public int totalFishBunsSold;      // 판매한 붕어빵 수
+    public int totalCustomers;         // 방문한 손님 수
 
-    public int yesterdayProfit;      // ���� ����
-    private int ingredientCost;         // ��� ���
+    int openingMoney;                // 오늘 영업을 시작할 때의 보유금
+    private int ingredientCost;         // 재료 비용
     public int IngredientCost
     {
         get { return ingredientCost; }
@@ -113,8 +127,11 @@ public class GameManagerEx
     }
 
     public int todayRevenue;
+    private int batterUses;
+    private readonly int[] salesByFilling = new int[GetEnumSize(typeof(FillingType))];
+    private readonly int[] fillingUses = new int[GetEnumSize(typeof(FillingType))];
 
-    public int netProfit //���� ������
+    public int netProfit //오늘 순수익
     {
         get {
             Debug.Log($"netProfit: {todayRevenue} - {ingredientCost} = {todayRevenue - ingredientCost}");
@@ -122,16 +139,19 @@ public class GameManagerEx
     }
     #endregion
 
-    #region ���� ���� ����
-    int clearCondition = 40000;
-    int endingDay = 5;
-    
-    bool isEndingDay { get { return Day >= endingDay;  } }
+    #region 엔딩 관련 변수
     bool isOver { get { return Money <= 0;  } }
-    bool isClear { get { return Money > clearCondition; } }
     #endregion
 
-    //���� �ֹ� 
+    bool hasFinalizedDaily;
+    bool isSettlingDaily;
+    bool isStartingDaily;
+    bool isCheckpointing;
+    float nextDayStartRetryAt;
+    float nextCheckpointAt;
+    float nextSettlementRetryAt;
+
+    //현재 주문
     Dictionary<FillingType, int> order = new Dictionary<FillingType, int>();
     public Dictionary<FillingType, int> Order
     {
@@ -141,44 +161,142 @@ public class GameManagerEx
 
     public event Action InitAction;
 
-    //���� ���� �� �ʱ�ȭ �޼���
+    public static float CalculateRealtimeElapsed(
+        double previousRealtime,
+        double currentRealtime,
+        float fallbackElapsed)
+    {
+        bool invalidSample = double.IsNaN(previousRealtime) || double.IsInfinity(previousRealtime) ||
+                             double.IsNaN(currentRealtime) || double.IsInfinity(currentRealtime) ||
+                             currentRealtime < previousRealtime;
+        return invalidSample
+            ? Mathf.Max(0f, fallbackElapsed)
+            : Mathf.Max(0f, (float)(currentRealtime - previousRealtime));
+    }
+
+    public static float AdvanceBusinessClock(
+        float currentDelta,
+        float realtimeElapsed,
+        float speed,
+        float businessDuration)
+    {
+        float safeDuration = Mathf.Max(0f, businessDuration);
+        float safeDelta = Mathf.Clamp(currentDelta, 0f, safeDuration);
+        float increment = Mathf.Max(0f, realtimeElapsed) * Mathf.Max(0f, speed);
+        return Mathf.Min(safeDuration, safeDelta + increment);
+    }
+
+    float CaptureRealtimeElapsed()
+    {
+        double currentRealtime = Time.realtimeSinceStartupAsDouble;
+        float elapsed = CalculateRealtimeElapsed(lastRealtime, currentRealtime, Time.unscaledDeltaTime);
+        lastRealtime = currentRealtime;
+        return elapsed;
+    }
+
+    void ResetRealtimeSample()
+    {
+        lastRealtime = Time.realtimeSinceStartupAsDouble;
+    }
+
+    /// <summary>
+    /// 같은 GameScene을 새 게임으로 다시 불러오기 전에 이전 씬 오브젝트의 구독을 정리한다.
+    /// 새 씬의 Awake에서 현재 오브젝트들이 다시 등록된다.
+    /// </summary>
+    public void PrepareForSceneReload()
+    {
+        InitAction = null;
+        parentGo = null;
+        order.Clear();
+        numsOfCurCustomers = 0;
+        CurData.day = 0;
+        CurData.money = 0;
+        delta = 0f;
+        ResetRealtimeSample();
+        dayState = DayState.Waiting;
+        didAlertClosingTime = false;
+        hasFinalizedDaily = false;
+        isSettlingDaily = false;
+        IsTutorialClockPaused = false;
+        isRunning = false;
+        isStartingDaily = false;
+        isCheckpointing = false;
+        nextDayStartRetryAt = 0f;
+        nextCheckpointAt = 0f;
+        nextSettlementRetryAt = 0f;
+    }
+
+    //게임 생성 시 초기화 메서드
+    public static bool ShouldOpenStoreOnGameInit(SaveGameData saved)
+    {
+        return saved?.run != null &&
+               saved.run.activeDay == null &&
+               saved.run.nextDay > 1;
+    }
+
     public void InitGame()
     {
-        Debug.Log("���� �ʱ�ȭ");
+        Debug.Log("게임 초기화");
 
-        //1. �ʸ�(fillings) ������Ʈ
+        //1. 필링(fillings) 오브젝트
         for (int i = 0; i < GetEnumSize(typeof(FillingType)); ++i)
             fillingArr[i] = FindObject(ParentGo, $"{(FillingType)i}", true);
 
-        //2. ������ �ʱ�ȭ
-        CurData.day = 0;
-        CurData.numOfFilling = 4;
-        CurData.money = 0;
+        //2. 저장된 영업 기록을 이번 씬의 임시 상태로 복사한다.
+        // nextDay는 "다음에 시작할 날"이고, Opening에서 Day를 1 올리므로 여기서는 1을 뺀다.
+        SaveGameData saved = SaveService.Data;
+        bool shouldOpenStore = ShouldOpenStoreOnGameInit(saved);
+        int dayToResume = saved.run.activeDay != null
+            ? saved.run.activeDay.day
+            : saved.run.nextDay;
+        CurData.day = Mathf.Max(1, dayToResume) - 1;
+        CurData.money = saved.run.money;
+        CustomerStoryProgress.InitializeGame();
 
-        isRunning = true;
+        isRunning = !shouldOpenStore;
+        IsTutorialClockPaused = false;
+        dayState = shouldOpenStore ? DayState.Waiting : DayState.Opening;
+        hasFinalizedDaily = false;
+        isStartingDaily = false;
+        nextDayStartRetryAt = 0f;
+        ResetRealtimeSample();
 
         numsOfCurCustomers = 0;
+
+        // 정산 완료 뒤 재접속한 경우에는 사용자가 재료를 고르고 직접 다음 날을 시작하게 한다.
+        if (shouldOpenStore)
+        {
+            Managers.UI.CloseUI();
+            Managers.UI.ShowUI<UI_Store>();
+        }
 
 
     }
 
-    //�Ϸ� � �޼���
+    //하루 운영 메서드
     public void OnUpdate()
     {
-        if (isRunning == false)
+        // 실행이 중단된 상태에서도 표본은 갱신해 상점·튜토리얼 대기 시간이
+        // 다음 영업 프레임에 한꺼번에 더해지지 않게 한다.
+        float realtimeElapsed = CaptureRealtimeElapsed();
+
+        if (isRunning == false && dayState != DayState.Closing && dayState != DayState.Opening)
             return;
 
         switch (dayState)
         {
             case DayState.Opening:
-                InitDaily();
-                dayState = DayState.Running;
+                BeginDailyOnServer();
                 break;
 
             case DayState.Running:
 
-                //�ð� ����
-                delta += Time.deltaTime * GameSpeed;
+                //시간 측정: 튜토리얼 안내 중에는 클릭 입력은 유지하고 시계만 멈춘다.
+                if (IsTutorialClockPaused == false)
+                {
+                    float businessDuration = (endHour - startHour) * 60f;
+                    delta = AdvanceBusinessClock(delta, realtimeElapsed, GameSpeed, businessDuration);
+                }
 
                 if(isClosingTime == true)
                 {
@@ -187,7 +305,20 @@ public class GameManagerEx
                         () => { Managers.UI.ShowUI<UI_AlertClosingTime>(false); }, 
                         ref didAlertClosingTime, false);
 
-                    if(isAllExited == true)
+                    if (CustomerStoryProgress.IsSpecialOrderActive)
+                        break;
+                    if (isAllExited == true && CustomerStoryProgress.IsSpecialOrderDue())
+                    {
+                        // 마감 안내가 닫힌 다음 특별 대화를 시작해 두 입력 차단 UI가 겹치지 않게 한다.
+                        if (UI_AlertClosingTime.IsVisible)
+                            break;
+
+                        CustomerStoryProgress.BeginSpecialOrder();
+                        CustomerController controller = UnityEngine.Object.FindFirstObjectByType<CustomerController>();
+                        if (controller != null)
+                            controller.BeginSpecialOrder(CustomerStoryProgress.ActiveStory);
+                    }
+                    else if (isAllExited == true)
                         dayState = DayState.Closing;
                 }
 
@@ -195,18 +326,19 @@ public class GameManagerEx
 
             case DayState.Closing:
                 FinalizeDaily();
-                dayState = DayState.Opening;
-
                 break;
         }
 
-        /*//�Ϸ� ���� ó�� (1ȸ��)
+        if (dayState == DayState.Running)
+            TrySaveCheckpoint();
+
+        /*//하루 시작 처리 (1회성)
         if (hasInitialized == false)
         {
             InitDaily();
             hasInitialized = true;
         }
-        //�Ϸ� �� ó�� (1ȸ��) ����: � ���� & ���� �մ� ����
+        //하루 끝 처리 (1회성) 조건: 운영 종료 & 남은 손님 없음
         else if ( isClosingTime == true && isAllExited == true)
         {
             if (hasFinalized == false)
@@ -219,10 +351,10 @@ public class GameManagerEx
 
         else
         {
-            //���� �: �ð� ���
+            //가게 운영: 시간 계산
             delta += Time.deltaTime * GameSpeed;
 
-            //���� ���� �˸���
+            //가게 종료 알리기
             if (isClosingTime == true && didAlertClosingTime == false)
             {
                 Managers.UI.ShowUI<UI_AlertClosingTime>(false);
@@ -231,106 +363,268 @@ public class GameManagerEx
         }*/
     }
 
-    #region �Ϸ� ��ƾ ó��
+    #region 하루 루틴 처리
+    void BeginDailyOnServer()
+    {
+        if (isStartingDaily || Time.realtimeSinceStartup < nextDayStartRetryAt)
+            return;
+
+        isStartingDaily = true;
+        isRunning = false;
+        int targetDay = CurData.day + 1;
+        SaveService.Service.StartDay(targetDay, (success, message) =>
+        {
+            isStartingDaily = false;
+            if (!success)
+            {
+                nextDayStartRetryAt = Time.realtimeSinceStartup + 5f;
+                Debug.LogError($"영업일 시작을 다시 시도합니다: {message}");
+                return;
+            }
+
+            InitDaily();
+            dayState = DayState.Running;
+        });
+    }
+
     void InitDaily()
     {
-        Debug.Log("1. �Ϸ� ����");
+        Debug.Log("1. 하루 시작");
 
-        //1. ������ �ʱ�ȭ
-        delta = 0; 
+        //1. 데이터 초기화
+        delta = 0;
+        ResetRealtimeSample();
         ++CurData.day;
+        // 상점 선택 단계가 건너뛰어진 저장 데이터라도 재료가 전부 꺼진 채 영업을 시작하지 않게 한다.
+        // 도메인 재로딩 직후에는 싱글턴 참조가 잠시 비어 있을 수 있다.
+        // Data 접근은 저장 서비스를 다시 만들므로, 그 뒤에만 복구를 실행한다.
+        SaveService.Service.RestoreSelectedFillingsIfEmpty();
+        CustomerStoryProgress.BeginDay(CurData.day);
 
         totalFishBunsSold = 0;      
         totalCustomers = 0;         
         ingredientCost = 0;
-        yesterdayProfit = CurData.money;
+        batterUses = 0;
+        Array.Clear(salesByFilling, 0, salesByFilling.Length);
+        Array.Clear(fillingUses, 0, fillingUses.Length);
+        todayRevenue = 0;
+        openingMoney = Money;
+        hasFinalizedDaily = false;
+        isSettlingDaily = false;
+        nextSettlementRetryAt = 0f;
         didAlertClosingTime = false;
+        isRunning = true;
+        isCheckpointing = false;
+        nextCheckpointAt = Time.realtimeSinceStartup + 5f;
 
-        //2. UIȭ��
+        //2. UI화면
         Managers.UI.CloseUI();
         Managers.UI.ShowUI<UI_Game>();
 
-        //3. ������Ʈ Ȱ��ȭ/��Ȱ��ȭ 
+        //3. 오브젝트 활성화/비활성화
         InitAction?.Invoke();
+        RestoreActiveCheckpoint();
 
-        //4. �ʸ� Ȱ��ȭ/��Ȱ��ȭ
+        //4. 필링 활성화/비활성화
         for (int i = 0; i < GetEnumSize(typeof(FillingType)); ++i)
         {
-            if (i < Managers.Game.CurData.numOfFilling)
-                fillingArr[i].SetActive(true);
-            else
-                fillingArr[i].SetActive(false);
+            bool selected = IsFillingUnlocked((FillingType)i);
+            if (fillingArr[i] != null)
+                fillingArr[i].SetActive(selected);
+            else if (selected)
+                Debug.LogWarning($"선택한 재료 오브젝트를 찾을 수 없습니다: {(FillingType)i}");
+        }
+    }
+
+    void TrySaveCheckpoint()
+    {
+        if (isCheckpointing || Time.realtimeSinceStartup < nextCheckpointAt ||
+            numsOfCurCustomers != 0 || order.Count != 0 || UI_Tutorial.IsRunning ||
+            CustomerStoryProgress.IsSpecialOrderActive ||
+            UnityEngine.Object.FindFirstObjectByType<FishBunController>() != null)
+            return;
+
+        ActiveDayData activeDay = SaveService.Data.run.activeDay;
+        if (activeDay == null || activeDay.day != Day || string.IsNullOrWhiteSpace(activeDay.runId))
+            return;
+
+        GameDayCheckpointData checkpoint = new()
+        {
+            elapsedSeconds = delta,
+            money = Money,
+            openingMoney = openingMoney,
+            revenue = Money - openingMoney,
+            ingredientCost = ingredientCost,
+            sold = totalFishBunsSold,
+            customers = totalCustomers,
+            batterUses = batterUses,
+            salesByFilling = CreateFillingCounts(salesByFilling),
+            fillingUses = CreateFillingCounts(fillingUses),
+            capturedAt = DateTime.UtcNow.ToString("O")
+        };
+        isCheckpointing = true;
+        SaveService.Service.SaveDayCheckpoint(checkpoint, (success, message) =>
+        {
+            isCheckpointing = false;
+            nextCheckpointAt = Time.realtimeSinceStartup + 5f;
+            if (!success)
+                Debug.LogWarning($"영업 체크포인트를 다음 안전 시점에 다시 저장합니다: {message}");
+        });
+    }
+
+    void RestoreActiveCheckpoint()
+    {
+        ActiveDayData activeDay = SaveService.Data.run.activeDay;
+        GameDayCheckpointData checkpoint = activeDay?.checkpoint;
+        if (checkpoint == null || activeDay.day != Day || checkpoint.schemaVersion != 1)
+            return;
+
+        delta = Mathf.Clamp(checkpoint.elapsedSeconds, 0f, (endHour - startHour) * 60f);
+        Money = checkpoint.money;
+        openingMoney = checkpoint.openingMoney;
+        ingredientCost = Mathf.Max(0, checkpoint.ingredientCost);
+        todayRevenue = Mathf.Max(0, checkpoint.revenue);
+        totalFishBunsSold = Mathf.Max(0, checkpoint.sold);
+        totalCustomers = Mathf.Max(0, checkpoint.customers);
+        batterUses = Mathf.Max(0, checkpoint.batterUses);
+        RestoreFillingCounts(salesByFilling, checkpoint.salesByFilling);
+        RestoreFillingCounts(fillingUses, checkpoint.fillingUses);
+        Debug.Log($"[저장] Day {Day} 영업 체크포인트를 {minute}분 지점에서 복원했습니다.");
+    }
+
+    private static void RestoreFillingCounts(
+        int[] target,
+        List<GameRunFillingCountData> source)
+    {
+        Array.Clear(target, 0, target.Length);
+        if (source == null) return;
+        foreach (GameRunFillingCountData entry in source)
+        {
+            if (entry == null || entry.count <= 0) continue;
+            for (int index = 0; index < target.Length; index++)
+            {
+                if (SaveIds.Filling((FillingType)index) != entry.fillingId) continue;
+                target[index] = entry.count;
+                break;
+            }
         }
     }
 
     void FinalizeDaily()
     {
-        Debug.Log("2. �Ϸ� �� & ���� üũ");
+        if (hasFinalizedDaily || isSettlingDaily || Time.realtimeSinceStartup < nextSettlementRetryAt)
+            return;
+
+        isSettlingDaily = true;
+        Debug.Log("2. 하루 끝 & 엔딩 체크");
         isRunning = false;
+        IsTutorialClockPaused = false;
         order.Clear();
 
-        //����
-        todayRevenue = Money - yesterdayProfit;
-        //Debug.Log($"���� ��: {Money} - ���� ����{yesterdayProfit}");
-        //Debug.Log($"���� ����: {todayRevenue} - ����: {ingredientCost} = ���� ������ {netProfit}");
-        Money -= ingredientCost;
+        //정산
+        todayRevenue = Money - openingMoney;
+        //Debug.Log($"현재 돈: {Money} - 오늘 시작 보유금 {openingMoney}");
+        //Debug.Log($"오늘 매출: {todayRevenue} - 재료비: {ingredientCost} = 오늘 순수익 {netProfit}");
+        SaveService.Service.SettleDay(
+            Day,
+            SaveService.Data.run.activeDay?.runId,
+            todayRevenue,
+            ingredientCost,
+            totalFishBunsSold,
+            totalCustomers,
+            batterUses,
+            CreateFillingCounts(salesByFilling),
+            CreateFillingCounts(fillingUses),
+            (success, message) =>
+            {
+                isSettlingDaily = false;
+                if (!success)
+                {
+                    nextSettlementRetryAt = Time.realtimeSinceStartup + 5f;
+                    Debug.LogError($"영업일 정산을 다시 시도합니다: {message}");
+                    return;
+                }
 
+                hasFinalizedDaily = true;
+                // 정산 뒤에는 정산창과 상점을 거칠 때까지 다음 날을 시작하지 않는다.
+                // Opening은 UI_Store의 '다음 영업일' 버튼에서만 전환한다.
+                dayState = DayState.Waiting;
+                Managers.UI.CloseUI();
+                Managers.UI.ShowUI<UI_DayEnd>();
+            });
+    }
 
+    public void RecordBatterUse()
+    {
+        batterUses++;
+        IngredientCost += Define.BatterCost;
+    }
 
-        Managers.UI.CloseUI();
-        Managers.UI.ShowUI<UI_DayEnd>();
+    public void RecordFillingUse(FillingType filling)
+    {
+        int index = (int)filling;
+        if (index < 0 || index >= fillingUses.Length) return;
+        fillingUses[index]++;
+        IngredientCost += (int)(Define.FillingPrice[index] * Define.FillingCostRate);
+    }
 
+    public void RecordSale(FillingType filling)
+    {
+        int index = (int)filling;
+        if (index < 0 || index >= salesByFilling.Length) return;
+        salesByFilling[index]++;
+        totalFishBunsSold++;
+    }
 
-
+    private static List<GameRunFillingCountData> CreateFillingCounts(int[] counts)
+    {
+        List<GameRunFillingCountData> result = new();
+        for (int index = 0; index < counts.Length; index++)
+        {
+            if (counts[index] <= 0) continue;
+            result.Add(new GameRunFillingCountData
+            {
+                fillingId = SaveIds.Filling((FillingType)index),
+                count = counts[index]
+            });
+        }
+        return result;
     }
 
     public void StartNextDay()
     {
-        Debug.Log("3. ���� ���� �Ѿ��");
+        Debug.Log("3. 다음 날로 넘어가기");
 
-/*        //����
+/*        //엔딩
         if (Managers.Game.IsEnding() == true)
             return;*/
 
         isRunning = true;
+        dayState = DayState.Opening;
 
 
+    }
+
+    public void CompleteSpecialOrder()
+    {
+        dayState = DayState.Closing;
     }
 
     public bool IsEnding()
     {
-        Debug.Log("IsEnding ����");
+        Debug.Log("IsEnding 진입");
 
-        if (isOver == true)
-        {
-            Managers.UI.CloseUI();
-            Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Over);
-            return true;
-        }
-        else
-        {
-            Debug.Log($"{Day} VS {endingDay}");
+        if (isOver == false)
+            return false;
 
-            if (isEndingDay == false)
-                return false;
-
-            Debug.Log("5������");
-
-            Managers.UI.CloseUI();
-
-            if (isClear == true)
-                Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Clear);
-            else
-                Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Normal);
-
-            return true;
-        }
-
+        Managers.UI.CloseUI();
+        Managers.UI.ShowUI<UI_Ending>().SetInfo(EndingType.Over);
+        return true;
     }
 
     #endregion
 
-    #region �ֹ�
+    #region 주문
     public void acceptOrder(Dictionary<FillingType, int> orders)
     {
         foreach (var _order in orders)
@@ -338,12 +632,12 @@ public class GameManagerEx
             if(order.ContainsKey(_order.Key) == true)
             {
                 order[_order.Key] += _order.Value;
-                //Debug.Log($"{_order.Key}: {_order.Value} += {order[_order.Key]}��");
+                //Debug.Log($"{_order.Key}: {_order.Value} += {order[_order.Key]}개");
 
             }
             else
             {
-                //Debug.Log($"{_order.Key} ���ο� �� �ֹ� ����");
+                //Debug.Log($"{_order.Key} 새로운 맛 주문 받음");
                 order.Add(_order.Key, _order.Value);
             }
 
@@ -368,12 +662,12 @@ public class GameManagerEx
     {
         foreach (var order in orders)
         {
-            //Debug.Log($"�ֹ� ��� {order.Key}: {Order[order.Key]} - {order.Value}");
+            //Debug.Log($"주문 취소 {order.Key}: {Order[order.Key]} - {order.Value}");
             if (Order.ContainsKey(order.Key) == false)
                 return;
 
             Order[order.Key] -= order.Value;
-            //Debug.Log($"�ֹ� ��� ��� {Order[order.Key]}");
+            //Debug.Log($"주문 취소 결과 {Order[order.Key]}");
 
             if (Order[order.Key] == 0)
                 Order.Remove(order.Key);
@@ -385,12 +679,12 @@ public class GameManagerEx
     }
     #endregion
 
-    #region ��Ÿ
+    #region 기타
     public void QuitGame()
     {
     #if UNITY_EDITOR
-        //�����Ϳ��� ������ ��
-        UnityEditor.EditorApplication.isPlaying = false; //������ ���� �ߴ�
+        //에디터에서 실행할 때
+        UnityEditor.EditorApplication.isPlaying = false; //에디터 실행 중단
     #else
         Application.Quit();
     #endif

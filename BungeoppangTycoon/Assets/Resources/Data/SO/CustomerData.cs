@@ -5,40 +5,60 @@ public class CustomerData : ScriptableObject
 {
 
     [SerializeField]
-    private CustomerType _customer; //¼Õ´Ô Á¾·ù
+    private CustomerType _customer; //ì†ë‹˜ ì¢…ë¥˜
     public CustomerType _Customer { get { return _customer; } }
 
+    [SerializeField]
+    private string spriteSheetPath;
+
 /*    [SerializeField]
-    private Sprite image; //±âº» ¿ÜÇü ½ºÇÁ¶óÀÌÆ®
+    private Sprite image; //ê¸°ë³¸ ì™¸í˜• ìŠ¤í”„ë¼ì´íŠ¸
     public Sprite Image { 
         get {  } }*/
     
-    public Sprite GetImage(int index = 0)
+    /// <summary>
+    /// ìŠ¤í”„ë¼ì´íŠ¸ ì‹œíŠ¸ì˜ ë°°ì—´ ìˆœì„œê°€ ì•„ë‹ˆë¼ Inspectorì—ì„œ ì •í•œ í‘œì • ì´ë¦„ìœ¼ë¡œ ì´ë¯¸ì§€ë¥¼ ì°¾ìŠµë‹ˆë‹¤.
+    /// </summary>
+    public Sprite GetImage(CustomerExpression expression = CustomerExpression.Default)
     {
-        return Managers.Resource.LoadSprite($"Customers/{_Customer}", index);
+        if (string.IsNullOrWhiteSpace(spriteSheetPath))
+        {
+            Debug.LogError($"{name}({_Customer})ì˜ ì†ë‹˜ ìŠ¤í”„ë¼ì´íŠ¸ ê²½ë¡œê°€ ë¹„ì–´ ìˆìŠµë‹ˆë‹¤.", this);
+            return null;
+        }
+
+        return Managers.Resource.LoadSpriteBySuffix(spriteSheetPath, $"_{expression}");
     }
 /*    [SerializeField]
-    private Sprite image; //¿ÜÇü ½ºÇÁ¶óÀÌÆ®
+    private Sprite image; //ì™¸í˜• ìŠ¤í”„ë¼ì´íŠ¸
     public Sprite Image { get { return image; } }
 
     [SerializeField]
-    private Sprite disappoint; //½Ç¸ÁÇÑ ½ºÇÁ¶óÀÌÆ®
+    private Sprite disappoint; //ì‹¤ë§í•œ ìŠ¤í”„ë¼ì´íŠ¸
     public Sprite Image { get { return disappoint; } }*/
 
     [SerializeField]
-    private FillingType flavor; //¼±È£ÇÏ´Â ºØ¾î»§ Á¾·ù
+    private FillingType flavor; //ì„ í˜¸í•˜ëŠ” ë¶•ì–´ë¹µ ì¢…ë¥˜
     public FillingType Flavor  { get { return flavor; } }
 
     [SerializeField]
-    private string[] greetingText; //ÀÎ»ñ¸» ÀúÀå
+    private string[] greetingText; //ì¸ì‚¿ë§ ì €ì¥
     public string[] GreetingText { get { return greetingText; } }
 
     /*    [SerializeField]
-        private string[] greetingText; //ÀÎ»ñ¸» ÀúÀå
+        private string[] greetingText; //ì¸ì‚¿ë§ ì €ì¥
         public string[] GreetingText { get { return greetingText; } }*/
 
     [SerializeField]
-    private string[] disappointingText; // ÁÖ¹®¿¡ ´ëÇØ ½Ç¸ÁÇßÀ» ¶§, ÇÒ ¸» ÀúÀå
+    private string[] disappointingText; // ì£¼ë¬¸ì— ëŒ€í•´ ì‹¤ë§í–ˆì„ ë•Œ, í•  ë§ ì €ì¥
     public string[] DisappointingText { get { return disappointingText; } }
+}
+
+/// <summary>ì†ë‹˜ ìŠ¤í”„ë¼ì´íŠ¸ ì‹œíŠ¸ì— ì €ì¥ëœ í‘œì • ì´ë¦„ì…ë‹ˆë‹¤.</summary>
+public enum CustomerExpression
+{
+    Default,
+    Joy,
+    Disappointed
 }
 

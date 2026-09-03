@@ -5,7 +5,7 @@ using static Util;
 
 public class UI_DayEnd : UI_Base
 {
-    #region È­¸é ¿ä¼Ò
+    #region í™”ë©´ ìš”ì†Œ
     enum Panels
     {
         fishBun,
@@ -19,15 +19,6 @@ public class UI_DayEnd : UI_Base
     Button CheckButton;
     #endregion
 
-    string[] result =
-    {
-        $"{Managers.Game.totalFishBunsSold } °³",
-        $"{Managers.Game.totalCustomers} ¸í",
-        $"{Managers.Game.todayRevenue.ToString("N0")} ¿ø",
-        $"{(-Managers.Game.IngredientCost).ToString("N0")} ¿ø",
-        $"{Managers.Game.netProfit.ToString("N0")} ¿ø"
-    };
-
     protected override void Init()
     {
 
@@ -38,7 +29,8 @@ public class UI_DayEnd : UI_Base
         CheckButton = Find<Button>(gameObject, "CheckButton");
 
 
-        TitleText.text = $"{Managers.Game.Day} ÀÏÂ÷";
+        TitleText.text = $"{Managers.Game.Day} ì¼ì°¨";
+        string[] result = BuildResult();
         int size = GetEnumSize(typeof(Panels));
         for (int index = 0; index < size  * 2; ++index)
         {
@@ -57,9 +49,21 @@ public class UI_DayEnd : UI_Base
 
     }
 
+    string[] BuildResult()
+    {
+        return new[]
+        {
+            $"{Managers.Game.totalFishBunsSold} ê°œ",
+            $"{Managers.Game.totalCustomers} ëª…",
+            $"{Managers.Game.todayRevenue.ToString("N0")} ì›",
+            $"{(-Managers.Game.IngredientCost).ToString("N0")} ì›",
+            $"{Managers.Game.netProfit.ToString("N0")} ì›"
+        };
+    }
+
     private void CheckButtonFunc()
     {
-        //¿£µù
+        //ì—”ë”©
         if (Managers.Game.IsEnding() == true)
             return;
 

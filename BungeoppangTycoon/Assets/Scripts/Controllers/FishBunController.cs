@@ -4,17 +4,26 @@ using UnityEngine.EventSystems;
 public class FishBunController : MonoBehaviour,
     IDragHandler, IEndDragHandler, IPointerClickHandler
 {
-    #region º¯¼ö
-    static int numsOfFisBun = 0; //ÀüÃ¼ plate¿¡¼­ ±¸¿öÁö´Â ºØ¾î»§ °³¼ö
+    #region ë³€ìˆ˜
+    static int numsOfFisBun = 0; //ì „ì²´ plateì—ì„œ êµ¬ì›Œì§€ëŠ” ë¶•ì–´ë¹µ ê°œìˆ˜
 
-    GameObject parentMold; //ÇÏÀÌ¾î¶óÅ° »ó ºÎ¸ğ ¿ÀºêÁ§Æ®
-    GameObject filling; //ºØ¾î»æ ¿ÀºêÁ§Æ® »êÇÏÀÇ ºØ¾î»§ ¼Ò °ÔÀÓ¿ÀºêÁ§Æ®
+    GameObject parentMold; //í•˜ì´ì–´ë¼í‚¤ ìƒ ë¶€ëª¨ ì˜¤ë¸Œì íŠ¸
+    GameObject filling; //ë¶•ì–´ì‚¥ ì˜¤ë¸Œì íŠ¸ ì‚°í•˜ì˜ ë¶•ì–´ë¹µ ì†Œ ê²Œì„ì˜¤ë¸Œì íŠ¸
 
-    public FillingType fillingType; //ºØ¾î»§ ¸À
-    public Vector3 spawnPos; //ÃÊ±â À§Ä¡
+    public FillingType fillingType; //ë¶•ì–´ë¹µ ë§›
+    public Vector3 spawnPos; //ì´ˆê¸° ìœ„ì¹˜
 
-    public CookingState state = CookingState.bottomBatter; //ÃÊ±â »óÅÂ
+    public CookingState state = CookingState.bottomBatter; //ì´ˆê¸° ìƒíƒœ
     QualityStatus bakingStatus;
+    // ì„±ê³µí•œ íŒë§¤ ë’¤ Destroyê°€ ì ìš©ë˜ê¸° ì „ ê°™ì€ ë“œë˜ê·¸ ì¢…ë£Œ ì´ë²¤íŠ¸ê°€ ë‹¤ì‹œ ë“¤ì–´ì˜¤ëŠ” ê²ƒì„ ë§‰ëŠ”ë‹¤.
+    bool isConsumed = false;
+    bool isOnDisplay = false;
+    // EventSystem í¬ì¸í„° ì´ë²¤íŠ¸ì™€ Unity ë§ˆìš°ìŠ¤ ì´ë²¤íŠ¸ê°€ ê°™ì€ í´ë¦­ì— í•¨ê»˜ ë“¤ì–´ì˜¬ ìˆ˜ ìˆë‹¤.
+    // í•œ ë²ˆì˜ í´ë¦­ì´ ì¡°ë¦¬ ë‹¨ê³„ë¥¼ ë‘ ë²ˆ ë„˜ê¸°ì§€ ì•Šë„ë¡ ë§ˆì§€ë§‰ ì²˜ë¦¬ í”„ë ˆì„ì„ ê¸°ë¡í•œë‹¤.
+    int lastCookingClickFrame = -1;
+    SpriteRenderer fishBunRenderer;
+    Vector3 baseScale;
+    Color baseColor;
     /*    public QualityStatus batterStatus;
     public QualityStatus fillingStatus;
     public QualityStatus warmStatus;*/
@@ -24,24 +33,31 @@ public class FishBunController : MonoBehaviour,
         get { return (state == CookingState.cooked); }
     }
 
-    //±Á±â Á¤µµ ÃøÁ¤ °ü·Ã º¯¼ö
+    // ì§„ì—´ëŒ€ì— ì˜¬ë¦° ì™„ì„±í’ˆë§Œ ì†ë‹˜ì—ê²Œ ì „ë‹¬í•  ìˆ˜ ìˆë‹¤.
+    public bool IsOnDisplay => isOnDisplay;
+
+    //êµ½ê¸° ì •ë„ ì¸¡ì • ê´€ë ¨ ë³€ìˆ˜
     float startDelta;
     float endDelta;
     float bakingTime 
         { get { return endDelta - startDelta; } }
 
-    static float requiredTime = 6; //perfectÇÏ°Ô ±¸¿öÁö´Â µ¥ °É¸®´Â ÃÊ
-    static float burntingTime = 15; //Å¸¹ö¸®´Â µ¥ °É¸®´Â ÃÊ
+    const float BaseRequiredTime = 6f; //perfectí•˜ê²Œ êµ¬ì›Œì§€ëŠ” ë° ê±¸ë¦¬ëŠ” ì´ˆ
+    const float BaseBurntingTime = 15f; //íƒ€ë²„ë¦¬ëŠ” ë° ê±¸ë¦¬ëŠ” ì´ˆ
+    float requiredTime = BaseRequiredTime;
+    float burntingTime = BaseBurntingTime;
 
     #endregion
 
-    #region Å¬¸¯ °ü·Ã ÀÎÅÍÆäÀÌ½º ±¸Çö
+    #region í´ë¦­ ê´€ë ¨ ì¸í„°í˜ì´ìŠ¤ êµ¬í˜„
     public void OnDrag(PointerEventData eventData)
     {
-        if (isDraggable == false)
+        if (Managers.Game.isRunning == false || isDraggable == false)
             return;
 
-        //ºØ¾î»§ °ÔÀÓ ¿ÀºêÁ§Æ® À§Ä¡ µå·¡±× ÇÏ´Â °÷À¸·Î ÀÌµ¿
+        InputManager.Instance?.ClearSelectedFishBun(this);
+
+        //ë¶•ì–´ë¹µ ê²Œì„ ì˜¤ë¸Œì íŠ¸ ìœ„ì¹˜ ë“œë˜ê·¸ í•˜ëŠ” ê³³ìœ¼ë¡œ ì´ë™
         Vector3 mouse = Camera.main.ScreenToWorldPoint(eventData.position);
         mouse.z = 0;
         gameObject.transform.position = mouse;
@@ -51,82 +67,111 @@ public class FishBunController : MonoBehaviour,
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        if (isDraggable == false)
+        if (Managers.Game.isRunning == false || isDraggable == false || isConsumed == true)
             return;
 
         Vector3 mouse = Camera.main.ScreenToWorldPoint(eventData.position);
-        int dropLayerMask = LayerMask.GetMask("DropZone"); //Çã¿ë ·¹ÀÌ¾î: DropZone°ÔÀÓ ¿ÀºêÁ§Æ®(Áø¿­´ë/¾²·¹±âÅë)
+        int dropLayerMask = LayerMask.GetMask("DropZone"); //í—ˆìš© ë ˆì´ì–´: DropZoneê²Œì„ ì˜¤ë¸Œì íŠ¸(ì§„ì—´ëŒ€/ì“°ë ˆê¸°í†µ)
         RaycastHit2D hit = Physics2D.Raycast(mouse, Vector2.zero, 0, dropLayerMask);
 
-        if(hit.collider != null)
-        {
-            //Áø¿­´ë¿¡ ³õ´Â °æ¿ì
-            if (hit.collider.CompareTag("displayPlate"))
-            {
-
-                //spawnPos = DisplateController.SetPos(fillingType);
-                DisplateController.Set(gameObject);
-                transform.position = spawnPos;
-
-
-            }
-            else
-            {
-                if (hit.collider.CompareTag("customer"))
-                {
-                    Debug.Log($"{hit.collider.name}¿¡°Ô ºØ¾î»§ Á¦°ø");
-                    DisplateController.Reset(fillingType);
-                    ServeFishBun(hit.transform.gameObject);
-
-                }
-
-                Destroy(gameObject);
-
-            }
-
-            //¸ôµå ºñ¿ì±â
-            Debug.Log($"{hit.collider.name}¿¡ ºÎµúÈû");
-            parentMold.GetComponent<MoldController>().IsFilled = false;
-
-
-        }
-        else
-        {
-            //¿øÀ§Ä¡
+        if (hit.collider == null || TryPlaceOn(hit.collider.gameObject) == false)
             gameObject.transform.position = spawnPos;
-
-        }
 
     }
 
     public void OnPointerClick(PointerEventData eventData)
     {
+        HandleCookingClick();
+    }
+
+    // ê¸°ì¡´ ë§ˆìš°ìŠ¤ ì¡°ì‘ ê²½ë¡œ. Physics2DRaycaster/EventSystem ì„¤ì •ì— ì˜ì¡´í•˜ì§€ ì•ŠëŠ”ë‹¤.
+    void OnMouseUpAsButton()
+    {
+        HandleCookingClick();
+    }
+
+    void HandleCookingClick()
+    {
+        if (lastCookingClickFrame == Time.frameCount || Managers.Game.isRunning == false)
+            return;
+
+        lastCookingClickFrame = Time.frameCount;
+        if (isDraggable)
+        {
+            InputManager.Instance?.SelectFishBun(this);
+            return;
+        }
+
+        if (state == CookingState.filled &&
+            ToolController.selectedTool != null &&
+            ToolController.selectedTool.CompareTag("kettle"))
+        {
+            FishBunController adjacent = GameplayItemEffects.HasItem(
+                    SaveService.Data,
+                    GameplayItemEffects.DualPourItemId)
+                ? FindAdjacentFishBun(CookingState.filled)
+                : null;
+            cooking();
+            adjacent?.cooking();
+            return;
+        }
+
+        if ((state == CookingState.topBatter || state == CookingState.cooking) &&
+            GameplayItemEffects.HasItem(SaveService.Data, GameplayItemEffects.DoubleGoldenMoldItemId))
+        {
+            CookingState expectedState = state;
+            FishBunController adjacent = FindAdjacentFishBun(expectedState);
+            bool advanceTogether = CanAdvanceCookingNow() && adjacent != null &&
+                                   adjacent.CanAdvanceCookingNow();
+            cooking();
+            if (advanceTogether)
+                adjacent.cooking();
+            return;
+        }
+
         cooking();
+    }
+
+    bool CanAdvanceCookingNow() =>
+        (state == CookingState.topBatter || state == CookingState.cooking) &&
+        Managers.Game.delta - startDelta >= requiredTime;
+
+    FishBunController FindAdjacentFishBun(CookingState expectedState)
+    {
+        if (parentMold == null || !parentMold.TryGetComponent(out MoldController mold))
+            return null;
+        MoldController adjacentMold = GameplayItemEffects.FindAdjacentMold(mold);
+        FishBunController adjacent = adjacentMold != null ? adjacentMold.ActiveFishBun : null;
+        return adjacent != null && adjacent.state == expectedState ? adjacent : null;
     }
 
     #endregion
 
-    //ÃÊ±âÈ­
+    //ì´ˆê¸°í™”
     void Start()
     {
-        //°ÔÀÓ ¿ÀºêÁ§Æ® : ±¸Á¶&ÀÌ¸§
+        //ê²Œì„ ì˜¤ë¸Œì íŠ¸ : êµ¬ì¡°&ì´ë¦„
         gameObject.transform.SetParent(parentMold.transform);
         gameObject.name = $"{++numsOfFisBun}";
-        //Debug.Log($"{gameObject.name} ºØ¾î»§ »ı¼º");
+        //Debug.Log($"{gameObject.name} ë¶•ì–´ë¹µ ìƒì„±");
 
-        //À§Ä¡ Á¶Á¤
+        //ìœ„ì¹˜ ì¡°ì •
         transform.position = spawnPos;
         transform.localScale = parentMold.transform.localScale * 1.4f;
+        NormalizeScaleToKeepSpriteAspect();
+        baseScale = transform.localScale;
+        fishBunRenderer = GetComponent<SpriteRenderer>();
+        baseColor = fishBunRenderer.color;
 
-        //»êÇÏ ¿ÀºêÁ§Æ® Á¤¸®
+        //ì‚°í•˜ ì˜¤ë¸Œì íŠ¸ ì •ë¦¬
         filling = Util.FindObject(gameObject, Define.FillingString, true);
         filling.SetActive(false);
 
-        //ÀÌ¹ÌÁö
-        GetComponent<SpriteRenderer>().sprite =
+        //ì´ë¯¸ì§€
+        fishBunRenderer.sprite =
             Managers.Resource.LoadSprite("FishBunState_proto", (int)CookingState.bottomBatter);
 
-        //»óÅÂ
+        //ìƒíƒœ
         state = CookingState.bottomBatter;
     }
 
@@ -137,14 +182,144 @@ public class FishBunController : MonoBehaviour,
 
     }
 
-    void ServeFishBun(GameObject sprite)
+    // ì¡°ë¦¬ í‹€ê³¼ ì§„ì—´ëŒ€ì˜ ê°€ë¡œÂ·ì„¸ë¡œ ë°°ìœ¨ì´ ë‹¬ë¼ë„ ë¶•ì–´ë¹µ ê·¸ë¦¼ ìì²´ëŠ” ì°Œê·¸ëŸ¬ì§€ì§€ ì•Šê²Œ í•œë‹¤.
+    // ê¸°ì¡´ ì„¸ë¡œ í‘œì‹œ í¬ê¸°ë¥¼ ê¸°ì¤€ìœ¼ë¡œ ê°€ë¡œ ë°°ìœ¨ì„ ë³´ì •í•˜ë¯€ë¡œ, ë¶•ì–´ë¹µì´ ì§„ì—´ëŒ€ì—ì„œ ê°‘ìê¸° ì‘ì•„ì§€ì§€ ì•ŠëŠ”ë‹¤.
+    void NormalizeScaleToKeepSpriteAspect()
     {
-        //ºÎ¸ğ ¿ÀºêÁ§Æ®¿¡¼­ ½ºÅ©¸³Æ® ÃßÃâ
-        CustomerController controller = sprite.GetComponentInParent<CustomerController>();
-        controller.Eat(fillingType, bakingStatus);
+        Transform currentParent = transform.parent;
+        if (currentParent == null)
+            return;
 
+        Vector3 parentScale = currentParent.lossyScale;
+        float parentWidth = Mathf.Abs(parentScale.x);
+        float parentHeight = Mathf.Abs(parentScale.y);
+        if (parentWidth <= Mathf.Epsilon || parentHeight <= Mathf.Epsilon)
+            return;
+
+        float worldHeightScale = Mathf.Abs(transform.localScale.y) * parentHeight;
+        transform.localScale = new Vector3(
+            worldHeightScale / parentWidth,
+            transform.localScale.y,
+            transform.localScale.z);
     }
-    #region ¿ä¸® ÇÔ¼ö
+
+    void OnDestroy()
+    {
+        InputManager.Instance?.ClearSelectedFishBun(this);
+    }
+
+    public void SetSelected(bool selected)
+    {
+        if (fishBunRenderer == null)
+            fishBunRenderer = GetComponent<SpriteRenderer>();
+
+        transform.localScale = selected ? baseScale * 1.08f : baseScale;
+        fishBunRenderer.color = selected
+            ? new Color(1f, 0.88f, 0.45f, baseColor.a)
+            : baseColor;
+    }
+
+    public bool CanUseTool(ToolController tool)
+    {
+        if (tool == null)
+            return false;
+
+        return state switch
+        {
+            CookingState.bottomBatter => tool.CompareTag("filling"),
+            CookingState.filled => tool.CompareTag("kettle"),
+            _ => false,
+        };
+    }
+
+    /// <summary>
+    /// í´ë¦­ìœ¼ë¡œ ì„ íƒí•œ ì™„ì„±í’ˆì„ ì§„ì—´ëŒ€, ì†ë‹˜, ì“°ë ˆê¸°í†µì— ë†“ìŠµë‹ˆë‹¤.
+    /// ëŒ€ìƒì´ ë§ìœ¼ë©´ ì„±ê³µÂ·ê±°ì ˆ ì—¬ë¶€ì™€ ê´€ê³„ì—†ì´ trueë¥¼ ë°˜í™˜í•´ í´ë¦­ì„ ì†Œë¹„í•©ë‹ˆë‹¤.
+    /// </summary>
+    public bool TryPlaceOn(GameObject target)
+    {
+        if (isDraggable == false || isConsumed || target == null)
+            return false;
+
+        if (target.CompareTag("displayPlate"))
+        {
+            if (isOnDisplay == false)
+            {
+                DisplateController.Set(gameObject);
+                isOnDisplay = true;
+                TutorialSignals.Raise(TutorialEvent.FishBunDisplayed, gameObject);
+                ReleaseMold();
+			}
+
+			transform.position = spawnPos;
+			// ì§„ì—´í•œ ì™„ì„±í’ˆì€ ëª°ë“œì˜ ìì‹ìœ¼ë¡œ ë‚¨ê¸°ì§€ ì•ŠëŠ”ë‹¤.
+			// ê·¸ë˜ì•¼ ëª°ë“œì˜ ì‹¤ì œ ì ìœ  ìƒíƒœì™€ isFilled ê°’ì´ ì–´ê¸‹ë‚˜ì§€ ì•ŠëŠ”ë‹¤.
+			transform.SetParent(target.transform, true);
+			// ë¶€ëª¨ê°€ ë°”ë€Œë©´ localScaleì˜ ê¸°ì¤€ë„ ë°”ë€Œë¯€ë¡œ ì„ íƒ íš¨ê³¼ì˜ ê¸°ì¤€ í¬ê¸°ë¥¼ ë‹¤ì‹œ ì €ì¥í•œë‹¤.
+			baseScale = transform.localScale;
+			return true;
+		}
+
+        if (target.CompareTag("customer"))
+        {
+            // ì¡°ë¦¬ëŒ€ì—ì„œ ë§‰ êµ¬ìš´ ë¶•ì–´ë¹µì€ ë°”ë¡œ ì „ë‹¬í•˜ì§€ ì•ŠëŠ”ë‹¤.
+            // ë¨¼ì € ì§„ì—´ëŒ€ì— ë†“ì•„ì•¼ íŒë§¤ ëŒ€ìƒìœ¼ë¡œ ì „í™˜ëœë‹¤.
+            if (isOnDisplay == false)
+            {
+                Debug.Log("[ì¡°ë¦¬] ì™„ì„±ëœ ë¶•ì–´ë¹µì€ ì§„ì—´ëŒ€ì— ë†“ì€ ë’¤ ì†ë‹˜ì—ê²Œ ê±´ë„¬ ìˆ˜ ìˆìŠµë‹ˆë‹¤.");
+                transform.position = spawnPos;
+                return true;
+            }
+
+            Debug.Log($"{target.name}ì—ê²Œ ë¶•ì–´ë¹µ ì œê³µ");
+            if (TryServeFishBun(target) == false)
+            {
+                transform.position = spawnPos;
+                return true;
+            }
+
+            isConsumed = true;
+            RemoveFromDisplayCount();
+            TutorialSignals.Raise(TutorialEvent.FishBunServed, gameObject);
+            ReleaseMold();
+            Destroy(gameObject);
+            return true;
+        }
+
+        if (target.CompareTag("bin"))
+        {
+            isConsumed = true;
+            RemoveFromDisplayCount();
+            ReleaseMold();
+            Destroy(gameObject);
+            return true;
+        }
+
+        return false;
+    }
+
+    void RemoveFromDisplayCount()
+    {
+        if (isOnDisplay == false)
+            return;
+
+        DisplateController.Reset(fillingType);
+        isOnDisplay = false;
+    }
+
+    void ReleaseMold()
+    {
+        if (parentMold != null && parentMold.TryGetComponent(out MoldController mold))
+            mold.IsFilled = false;
+    }
+
+    bool TryServeFishBun(GameObject sprite)
+    {
+        //ë¶€ëª¨ ì˜¤ë¸Œì íŠ¸ì—ì„œ ìŠ¤í¬ë¦½íŠ¸ ì¶”ì¶œ
+        CustomerController controller = sprite.GetComponentInParent<CustomerController>();
+        return controller != null && controller.TryEat(fillingType, bakingStatus);
+    }
+    #region ìš”ë¦¬ í•¨ìˆ˜
     void cooking()
     {
         switch (state)
@@ -170,12 +345,13 @@ public class FishBunController : MonoBehaviour,
         //PolygonCollider2D reset
         Destroy(gameObject.GetComponent<PolygonCollider2D>());
         gameObject.AddComponent<PolygonCollider2D>();
+        InputManager.Instance?.RefreshToolTargetHighlights();
 
     }
 
     void addFilling()
     {
-        if (ToolController.selectedTool.CompareTag("filling") == false)
+        if (ToolController.selectedTool == null || ToolController.selectedTool.CompareTag("filling") == false)
             return;
 
         filling.SetActive(true);
@@ -185,62 +361,72 @@ public class FishBunController : MonoBehaviour,
 
 
         ++state;
+        TutorialSignals.Raise(TutorialEvent.FillingAdded, gameObject);
 
-        //Àç·á ºñ¿ë Åë°è
-        Managers.Game.IngredientCost += (int) (Define.FillingPrice[(int)fillingType] * Define.FillingCostRate);
-        //Debug.Log($"{(int) (Define.FillingPrice[(int)fillingType] * Define.FillingCostRate)}¿øÀÇ ¼Ò");
+        //ì¬ë£Œ ë¹„ìš© í†µê³„
+        Managers.Game.RecordFillingUse(fillingType);
+        //Debug.Log($"{(int) (Define.FillingPrice[(int)fillingType] * Define.FillingCostRate)}ì›ì˜ ì†Œ");
     }
 
     void addBatter()
     {
-        if (ToolController.selectedTool.CompareTag("kettle") == false)
+        if (ToolController.selectedTool == null || ToolController.selectedTool.CompareTag("kettle") == false)
             return;
 
         
-        startDelta = Managers.Game.delta; //1´Ü°è ±Á±â ÃøÁ¤ ½ÃÀÛ
+        // í”„ë¦¬ë¯¸ì—„ í™©ê¸ˆ í‹€ê³¼ ë‹¹ì¼ ì¡°ë¦¬ í”¼ë²„ë¥¼ ë¶“ê¸° ì‹œì‘ ì‹œì ì— í•œ ë²ˆë§Œ ê³ ì •í•œë‹¤.
+        float speedMultiplier = GameplayItemEffects.CurrentBakingTimeMultiplier();
+        requiredTime = BaseRequiredTime * speedMultiplier;
+        burntingTime = BaseBurntingTime * speedMultiplier;
+        startDelta = Managers.Game.delta; //1ë‹¨ê³„ êµ½ê¸° ì¸¡ì • ì‹œì‘
 
         GetComponent<SpriteRenderer>().sprite =
             Managers.Resource.LoadSprite("FishBunState_proto", (int)CookingState.topBatter-1);
 
-        //layer ¿ì¼±¼øÀ§ Ã³¸®
-        //¹Ì±¸Çö
-        //ºØ¾î»§ ³»¿ë¹° Åõ¸íµµ Ã³¸®
+        //layer ìš°ì„ ìˆœìœ„ ì²˜ë¦¬
+        //ë¯¸êµ¬í˜„
+        //ë¶•ì–´ë¹µ ë‚´ìš©ë¬¼ íˆ¬ëª…ë„ ì²˜ë¦¬
 /*            SpriteRenderer sr = filling.GetComponent<SpriteRenderer>();
         Color color = sr.color; 
         color.a = 0.5f;
         sr.color = color;*/
 
         ++state;
+        TutorialSignals.Raise(TutorialEvent.TopBatterAdded, gameObject);
         
     }
 
     void baking()
     {
-        endDelta = Managers.Game.delta; //1´Ü°è ±Á±â ÃøÁ¤ Á¾·á
+        endDelta = Managers.Game.delta; //1ë‹¨ê³„ êµ½ê¸° ì¸¡ì • ì¢…ë£Œ
 
         if (nextState() == true)
-            startDelta = endDelta; //2´Ü°è ±Á±â ÃøÁ¤ ½ÃÀÛ
+        {
+            startDelta = endDelta; //2ë‹¨ê³„ êµ½ê¸° ì¸¡ì • ì‹œì‘
+            TutorialSignals.Raise(TutorialEvent.BakeStageAdvanced, gameObject);
+        }
 
 
     }
 
     void cooked()
     {
-        endDelta = Managers.Game.delta; //2´Ü°è ±Á±â ÃøÁ¤ Á¾·á
-        nextState();
+        endDelta = Managers.Game.delta; //2ë‹¨ê³„ êµ½ê¸° ì¸¡ì • ì¢…ë£Œ
+        if (nextState())
+            TutorialSignals.Raise(TutorialEvent.Cooked, gameObject);
 
     }
 
-    //´ÙÀ½ ´Ü°è·Î ±¸¿öÁö´Â Áö È®ÀÎÇÏ°í µÇ¸é »óÅÂ ÀüÈ¯
+    //ë‹¤ìŒ ë‹¨ê³„ë¡œ êµ¬ì›Œì§€ëŠ” ì§€ í™•ì¸í•˜ê³  ë˜ë©´ ìƒíƒœ ì „í™˜
     bool nextState()
     {
-        //requiredTimeÃÊ ÀÌ³»¿¡´Â ¾È±¸¿öÁü
+        //requiredTimeì´ˆ ì´ë‚´ì—ëŠ” ì•ˆêµ¬ì›Œì§
         if (bakingTime < requiredTime)
             return false;
 
         int imgIndex;
 
-        //burntingTimeÃÊ ³ÑÀ¸¸é Å½
+        //burntingTimeì´ˆ ë„˜ìœ¼ë©´ íƒ
         if (bakingTime > burntingTime)
         {
             state = CookingState.cooked;
@@ -259,7 +445,8 @@ public class FishBunController : MonoBehaviour,
             else 
                 //if (state == CookingState.cooking)
             {
-                bakingStatus = QualityStatus.perfect;
+                bakingStatus = bakingTime >= requiredTime * 2f ? QualityStatus.crisp :
+                    bakingTime >= requiredTime * 1.35f ? QualityStatus.perfect : QualityStatus.soft;
                 imgIndex = (int)CookingState.cooked;
                 state = CookingState.cooked;
 

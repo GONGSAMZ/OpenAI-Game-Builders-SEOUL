@@ -6,7 +6,7 @@
   <br />
   <b>손님 주문을 놓치지 않고, 따뜻한 붕어빵 가게를 5일간 운영하는 Unity 2D 경영 게임</b>
   <br />
-  <sub>Bungeoppang Tycoon · Solo Project · Unity 6000.0.39f1 · C#</sub>
+  <sub>Bungeoppang Tycoon · Solo Project · Unity 6.3 LTS (6000.3.22f1) · C#</sub>
 </div>
 
 <br />
@@ -58,10 +58,42 @@
 
 ## 🛠️ 기술 스택
 
-- **Engine:** Unity 6000.0.39f1
+- **Engine:** Unity 6.3 LTS (6000.3.22f1)
 - **Language:** C#
 - **Rendering:** Universal Render Pipeline (URP) 2D
 - **UI:** UGUI, TextMeshPro
+
+## 🌐 웹 플랫폼 연동
+
+Unity 게임과 독립된 `platform-server`에서 HIVE Web Login, 장인 상점, 계정별 SaveProfile v8·영업 안전 체크포인트·일반 상점·구매 내역과 OpenAI API를 처리합니다. 서버가 같은 도메인의 `/game/`에서 WebGL 빌드를 제공하며, 루트 화면은 상단 헤더와 게임만 표시합니다. HIVE·상점·OpenAI 기능은 서버 API와 Unity 브리지에 유지하고 게임 UI에서 호출할 수 있습니다. 외부 비밀키는 Unity나 브라우저에 포함하지 않고 서버 환경변수로만 관리합니다.
+
+> 팀 작업 전에 **[팀 작업·운영 인수인계 가이드](docs/08_TEAM_WORK_AND_OPERATIONS_GUIDE.md)**를 확인하세요. Unity/WebGL 갱신, HIVE 상품 등록, NICEPAY 테스트 결제, AWS 배포·롤백, OpenAI live 전환과 콘솔 팀원 초대 절차의 기준 문서입니다.
+
+> HIVE 계정 식별자와 화면 표시 정책은 **[HIVE 계정 식별·표시 가이드](docs/09_HIVE_ACCOUNT_IDENTITY.md)**를 따릅니다. 이메일은 Web Login v2 인증 응답에 포함되지 않으므로 저장 키로 사용하지 않습니다.
+
+> 일반 게임 돈으로 구매하는 내일 장사 상점과 서버 정산 규칙은 **[일반 상점·계정 저장 백엔드 가이드](docs/10_GENERAL_GAME_STORE_BACKEND.md)**를 따릅니다. HIVE 팥 코인·`golden-pan`과 일반 상점 상품은 서로 다른 재화와 저장소를 사용합니다.
+
+> 계정 A/B의 설정·업적·일반 상점·정산·초기화·프리미엄 구매·재로그인 격리는 **[계정 단위 데이터 테스트 툴](docs/11_ACCOUNT_SCOPE_TEST_TOOL.md)**과 `platform-server`의 `pnpm test:account-scope`로 자동 확인합니다.
+
+| 구성 | 위치 | 역할 |
+| --- | --- | --- |
+| 플랫폼 서버 | `platform-server/` | HIVE 로그인, 게임 세션, 마켓, OpenAI 프록시 |
+| 브라우저 브리지 | `platform-server/public/game-bridge.js` | 로그인 팝업과 WebGL 통신 |
+| Unity WebGL 플러그인 | `BungeoppangTycoon/Assets/Plugins/WebGL/` | JavaScript와 Unity `SendMessage` 연결 |
+| Unity API 클라이언트 | `BungeoppangTycoon/Assets/Scripts/Platform/` | 게임 세션과 서버 API 호출 |
+| AWS 자동 배포 | `infra/aws/`, `.github/workflows/deploy-dev-to-aws.yml` | DEV → 서버 이미지·S3 WebGL 병렬 준비 → ECS/CloudFront 배포 |
+| HIVE 상품 운영 스킬 | `skills/hive-store-catalog/` | 콘솔 상품 자동 동기화, PID 지급 규칙, 이미지 운영 |
+
+서버는 기본적으로 Hive와 OpenAI를 `mock` 모드로 실행하므로 외부 키 없이 전체 연결 흐름을 확인할 수 있습니다.
+
+```powershell
+Set-Location platform-server
+Copy-Item .env.example .env
+pnpm install
+pnpm dev
+```
+
+브라우저에서 `http://localhost:3000`을 열면 상단 헤더 아래에서 WebGL 게임이 실행됩니다. HIVE mock 가입·로그인, 상점 mock 구매, AI mock 응답은 Unity 브리지 또는 API로 검증합니다. 상세 설정은 [`platform-server/README.md`](platform-server/README.md), 팀 작업 절차는 [`docs/08_TEAM_WORK_AND_OPERATIONS_GUIDE.md`](docs/08_TEAM_WORK_AND_OPERATIONS_GUIDE.md), AWS 구성은 [`docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md`](docs/05_WEB_PLATFORM_AWS_DEPLOYMENT.md)를 참고하세요.
 
 ## 📁 프로젝트 구조
 
@@ -76,12 +108,19 @@ BungeoppangTycoon/
 │  └─ Resources/       # 스프라이트, 사운드, 프리팹, 데이터
 ├─ Packages/
 └─ ProjectSettings/
+
+platform-server/
+├─ src/                 # Hive/OpenAI 서버 코드
+├─ public/              # 연동 검증 화면과 브라우저 브리지
+├─ scripts/             # 계정 격리 및 Unity 빌드 검증 도구
+├─ tests/               # 서버 통합 테스트
+└─ docs/                # API와 Console 설정 문서
 ```
 
 ## ▶️ 실행 방법
 
 1. Unity Hub에서 이 저장소의 `BungeoppangTycoon` 폴더를 프로젝트로 추가합니다.
-2. **Unity 6000.0.39f1** 버전으로 프로젝트를 엽니다.
+2. **Unity 6.3 LTS (6000.3.22f1)** 버전으로 프로젝트를 엽니다.
 3. `Assets/Scenes/IntroScene.unity`를 열고 Play 버튼을 누릅니다.
 
 ---

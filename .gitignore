@@ -10,6 +10,7 @@
 .idea/
 *.csproj
 *.sln
+*.slnx
 *.user
 *.tmp
 *.utmp
@@ -17,6 +18,19 @@
 # Local Codex configuration
 .agents/
 .codex/
+_codex-backups/
+tmp/
+artifacts/
+BungeoppangTycoon/webgl-*.log
+
+# The verified WebGL package is tracked so AWS deploys do not depend on a
+# Unity account login. Set UNITY_CI_ENABLED=true to rebuild it in CI instead.
+!platform-server/game-dist/Build/
+!platform-server/game-dist/Build/**
+
+# Keep Codex worklogs even though Unity's generic Logs rule is above.
+!docs/codex/logs/
+!docs/codex/logs/*.md
 
 # Incomplete outer Unity scaffold; open BungeoppangTycoon/ in Unity Hub.
 /Assets/

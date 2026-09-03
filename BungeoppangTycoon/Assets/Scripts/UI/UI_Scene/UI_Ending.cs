@@ -20,7 +20,7 @@ public class UI_Ending : UI_Base
 
         img.sprite = Managers.Resource.LoadSprite($"Ending/{ImagePath}");
 
-        //´ë»ç
+        //ëŒ€ì‚¬
         index = 0;
         TMP.text = lines[index];
         gameObject.AddEvent(nextLine);
@@ -48,7 +48,7 @@ public class UI_Ending : UI_Base
 
     void nextLine()
     {
-        //¸¶Áö¸· ´ë»ç Ã³¸®
+        //ë§ˆì§€ë§‰ ëŒ€ì‚¬ ì²˜ë¦¬
         if (index == (lines.Length-1))
         {
             Managers.Game.QuitGame();

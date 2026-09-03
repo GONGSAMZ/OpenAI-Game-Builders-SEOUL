@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, viewport-fit=cover">
+    <title>ToastyFishBun</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        background: #18120d;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #18120d;
+      }
+
+      #unity-container {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        background: #18120d;
+      }
+
+      #unity-canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        outline: none;
+        background: #18120d;
+      }
+
+      #unity-loading {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        gap: 16px;
+        padding: 24px;
+        text-align: center;
+        background: rgba(24, 18, 13, 0.94);
+        transition: opacity 180ms ease;
+      }
+
+      #unity-loading.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      #unity-loading-title {
+        margin: 0;
+        font: 700 clamp(20px, 2.2vw, 32px) / 1.2 sans-serif;
+      }
+
+      #unity-progress-track {
+        width: min(360px, 72vw);
+        height: 10px;
+        overflow: hidden;
+        border: 1px solid rgba(255, 239, 199, 0.65);
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.25);
+      }
+
+      #unity-progress-fill {
+        width: 0;
+        height: 100%;
+        border-radius: inherit;
+        background: #f6c65d;
+        transition: width 80ms linear;
+      }
+
+      #unity-warning {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        z-index: 2;
+        display: grid;
+        width: min(560px, calc(100% - 32px));
+        gap: 8px;
+        transform: translateX(-50%);
+      }
+
+      .unity-message {
+        padding: 10px 14px;
+        border-radius: 8px;
+        color: #251a10;
+        font: 600 14px / 1.4 sans-serif;
+        text-align: left;
+        background: #f6c65d;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+      }
+
+      .unity-message.is-error {
+        color: #fff;
+        background: #9d2f28;
+      }
+
+      #unity-fullscreen-button {
+        position: absolute;
+        right: 16px;
+        bottom: 16px;
+        z-index: 2;
+        display: grid;
+        width: 44px;
+        height: 44px;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        border-radius: 8px;
+        color: #fff;
+        font: 700 19px / 1 sans-serif;
+        background: rgba(0, 0, 0, 0.38);
+        cursor: pointer;
+      }
+
+      #unity-fullscreen-button:hover,
+      #unity-fullscreen-button:focus-visible {
+        background: rgba(0, 0, 0, 0.64);
+      }
+
+      @media (max-width: 1366px), (max-height: 768px) {
+        #unity-fullscreen-button {
+          right: 10px;
+          bottom: 10px;
+          width: 40px;
+          height: 40px;
+        }
+      }
+    </style>
+    <script src="/game-bridge.js"></script>
+  </head>
+  <body>
+    <main id="unity-container">
+      <canvas id="unity-canvas" width="1920" height="1080" tabindex="0" aria-label="ToastyFishBun 게임 화면"></canvas>
+      <div id="unity-warning" aria-live="polite"></div>
+      <div id="unity-loading" role="status" aria-live="polite">
+        <p id="unity-loading-title">게임을 불러오는 중입니다</p>
+        <div id="unity-progress-track" aria-hidden="true">
+          <div id="unity-progress-fill"></div>
+        </div>
+      </div>
+      <button id="unity-fullscreen-button" type="button" aria-label="전체 화면으로 보기" title="전체 화면으로 보기">⛶</button>
+    </main>
+
+    <script>
+      const canvas = document.querySelector("#unity-canvas");
+      const loading = document.querySelector("#unity-loading");
+      const progressFill = document.querySelector("#unity-progress-fill");
+      const fullscreenButton = document.querySelector("#unity-fullscreen-button");
+
+      canvas.addEventListener("pointerdown", () => {
+        canvas.focus({ preventScroll: true });
+      });
+
+      window.addEventListener("keydown", (event) => {
+        if (document.activeElement === canvas && event.code === "Space") {
+          event.preventDefault();
+        }
+      }, { passive: false });
+
+      function unityShowBanner(message, type) {
+        const warning = document.querySelector("#unity-warning");
+        const item = document.createElement("div");
+        item.className = `unity-message${type === "error" ? " is-error" : ""}`;
+        item.textContent = message;
+        warning.appendChild(item);
+
+        if (type !== "error") {
+          window.setTimeout(() => item.remove(), 5000);
+        }
+      }
+
+      const buildUrl = "Build";
+      const config = {
+        arguments: [],
+        dataUrl: `${buildUrl}/273d3d820394f484f1846e1e9ecae157.data.unityweb`,
+        frameworkUrl: `${buildUrl}/36e8f0d8fc473a03349892e6f754e577.framework.js.unityweb`,
+        codeUrl: `${buildUrl}/890b543a5d01844ec9df84daa8fcfee6.wasm.unityweb`,
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: "FishBunFactory",
+        productName: "ToastyFishBun",
+        productVersion: "1.0",
+        showBanner: unityShowBanner,
+        devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2)
+      };
+
+      const loaderScript = document.createElement("script");
+      loaderScript.src = `${buildUrl}/b4976ce0830ba27e25310b33d5665833.loader.js`;
+      loaderScript.onload = () => {
+        createUnityInstance(canvas, config, (progress) => {
+          progressFill.style.width = `${Math.round(progress * 100)}%`;
+        }).then((unityInstance) => {
+                window.unityInstance = unityInstance;
+                window.dispatchEvent(new Event("UNITY_INSTANCE_READY"));
+          loading.classList.add("is-hidden");
+          window.setTimeout(() => loading.remove(), 200);
+          fullscreenButton.addEventListener("click", () => unityInstance.SetFullscreen(1));
+        }).catch((message) => {
+          unityShowBanner(message, "error");
+          loading.querySelector("#unity-loading-title").textContent = "게임을 불러오지 못했습니다";
+        });
+      };
+      loaderScript.onerror = () => {
+        unityShowBanner("게임 파일을 불러오지 못했습니다.", "error");
+      };
+      document.body.appendChild(loaderScript);
+    </script>
+  </body>
+</html>

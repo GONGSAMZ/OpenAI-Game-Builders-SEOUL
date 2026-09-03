@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "unityVersion": "6000.3.22f1",
+  "sourceTreeSha256": "54e5ce7a6589fc9e54a937302ccf808e250beda7be68291f653bcbb3469fb025",
+  "artifacts": [
+    {
+      "path": "Build/273d3d820394f484f1846e1e9ecae157.data.unityweb",
+      "size": 124139998,
+      "sha256": "1eea515933f3d45d377280f7d746a471c1982271489c04d52ffa9a055481fc31"
+    },
+    {
+      "path": "Build/36e8f0d8fc473a03349892e6f754e577.framework.js.unityweb",
+      "size": 91105,
+      "sha256": "253e68468a5a1720ab0d53ce94cd5642631232812504499cf163400a660a2c48"
+    },
+    {
+      "path": "Build/890b543a5d01844ec9df84daa8fcfee6.wasm.unityweb",
+      "size": 12294233,
+      "sha256": "b23243b8f7642d62560ce975f1fbf62f95f2e53a7897b3b86cf6595c40ed40d9"
+    },
+    {
+      "path": "Build/b4976ce0830ba27e25310b33d5665833.loader.js",
+      "size": 47867,
+      "sha256": "c3c334d8ecd428a0d04d6658abea145751b25de8d0e6bd16c18e647c74b1390f"
+    },
+    {
+      "path": "index.html",
+      "size": 6470,
+      "sha256": "7c9651750e96bc6bc35dd3e23d540004240aaa77e5b3e6ad67b0a2c03321a677"
+    }
+  ]
+}

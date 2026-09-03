@@ -1,0 +1,17 @@
+{
+  "assets": [
+    {"path":"assets/button-controls-watercolor.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":4096,"nineSliceBorder":null},
+    {"path":"assets/button-reset-watercolor.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":4096,"nineSliceBorder":null},
+    {"path":"assets/settings-icon-watercolor.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":2048,"nineSliceBorder":null},
+    {"path":"assets/close-button-watercolor.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":2048,"nineSliceBorder":null},
+    {"path":"assets/sound-icon-badge.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":512,"nineSliceBorder":null},
+    {"path":"assets/sound-icon.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":512,"nineSliceBorder":null},
+    {"path":"assets/volume-down.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":512,"nineSliceBorder":null},
+    {"path":"assets/volume-knob.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":512,"nineSliceBorder":null},
+    {"path":"assets/keyboard-icon-badge.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":512,"nineSliceBorder":null},
+    {"path":"assets/keyboard-icon.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":512,"nineSliceBorder":null},
+    {"path":"assets/toggle-thumb.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":512,"nineSliceBorder":null},
+    {"path":"assets/warning-icon.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":512,"nineSliceBorder":null},
+    {"path":"assets/autosave-status.png","textureType":"Sprite","spriteMode":"Single","sRGB":true,"alphaIsTransparency":true,"filterMode":"Bilinear","wrapMode":"Clamp","pixelsPerUnit":100,"maxSize":128,"nineSliceBorder":null}
+  ]
+}

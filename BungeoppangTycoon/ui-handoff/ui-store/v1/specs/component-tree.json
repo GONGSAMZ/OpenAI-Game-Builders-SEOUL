@@ -1,0 +1,17 @@
+{
+  "components": [
+    {"id":"root","name":"UI_Store","parentId":null,"order":0,"implementation":"native","rect":[0,0,1920,1080],"anchors":"stretch","pivot":[0.5,0.5],"states":["default"],"dynamicContent":false},
+    {"id":"background","name":"StoreSceneBackground","parentId":"root","order":0,"implementation":"image","rect":[0,0,1920,1080],"anchors":"stretch","pivot":[0.5,0.5],"states":["default"],"dynamicContent":false},
+    {"id":"panel","name":"StorePanel","parentId":"root","order":1,"implementation":"image","rect":[180,92,1560,896],"anchors":"center","pivot":[0.5,0.5],"states":["default"],"dynamicContent":false},
+    {"id":"title","name":"TitleText","parentId":"panel","order":0,"implementation":"native","rect":[142,51,560,70],"anchors":"top-left","pivot":[0,1],"states":["default"],"dynamicContent":true},
+    {"id":"subtitle","name":"SubtitleText","parentId":"panel","order":1,"implementation":"native","rect":[150,106,640,36],"anchors":"top-left","pivot":[0,1],"states":["default"],"dynamicContent":true},
+    {"id":"money","name":"MoneyPanel","parentId":"panel","order":2,"implementation":"hybrid","rect":[740,20,360,104],"anchors":"top-left","pivot":[0,1],"states":["default"],"dynamicContent":true},
+    {"id":"bean-coin","name":"BeanCoinPanel","parentId":"panel","order":3,"implementation":"hybrid","rect":[1120,20,360,104],"anchors":"top-left","pivot":[0,1],"states":["default"],"dynamicContent":true},
+    {"id":"filling-tab","name":"FillingButton","parentId":"panel","order":4,"implementation":"hybrid","rect":[320,158,380,76],"anchors":"top-left","pivot":[0,1],"states":["selected","focused"],"dynamicContent":false},
+    {"id":"item-tab","name":"SkillButton","parentId":"panel","order":5,"implementation":"hybrid","rect":[740,158,380,76],"anchors":"top-left","pivot":[0,1],"states":["default","focused"],"dynamicContent":false},
+    {"id":"filling-cards","name":"FillingCards","parentId":"panel","order":6,"implementation":"native","rect":[110,258,1360,440],"anchors":"top-left","pivot":[0,1],"states":["visible"],"dynamicContent":true},
+    {"id":"item-cards","name":"ItemCards","parentId":"panel","order":7,"implementation":"native","rect":[110,258,1360,440],"anchors":"top-left","pivot":[0,1],"states":["hidden","visible"],"dynamicContent":true},
+    {"id":"store-note","name":"StoreNote","parentId":"panel","order":8,"implementation":"native","rect":[110,716,900,29],"anchors":"top-left","pivot":[0,1],"states":["default"],"dynamicContent":true},
+    {"id":"next-day","name":"NextDayButton","parentId":"panel","order":9,"implementation":"hybrid","rect":[540,758,480,94],"anchors":"top-left","pivot":[0,1],"states":["default","hover","pressed","disabled","focused"],"dynamicContent":false}
+  ]
+}

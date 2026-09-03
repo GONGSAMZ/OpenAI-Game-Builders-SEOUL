@@ -1,6 +1,7 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 
-public class ToolController : MonoBehaviour
+public class ToolController : MonoBehaviour, IPointerClickHandler
 {
     public static ToolController selectedTool;
     [SerializeField] public FillingType filling;
@@ -30,42 +31,61 @@ public class ToolController : MonoBehaviour
 
     void OnMouseDown()
     {
-        //¼±ÅÃµÈ ÀÌÀü ¹°°ÇÀÌ ÀÖ¾úÀ¸¸é
-        if (selectedTool != null)
-            pickDown(); //ÀÌÀü pickup ¹°°Ç ³»·Á ³õ±â
-
-        pickUp();
+        Select();
 
     }
 
-    //°´Ã¼ Áı¾î ¿Ã¸®´Â ¸Ş¼­µå
-    void pickUp()
+    // ìƒˆ Input System + Physics2DRaycaster ê²½ë¡œì—ì„œë„ ë„êµ¬ë¥¼ í´ë¦­í•´ ì„ íƒí•œë‹¤.
+    // OnMouseDownì€ ì´ì „ ì…ë ¥ ê²½ë¡œì™€ì˜ í˜¸í™˜ìš©ìœ¼ë¡œ ê·¸ëŒ€ë¡œ ë‘”ë‹¤.
+    public void OnPointerClick(PointerEventData eventData)
     {
-        transform.position += moveDir; //À§·Î ¿Ã¸®±â
-        transform.localScale = Vector3.one;
-        transform.rotation = Quaternion.Euler(0, 0, originZRotation+zRotation); // ºñ½ºµëÈ÷ È¸Àü
+        Select();
+    }
+
+    public void Select()
+    {
+        if (Managers.Game.isRunning == false)
+            return;
+
+        if (selectedTool == this)
+            return;
+
+        InputManager.Instance?.ClearSelectedFishBun();
+        DeselectCurrent();
+
+        transform.position += moveDir; //ìœ„ë¡œ ì˜¬ë¦¬ê¸°
+        transform.rotation = Quaternion.Euler(0, 0, originZRotation+zRotation); // ë¹„ìŠ¤ë“¬íˆ íšŒì „
         transform.localScale = originScale;
 
         GetComponent<SpriteRenderer>().sortingOrder = maxSortingOrder;
         selectedTool = this;
+        InputManager.Instance?.ShowToolTargets(this);
+
+        TutorialSignals.Raise(TutorialEvent.ToolSelected, gameObject);
 
     }
 
-    //°´Ã¼ ³»·Á³õ´Â ¸Ş¼­µå
-    void pickDown()
+    public void Deselect()
     {
-        selectedTool.transform.position -= moveDir;
-        transform.localScale = Vector3.one;
-        selectedTool.transform.rotation = Quaternion.Euler(0, 0, selectedTool.originZRotation);
+        if (selectedTool != this)
+            return;
+
+        transform.position -= moveDir;
+        transform.rotation = Quaternion.Euler(0, 0, originZRotation);
         transform.localScale = originScale;
-        selectedTool.GetComponent<SpriteRenderer>().sortingOrder = selectedTool.originSortingOrder;
+        GetComponent<SpriteRenderer>().sortingOrder = originSortingOrder;
         selectedTool = null;
+        InputManager.Instance?.ClearTargetHighlights();
+    }
+
+    public static void DeselectCurrent()
+    {
+        selectedTool?.Deselect();
     }
 
     void InitIngredient()
     {
-        if(selectedTool != null)
-            selectedTool.pickDown();
+        DeselectCurrent();
 
     }
 }

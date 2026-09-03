@@ -1,0 +1,66 @@
+{
+  "screen": {
+    "id": "settings-options",
+    "purpose": "게임의 전체 음량, PC 단축키 안내 표시, 조작법 재확인과 플레이 진행 초기화를 한 화면에서 관리한다.",
+    "prefabName": "UI_SettingsOptions",
+    "referenceResolution": [1260, 900],
+    "supportedRatios": ["16:9", "16:10", "21:9"],
+    "platforms": ["WebGL PC", "mobile landscape"]
+  },
+  "projectContext": {
+    "unityProject": "C:/DevHub/02_GameDev/GONGSAMZ/BungeoppangTycoon",
+    "uiSystem": "Unity UGUI + TextMeshPro",
+    "canvasScaler": {"referenceResolution": [1920, 1080], "matchWidthOrHeight": 0.5},
+    "fonts": ["GowunBatang-Bold SDF", "GowunDodum-Regular SDF"],
+    "reusedAssets": ["Sprites/Environment/background", "Sprites/UI/StoreV2/panel-skin"],
+    "existingPrefab": "Assets/Resources/Prefabs/UI/UI_SettingsOptions.prefab",
+    "existingRuntime": "Assets/Scripts/UI/UI_SettingsPopups.cs"
+  },
+  "content": {
+    "static": ["가게 설정", "전체 음량", "키보드 안내", "게임 플레이 초기화", "닫기"],
+    "dynamic": ["음량 백분율", "현재 소리 상태", "키보드 안내 켜짐/꺼짐"],
+    "longestExamples": ["스토리 · 도감 · 업적 · 구매품은 그대로 유지됩니다.", "현재 소리: 가장 크게"],
+    "errorState": "플레이 초기화 저장 실패는 별도 확인 팝업에서 표시한다.",
+    "emptyState": "없음"
+  },
+  "layout": {
+    "sourceFrame": [1260, 900],
+    "regions": ["header", "sound-card", "keyboard-card", "danger-zone", "footer"],
+    "hierarchy": ["title", "settings cards", "danger action", "close action"],
+    "safeArea": [30, 24, 30, 24],
+    "responsive": "1920x1080에서는 1260x900 콘텐츠를 균일 배율로 종이 패널 안에 배치하고, 더 넓은 화면에서는 중앙 정렬을 유지한다."
+  },
+  "components": [
+    {"id":"volume-slider","role":"전체 음량을 0~100%로 조절","implementation":"hybrid","states":["default","focused","disabled"],"dynamicContent":true,"asset":"volume-knob.png","nineSlice":null,"anchorIntent":"sound-card","minHitSize":[46,46],"navigation":{"previous":"close-button","next":"volume-minus"}},
+    {"id":"keyboard-toggle","role":"PC 단축키 안내 표시 여부 변경","implementation":"hybrid","states":["on","off","hover","pressed","focused"],"dynamicContent":true,"asset":"toggle-thumb.png","nineSlice":null,"anchorIntent":"keyboard-card-top-right","minHitSize":[128,58],"navigation":{"previous":"volume-plus","next":"controls-help-button"}},
+    {"id":"reset-button","role":"플레이 진행 초기화 확인창 열기","implementation":"hybrid","states":["default","hover","pressed","disabled","focused"],"dynamicContent":false,"asset":"button-reset-watercolor.png","nineSlice":null,"anchorIntent":"danger-zone-right","minHitSize":[270,82],"navigation":{"previous":"controls-help-button","next":"footer-close-button"}},
+    {"id":"footer-close-button","role":"설정 팝업 닫기","implementation":"hybrid","states":["default","hover","pressed","focused"],"dynamicContent":false,"asset":"button-controls-watercolor.png","nineSlice":null,"anchorIntent":"footer-center","minHitSize":[300,82],"navigation":{"previous":"reset-button","next":"close-button"}}
+  ],
+  "interactions": {
+    "primaryInputs": ["pointer", "keyboard"],
+    "cancel": ["Esc", "top-right close", "footer close"],
+    "dangerConfirmation": "초기화하기는 SaveUiFactory.ShowResetConfirmation을 통해 확인 후 실행한다.",
+    "keyboardOrder": ["close-button", "volume-slider", "volume-minus", "volume-plus", "keyboard-toggle", "controls-help-button", "reset-button", "footer-close-button"]
+  },
+  "artDirection": {
+    "colors": ["#1C2929", "#2E6B70", "#FFF0C7", "#8C1F14", "#FFEDC2"],
+    "texture": "기존 게임의 수채화 종이 패널과 피그마에서 내보낸 수채화 버튼·아이콘을 결합한다.",
+    "line": "갈색 또는 청록색의 부드러운 테두리",
+    "forbidden": ["두꺼운 순검정 테두리", "텍스트가 포함된 버튼 비트맵", "임의로 다시 그린 아이콘"]
+  },
+  "export": {
+    "images": ["button-controls-watercolor.png", "button-reset-watercolor.png", "settings-icon-watercolor.png", "close-button-watercolor.png", "sound-icon.png", "keyboard-icon.png", "volume-knob.png", "toggle-thumb.png", "warning-icon.png", "autosave-status.png"],
+    "transparent": true,
+    "nineSliceCandidates": []
+  },
+  "acceptanceCriteria": [
+    "1260x900 기준으로 모든 주요 Rect가 Figma V4와 일치한다.",
+    "텍스트와 수치는 TMP로 렌더링되어 실행 중 갱신된다.",
+    "음량, 토글, 조작법, 초기화, 닫기 동작이 기존 저장 로직과 연결된다.",
+    "1920x1080과 1366x768 캡처에서 잘림과 겹침이 없다."
+  ],
+  "assumptions": [
+    "Figma node 247:2는 기존 종이 패널 위에 얹는 콘텐츠 전용 프레임으로 해석한다.",
+    "사용자의 반복된 동일 구현 요청을 designVersion v4 승인으로 기록한다."
+  ]
+}

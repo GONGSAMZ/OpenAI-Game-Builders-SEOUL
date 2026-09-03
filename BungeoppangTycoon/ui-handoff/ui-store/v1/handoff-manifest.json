@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0",
+  "status": "HANDOFF_READY",
+  "screenId": "ui-store",
+  "prefabName": "UI_Store",
+  "designVersion": "v1",
+  "figma": {
+    "fileKey": "Yrun8rClSF4bLDLSsDDjuQ",
+    "pageId": "169:2",
+    "nodeId": "184:14",
+    "itemNodeId": "184:17"
+  },
+  "unity": {
+    "projectRoot": "C:/DevHub/02_GameDev/GONGSAMZ/BungeoppangTycoon",
+    "uiSystem": "UGUI",
+    "referenceResolution": [1920, 1080],
+    "supportedRatios": ["16:9", "21:9"],
+    "canvasScalerMatch": 0.5
+  },
+  "specs": {
+    "componentTree": "specs/component-tree.json",
+    "importSettings": "specs/import-settings.json",
+    "interactionStates": "specs/interaction-states.json",
+    "visualDiffPolicy": "specs/visual-diff-policy.json",
+    "approval": "review/approval.json"
+  },
+  "references": [
+    "reference/fillings-1920x1080.png",
+    "reference/items-1920x1080.png"
+  ],
+  "artifacts": [
+    {"path":"ui-plan.json","kind":"plan","sha256":"2f3e41a574f0f266b21c3571a2294e244835b6ed4ce3c6361dff000f150938d3"},
+    {"path":"reference/fillings-1920x1080.png","kind":"reference","sha256":"400568660ba66e1a7163dd0392b30d93614d7f95ebbe975f9be4c27e9310d151"},
+    {"path":"reference/items-1920x1080.png","kind":"reference","sha256":"dada03999a25ca73b569e09da2885e40eba64b62b41102c3e7072cc81d817d3c"},
+    {"path":"assets/button-paper.png","kind":"art","sha256":"fb9313e6560d2bcdfcbb716f6a3884f1294e698ccc46e0cb074e245e18132997"},
+    {"path":"assets/button-primary.png","kind":"art","sha256":"71aabb49cc8379284cf91a421fbce77cc323fd7231ace34a206482489d95419d"},
+    {"path":"assets/card-surface.png","kind":"art","sha256":"45c4ef5da16da9e564ee731748dec78da550b6f4c0e4c85307d8e9d6c7f1db18"},
+    {"path":"assets/filling-art-sheet.png","kind":"art","sha256":"d27fc6b29e95321ca6a0ae7585a95a9a0f772f7da1ac6f53e8517f17867a9e08"},
+    {"path":"assets/panel-skin.png","kind":"art","sha256":"d5ac2813f9039f264f8007029321b9d21db0f4c3009be7132916cc3a4fd8e186"},
+    {"path":"assets/store-scene-fillings.png","kind":"art","sha256":"1509b2e3ab1a8b7e03197aa445d0fed9e3d77acf18dc66f06e7639899346f128"},
+    {"path":"specs/component-tree.json","kind":"spec","sha256":"ecebd7534a4ed38e658fd131c3260a6d2fe2051a5c2eff85bf0c0d56a3b905a3"},
+    {"path":"specs/import-settings.json","kind":"spec","sha256":"cccd05a7b383cd0d23f9044b622b8c0fdff1657086e8351cbb29f0629ffec526"},
+    {"path":"specs/interaction-states.json","kind":"spec","sha256":"e2a90935caf3a2ef716d5dc9af8bdab9bb26f37e0023d615aa11cc4fb6082c90"},
+    {"path":"specs/visual-diff-policy.json","kind":"spec","sha256":"3dbc37aba1d99c72c8b50df145a78dc41d91c665095fcc115a38f4280df0d122"},
+    {"path":"review/approval.json","kind":"approval","sha256":"45c39a5bacef6d15b18dc1141439c15cfbdc3a4370d4043dc94d9617078d1470"}
+  ],
+  "knownExceptions": []
+}

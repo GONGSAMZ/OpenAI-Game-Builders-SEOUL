@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="붕어빵 타이쿤 웹게임" />
+    <title>붕어빵 타이쿤</title>
+    <link rel="stylesheet" href="/styles.css?v=__APP_REVISION__" />
+    <script src="/game-bridge.js?v=__APP_REVISION__" defer></script>
+    <script src="/header.js?v=__APP_REVISION__" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="붕어빵 타이쿤 홈">
+        <span class="brand-mark" aria-hidden="true">魚</span>
+        <span class="brand-name">붕어빵 타이쿤</span>
+      </a>
+
+      <nav class="primary-navigation" aria-label="주요 메뉴">
+        <a class="navigation-item active" href="/" aria-current="page">
+          <span aria-hidden="true">▷</span>
+          <span>게임</span>
+        </a>
+      </nav>
+
+      <div class="header-actions">
+        <a id="shop-link" class="shop-link" href="#" target="_blank" rel="noopener" hidden>
+          <span aria-hidden="true">▣</span>
+          <span>상점</span>
+        </a>
+        <div id="account-shell" class="account-shell">
+          <button
+            id="login-button"
+            class="account-button"
+            type="button"
+            aria-live="polite"
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-controls="account-menu"
+          >
+            <span id="account-avatar" class="account-avatar" aria-hidden="true">H</span>
+            <span id="login-label">HIVE 로그인</span>
+          </button>
+
+          <div id="account-menu" class="account-menu" role="menu" hidden>
+            <div class="account-summary">
+              <span class="account-summary-label">내 정보</span>
+              <strong id="account-player-id" class="account-player-id">-</strong>
+              <span id="account-provider" class="account-provider">HIVE 계정</span>
+            </div>
+            <button id="logout-button" class="logout-button" type="button" role="menuitem">
+              로그아웃
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="game-workspace">
+      <main class="game-stage">
+        <iframe
+          id="game-frame"
+          title="붕어빵 타이쿤 Unity WebGL 게임"
+          src="/game/index.html?v=__APP_REVISION__"
+          allow="fullscreen; autoplay"
+          loading="eager"
+        ></iframe>
+      </main>
+
+      <section class="orientation-guard" role="status" aria-live="polite">
+        <strong>가로 화면에서 플레이해 주세요</strong>
+        <span>기기를 가로로 돌리면 게임이 바로 표시됩니다.</span>
+      </section>
+    </div>
+  </body>
+</html>

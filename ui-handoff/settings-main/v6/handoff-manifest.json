@@ -1,0 +1,24 @@
+{
+  "schemaVersion":"1.0","status":"HANDOFF_READY","screenId":"settings-main","prefabName":"UI_Settings","designVersion":"v6",
+  "figma":{"fileKey":"Yrun8rClSF4bLDLSsDDjuQ","pageId":"114:387","nodeId":"318:209","nodeName":"Screen/Settings Main v6","sourceFrame":[1920,1080]},
+  "unity":{"projectRoot":"C:/DevHub/02_GameDev/GONGSAMZ/BungeoppangTycoon","uiSystem":"UGUI","referenceResolution":[1920,1080],"supportedRatios":["16:9","16:10","21:9"],"canvasScalerMatch":0.5,"prefabPath":"Assets/Resources/Prefabs/UI/UI_Settings.prefab"},
+  "specs":{"componentTree":"specs/component-tree.json","importSettings":"specs/import-settings.json","interactionStates":"specs/interaction-states.json","visualDiffPolicy":"specs/visual-diff-policy.json","approval":"review/approval.json"},
+  "references":["reference/default-1920x1080.png"],
+  "artifacts":[
+    {"path":"reference/default-1920x1080.png","kind":"reference","sha256":"a8eb57e3ffb9f6e42a5fec2db86e5b50cbb1c2730304d187d2904191fa4a223d"},
+    {"path":"review/approval.json","kind":"approval","sha256":"763271ff3b0791bb465999518e9938b00abdab93914554cf4e84ba5188598d0b"},
+    {"path":"specs/component-tree.json","kind":"spec","sha256":"898f1d026ad2bb9b7f957264e3d7e6cc51c36c5a469f1d2bfdf223f7340f51be"},
+    {"path":"specs/import-settings.json","kind":"spec","sha256":"6a3838170fb4481debc8c3736a26e6f1a221f10b3b658007cf15d79fb46d57c1"},
+    {"path":"specs/interaction-states.json","kind":"spec","sha256":"31f425013a335383d6dfd91bfa0b94a95c6ebc5f70f4ad8f6865a5cc9bb337f4"},
+    {"path":"specs/planning.json","kind":"planning","sha256":"b860f04a4003844d5157481c4feb16c5597cd1602881a9d69236f70decb30789"},
+    {"path":"specs/visual-diff-policy.json","kind":"spec","sha256":"a37b08272829080c330e6a1887414513cdfc0e2f54ce22514f6bdcbe9638ac40"},
+    {"path":"assets/settings-icon-watercolor.png","kind":"unity-sprite","sha256":"382d90ff7a98d3f53ac2233fbeaaa195a908271e458537aa3dd60f89d61c963c"},
+    {"path":"assets/close-button-watercolor.png","kind":"unity-sprite","sha256":"1d12d008c1197e67292226435c6f8fbd87230425c123dfd9b415f20a8f6a0ebc"},
+    {"path":"assets/button-controls-watercolor.png","kind":"unity-sprite","sha256":"fb9313e6560d2bcdfcbb716f6a3884f1294e698ccc46e0cb074e245e18132997"},
+    {"path":"assets/icon-collection-book.png","kind":"unity-sprite","sha256":"74dc1be27619b64280e3966dcc2ed02a87fb7d8803b70335616e66217456da51"},
+    {"path":"assets/icon-achievement-trophy.png","kind":"unity-sprite","sha256":"f1d51848ac17444961fb455e7dae4b9481a3b94c365cf3ca008268efef602f82"},
+    {"path":"assets/icon-warning-triangle.png","kind":"unity-sprite","sha256":"9329176e88aa6f24da4532f34b5c0ce54e05d941784863542e091f8174caffb5"},
+    {"path":"assets/icon-chevron-right.png","kind":"unity-sprite","sha256":"54a64fc9351584f3373b656af53daa43f733baea7885fc4e5e47eb302bb6a647"}
+  ],
+  "knownExceptions":["겨울밤 배경과 찢어진 종이 패널은 최종 Unity 프로젝트의 기존 게임 에셋을 재사용한다."]
+}

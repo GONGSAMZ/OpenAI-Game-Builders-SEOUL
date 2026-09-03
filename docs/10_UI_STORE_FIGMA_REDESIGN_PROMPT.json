@@ -1,0 +1,314 @@
+{
+  "schema_version": "1.0",
+  "created_at": "2026-08-19",
+  "project": "GONGSAMZ · Bungeoppang Tycoon",
+  "request_english": "Redesign the post-day UI_Store prefab in the linked Figma file. Save the planning prompt as JSON first, then assemble new image-backed UI components in Figma. Match the existing game art and UI tone, and support expandable card lists for both fillings and future gameplay items.",
+  "target": {
+    "unity_prefab": "BungeoppangTycoon/Assets/Resources/Prefabs/UI/UI_Store.prefab",
+    "unity_script": "BungeoppangTycoon/Assets/Scripts/UI/UI_Scene/UI_Store.cs",
+    "reference_resolution": {
+      "width": 1920,
+      "height": 1080
+    },
+    "figma_file_key": "Yrun8rClSF4bLDLSsDDjuQ",
+    "provided_node_id": "78:55",
+    "provided_node_note": "The supplied node is the page named '하진 · Story Cutscene'. Store work must be placed on a new page named 'Store UI · PC' to avoid mixing unrelated story and UI assets."
+  },
+  "source_evidence": {
+    "current_store_hierarchy": [
+      "TitlePanel",
+      "MoneyPanel",
+      "RedBeanCoinPanel",
+      "ContentsPanel/btns/FillingButton",
+      "ContentsPanel/btns/SkillButton",
+      "ContentsPanel/btns/ToolButton",
+      "ContentsPanel/btns/MarketingButton",
+      "ContentsPanel/Panels/Filling/Scroll View",
+      "NextDayButton"
+    ],
+    "current_store_limitations": [
+      "UI_Store.cs only binds category labels, balances, the next-day action, and the HIVE shop action.",
+      "There is no reusable product-card component or data-driven filling/item list in the prefab.",
+      "The current product area is a single horizontal scroll row, which does not scale well as products increase."
+    ],
+    "filling_types_in_code": [
+      "팥",
+      "슈크림",
+      "초코",
+      "크림치즈",
+      "피자",
+      "민트",
+      "고구마",
+      "녹차"
+    ],
+    "current_default_available_fillings": 4,
+    "existing_unity_art": [
+      "Assets/Resources/Sprites/UI/storeBackground.png",
+      "Assets/Resources/Sprites/fillings.png",
+      "Assets/Resources/Sprites/fillingChunks.png",
+      "Assets/Resources/Sprites/UI/coin.png",
+      "Assets/Resources/Sprites/StoreProducts/golden-pan.png"
+    ],
+    "existing_figma_style": {
+      "background": "Night Korean bungeoppang street-stall watercolor image",
+      "background_image_hash": "dfdc40326aec2fa59114262e231e1cbacce34416",
+      "palette": {
+        "night_navy": "#0E1B26",
+        "hanji_cream": "#F0DEB0",
+        "paper_light": "#FFF2D4",
+        "brick_red": "#9E291A",
+        "stall_teal": "#296B70",
+        "ink": "#1D282A"
+      },
+      "figma_fonts": [
+        "Noto Sans KR Regular/Bold",
+        "Gowun Batang Bold for rare display headings"
+      ],
+      "unity_font_note": "Unity currently uses omyuPretty SDF; Figma uses Noto Sans KR for readable production UI."
+    },
+    "figma_local_system": {
+      "reusable_components": 0,
+      "local_text_styles": 0,
+      "local_effect_styles": 0,
+      "local_paint_styles": 0,
+      "relevant_library_search_result": "No matching game-store product card, tab, button, color, or spacing asset was found."
+    }
+  },
+  "design_prompt": {
+    "goal": "Create a polished post-day store screen that feels like the same Korean winter street-stall game, makes balances and the next-day action easy to find, and scales from a few fillings to many future items.",
+    "tone": [
+      "warm handmade watercolor",
+      "Korean neighborhood winter-night stall",
+      "cream hanji paper surfaces",
+      "restrained brick red and deep teal accents",
+      "clear PC game UI hierarchy",
+      "friendly rather than luxurious or mobile-commerce-like"
+    ],
+    "avoid": [
+      "Japanese visual motifs such as torii, sakura, seigaiha, noren, or Japanese calligraphy",
+      "neon cyber styling",
+      "generic mobile shop UI",
+      "visible interface artwork made from Figma rectangles, ellipses, polygons, or hand-built vectors",
+      "too many currencies or unexplained upgrade rules",
+      "tiny text and narrow click targets"
+    ],
+    "asset_policy": "Visible backgrounds, panel skins, tab skins, card skins, buttons, badges, and icons must be raster image assets or existing uploaded game images. Figma frames may be used only as layout containers, masks, and component roots; text remains editable.",
+    "screen_count": 2,
+    "screens": [
+      {
+        "name": "UI_Store · Fillings",
+        "active_tab": "붕어빵 소",
+        "content": "Four available filling cards plus locked/next-unlock examples using the eight existing FillingType entries."
+      },
+      {
+        "name": "UI_Store · Items",
+        "active_tab": "아이템",
+        "content": "Expandable item-card examples for 동시 붓기 and 조리 피버, plus one future-item placeholder. Detailed balance, duration, and upgrade content is intentionally not specified."
+      }
+    ]
+  },
+  "screen_layout": {
+    "frame": "1920x1080",
+    "safe_margin": 64,
+    "background": "Reuse the existing Figma night-stall watercolor image at full bleed with a navy dim layer baked into or paired with the image asset.",
+    "store_panel": {
+      "x": 210,
+      "y": 92,
+      "width": 1500,
+      "height": 896,
+      "description": "Large image-backed hanji ledger panel, centered, with enough room for 4 product cards per row."
+    },
+    "header": {
+      "height": 118,
+      "left": "상점 title and short next-day preparation copy",
+      "right": "Two image-backed balance chips: 보유금 and 팥 코인"
+    },
+    "category_tabs": {
+      "height": 72,
+      "labels": [
+        "붕어빵 소",
+        "아이템"
+      ],
+      "behavior": "Selected and unselected image-backed tab variants; selection changes only the card content area."
+    },
+    "content_area": {
+      "layout": "4-column vertically scrollable grid",
+      "card_width": 300,
+      "card_min_height": 382,
+      "column_gap": 24,
+      "row_gap": 24,
+      "visible_rows": "1 full row plus a partial next row as a scroll cue",
+      "reason": "A vertical grid stays readable when fillings and gameplay items grow beyond the current four categories."
+    },
+    "footer": {
+      "height": 104,
+      "left": "Optional concise purchase/help message area",
+      "right": "Fixed primary image button labeled 다음 날 영업"
+    }
+  },
+  "component_plan": [
+    {
+      "name": "Store/BalanceChip",
+      "variants": {
+        "Currency": [
+          "Won",
+          "RedBeanCoin"
+        ],
+        "State": [
+          "Default",
+          "Disconnected"
+        ]
+      },
+      "editable_properties": [
+        "Label",
+        "Value",
+        "Icon"
+      ]
+    },
+    {
+      "name": "Store/CategoryTab",
+      "variants": {
+        "Category": [
+          "Filling",
+          "Item"
+        ],
+        "State": [
+          "Selected",
+          "Default"
+        ]
+      },
+      "editable_properties": [
+        "Label"
+      ]
+    },
+    {
+      "name": "Store/ProductCard",
+      "variants": {
+        "Type": [
+          "Filling",
+          "Item"
+        ],
+        "State": [
+          "Available",
+          "Owned",
+          "Locked",
+          "Disabled"
+        ]
+      },
+      "editable_properties": [
+        "Artwork",
+        "Name",
+        "Description",
+        "Price",
+        "CurrencyIcon",
+        "Badge",
+        "ActionLabel"
+      ],
+      "content_rule": "The artwork slot, name, concise effect/description, currency slot, and action state must remain stable for future data-driven generation."
+    },
+    {
+      "name": "Store/PrimaryButton",
+      "variants": {
+        "State": [
+          "Default",
+          "Hover",
+          "Pressed",
+          "Disabled"
+        ]
+      },
+      "editable_properties": [
+        "Label",
+        "Icon"
+      ]
+    },
+    {
+      "name": "Store/StatusBadge",
+      "variants": {
+        "Tone": [
+          "New",
+          "Owned",
+          "Locked",
+          "Recommended"
+        ]
+      },
+      "editable_properties": [
+        "Label"
+      ]
+    }
+  ],
+  "sample_content": {
+    "fillings": [
+      "팥",
+      "슈크림",
+      "초코",
+      "크림치즈"
+    ],
+    "future_or_locked_fillings": [
+      "피자",
+      "민트",
+      "고구마",
+      "녹차"
+    ],
+    "items": [
+      {
+        "name": "동시 붓기",
+        "description": "붕어빵 두 칸에 반죽을 함께 붓는 기능을 위한 카드 예시"
+      },
+      {
+        "name": "조리 피버",
+        "description": "일정 시간 조리 흐름을 빠르게 만드는 기능을 위한 카드 예시"
+      }
+    ],
+    "content_scope_note": "Exact prices, duration, upgrade levels, balance, and purchase rules are excluded from this design pass."
+  },
+  "image_asset_prompts": [
+    {
+      "asset": "store-panel-skin.png",
+      "prompt": "Front-facing Korean winter street-stall game UI panel skin, warm cream hanji paper with subtle handmade watercolor fibers, restrained dark teal edge and tiny brick-red stitch accents, broad clean center for text and cards, no text, no icons, no objects, no Japanese motifs, transparent outside the panel, production-ready raster UI asset."
+    },
+    {
+      "asset": "store-product-card-skin.png",
+      "prompt": "Front-facing collectible product card skin for a Korean bungeoppang street-stall game, light cream handmade paper, soft watercolor edge, subtle fish-scale embossing inspired by bungeoppang but not Japanese patterns, clear rectangular artwork window and clean lower information zone, no text, no icons, transparent outside, production-ready raster UI asset."
+    },
+    {
+      "asset": "store-tab-and-button-kit.png",
+      "prompt": "Raster UI kit for a Korean bungeoppang street-stall game: selected deep teal paper tab, unselected warm tan paper tab, primary brick-red long button, disabled muted gray-teal button, small cream status badges; all front-facing, handmade watercolor and hanji texture, blank with no text or icons, no Japanese motifs, generous padding, transparent background, consistent lighting and edges."
+    }
+  ],
+  "figma_assembly": {
+    "new_page": "Store UI · PC",
+    "sections": [
+      "00 · Source & Prompt",
+      "01 · Components",
+      "02 · UI_Store Screens"
+    ],
+    "component_usage": "Build each screen from component instances. Do not detach instances for screen composition.",
+    "asset_sources": [
+      "Reuse the existing Figma night-stall background image hash.",
+      "Upload the existing Unity fillings and coin artwork.",
+      "Upload generated panel/card/tab/button raster assets after approval."
+    ],
+    "text_policy": "Use Noto Sans KR Bold/Regular for legibility; reserve Gowun Batang Bold only for the main heading if it remains readable.",
+    "prototype_notes": [
+      "붕어빵 소 tab switches to UI_Store · Fillings.",
+      "아이템 tab switches to UI_Store · Items.",
+      "Card action states visually distinguish available, owned, locked, and disabled.",
+      "다음 날 영업 remains fixed and visually dominant."
+    ]
+  },
+  "out_of_scope": [
+    "Unity prefab or C# implementation",
+    "Final item economy and price balancing",
+    "Purchase confirmation modal",
+    "Item upgrade tree",
+    "In-app-market/HIVE catalog redesign"
+  ],
+  "validation": [
+    "Confirm both 1920x1080 screens keep a 64px safe margin.",
+    "Confirm card text remains readable at game-view scale.",
+    "Confirm four cards fit without overlap and the next row provides a visible scroll cue.",
+    "Confirm both balances and the next-day button remain visible while content scrolls.",
+    "Confirm the design uses image-backed visible surfaces instead of Figma-drawn decorative shapes.",
+    "Confirm no Japanese visual motifs are introduced."
+  ]
+}
